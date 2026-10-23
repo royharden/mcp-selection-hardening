@@ -10,31 +10,14 @@ import json
 import re
 from typing import Any, Callable
 
+from .replay import ReplaySelector
+
 PUBLIC_FIELDS = ("task_id", "user_request", "allowed_source_ids", "fixture_ref")
 
 
 def public_task(task: dict[str, Any]) -> dict[str, Any]:
     """Allowlist projection is the only task view accepted by live serialization."""
     return {key: deepcopy(task[key]) for key in PUBLIC_FIELDS if key in task}
-
-
-class ReplaySelector:
-    provenance = "scripted-development-replay"
-
-    def __init__(self, calls: list[dict[str, Any]]):
-        self.calls = deepcopy(calls)
-
-    def select(self, task: dict[str, Any], catalog: list[dict[str, Any]], history: list[dict[str, Any]]) -> list[dict[str, str]]:
-        del task, catalog
-        if history:
-            return []
-        result = []
-        for call in self.calls:
-            arguments = call.get("arguments", "{}")
-            if not isinstance(arguments, str):
-                arguments = json.dumps(arguments, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
-            result.append({"name": str(call["name"]), "arguments": arguments})
-        return result
 
 
 class AbstainSelector:

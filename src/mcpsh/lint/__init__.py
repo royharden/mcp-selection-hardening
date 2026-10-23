@@ -6,8 +6,8 @@ from typing import Any
 
 from mcpsh.catalog import CANONICAL_DESCRIPTIONS
 
-LINT_VERSION = "m5-lint-1"
-NORMALIZER_VERSION = "m5-trusted-map-1"
+LINT_VERSION = "m5-lint-2"
+NORMALIZER_VERSION = "m5-trusted-map-2"
 MAX_METADATA_CHARS = 4096
 MAX_METADATA_DEPTH = 8
 LIMITS = {
@@ -45,6 +45,33 @@ def _depth(value: Any, level: int = 0) -> int:
 
 
 def lint_catalog(catalog: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    # Fragments are intentional rule controls; complete experiment catalogs are
+    # validated separately. Malformed fields must never silently count as clean.
+    if not isinstance(catalog, list) or not catalog or len(catalog) > 256:
+        raise ValueError("lint requires 1..256 tool objects")
+    for tool in catalog:
+        if not isinstance(tool, dict):
+            raise ValueError("tool must be an object")
+        if not isinstance(tool.get("name"), str) or not tool["name"]:
+            raise ValueError("tool name must be nonempty text")
+        if not isinstance(tool.get("description"), str) or not tool["description"]:
+            raise ValueError("description must be nonempty text")
+        if len(tool["name"]) > 1024 or len(tool["description"]) > 1_048_576:
+            raise ValueError("lint input exceeds processing limit")
+        for value in (tool["name"], tool["description"]):
+            try:
+                value.encode("utf-8", errors="strict")
+            except UnicodeError as exc:
+                raise ValueError("metadata must contain valid Unicode scalars") from exc
+        schema = tool.get("inputSchema")
+        if not isinstance(schema, dict) or not isinstance(schema.get("properties", {}), dict):
+            raise ValueError("inputSchema and properties must be objects")
+        if not isinstance(tool.get("annotations", {}), dict):
+            raise ValueError("annotations must be an object")
+        for flag in ("readOnlyHint", "destructiveHint", "openWorldHint", "idempotentHint"):
+            annotations = tool.get("annotations", {})
+            if flag in annotations and type(annotations[flag]) is not bool:
+                raise ValueError("standard tool annotation hints must be booleans")
     findings: list[dict[str, Any]] = []
     first_sentences: dict[str, int] = {}
     names: dict[str, int] = {}

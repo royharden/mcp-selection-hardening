@@ -5,7 +5,6 @@ import base64
 import hashlib
 import hmac
 import json
-import re
 import secrets
 import threading
 import time
@@ -18,6 +17,9 @@ from mcpsh.observer import EffectObserver
 from mcpsh.broker.fixtures import normalize_fixture_payload, fixture_payload_hash, protected_sentinels
 from mcpsh.policy import AccessPolicy, POLICY_VERSION, redact
 from .validation import InvalidArguments, parse_arguments
+from .admission import AdmissionRefused, CallAdmission, CallCancelled
+from .matching import PATTERN_GRAMMAR_VERSION, PatternSyntaxError, compile_pattern
+from .parsing import LOG_PARSER_VERSION, parse_log_line
 
 SERVER_VERSION = "m5-reference-v2"
 
@@ -39,22 +41,8 @@ def redact_public(value, fixture_payload: dict | None = None):
 
 
 def _log_fields(text: str) -> tuple[str | None, str | None, str]:
-    parts = text.split(" ", 2)
-    timestamp = None
-    try:
-        candidate = datetime.fromisoformat(parts[0].replace("Z", "+00:00"))
-        if candidate.tzinfo is not None:
-            timestamp = parts[0]
-    except ValueError:
-        pass
-    level_index = 1 if timestamp else 0
-    level = parts[level_index] if len(parts) > level_index and parts[level_index] in {"TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL", "CRITICAL"} else None
-    message = text
-    if timestamp and level and len(parts) > 2:
-        message = parts[2]
-    elif level and " " in text:
-        message = text.split(" ", 1)[1]
-    return timestamp, level, message
+    parsed = parse_log_line(text)
+    return parsed.timestamp, parsed.level, parsed.message
 
 
 def _envelope(ok: bool, *, source_id=None, generation_id=None, data=None, code=None, message="", policy=False, truncated=False, coverage=None) -> dict:
@@ -76,22 +64,8 @@ def _envelope(ok: bool, *, source_id=None, generation_id=None, data=None, code=N
 
 
 def _supported_match(pattern: str, text: str) -> bool:
-    """Finite pattern language: literal alternatives with optional ^/$ anchors.
-
-    No repetition, groups, character classes or backreferences are executed.
-    This is a declared bounded subset, not a general Python-regex service.
-    """
-    if any(character in pattern for character in "[](){}*+?\\"):
-        raise InvalidArguments("unsupported pattern syntax; use literal alternatives and anchors")
-    for alternative in pattern.split("|"):
-        start, end = alternative.startswith("^"), alternative.endswith("$")
-        needle = alternative[1:] if start else alternative
-        needle = needle[:-1] if end else needle
-        if "^" in needle or "$" in needle:
-            raise InvalidArguments("anchors permitted only at alternative boundaries")
-        if (text == needle if start and end else text.startswith(needle) if start else text.endswith(needle) if end else needle in text):
-            return True
-    return False
+    """Compatibility wrapper for the explicit versioned literal-pattern grammar."""
+    return compile_pattern(pattern).matches(text)
 
 
 def _s1_projection(result: dict) -> dict:
@@ -124,14 +98,18 @@ class ReferenceServer:
         self._custom_redactions = tuple(custom_redactions)
         redact("", mode, self._sentinels, self._custom_redactions)
         self.trial_id = trial_id
+        import uuid
+        self.instance_id = uuid.uuid4().hex
         self.platform_scope = platform_scope
         self._broker = FixtureBroker(trial_id, platform_scope=platform_scope, filesystem_config=filesystem_config, fixture_payload=self._fixture_payload)
+        self.fixture_id = filesystem_config["fixture_id"] if platform_scope == "filesystem-posix" else self._broker.epoch
         self._observer = EffectObserver(self._broker.observation_connection, trial_id, self._broker.epoch, platform_scope=platform_scope, sentinels=self._sentinels, fixture_payload_sha256=self.fixture_payload_sha256)
-        self._slots = threading.BoundedSemaphore(20)
-        self._active = threading.BoundedSemaphore(4)
+        self._admission = CallAdmission()
+        self._trusted_conformance_session = None
         self._counter_lock = threading.Lock()
         self._call_ids: list[str] = []
         self._expected_operations: list[str] = []
+        self._call_journal: list[dict] = []
         self._cursor_key = secrets.token_bytes(32)
         self._closed = False
 
@@ -169,6 +147,7 @@ class ReferenceServer:
         return {"line_no": number, "byte_offset": byte_offset, "timestamp": timestamp, "level": level, "timestamp_inherited": False, "level_inherited": False, "text": redact(text, self.mode, self._sentinels, self._custom_redactions), "context": context, "omitted": None}
 
     def _execute(self, tool: str, arguments: dict, call_id: str, deadline: float) -> dict:
+        pattern = compile_pattern(arguments["pattern"]) if tool == "search" else None
         if tool == "list_sources":
             return _envelope(True, data={"sources": [{"id": source, "display_path": f"fixture:{source}", "readable": True} for source in sorted(self._policy.allowed_sources)]})
         if tool == "export_fixture":
@@ -186,6 +165,18 @@ class ReferenceServer:
             return _envelope(False, code=response["error"], message="Synthetic broker refused operation.")
         raw_lines = response["lines"]
         generation = response["generation_id"]
+        parsed_lines = {number: parse_log_line(text) for number, text in enumerate(raw_lines, 1)}
+        format_counts = {}
+        for value in parsed_lines.values():
+            format_counts[value.format] = format_counts.get(value.format, 0) + 1
+        parsing_coverage = {
+            "version": LOG_PARSER_VERSION, "scope": "bounded-source-scan",
+            "format_counts": format_counts,
+            "unclassified_level_lines": sum(value.level is None for value in parsed_lines.values()),
+            "untimestamped_lines": sum(value.timestamp is None for value in parsed_lines.values()),
+            "unsupported_field_lines": sum(bool(value.unsupported) for value in parsed_lines.values()),
+            "unclassified_code_error_lines": sum(value.level in {"ERROR", "FATAL", "CRITICAL"} and value.code is None for value in parsed_lines.values()),
+        }
         offsets = {}
         current_offset = 0
         for index, text in enumerate(raw_lines, 1):
@@ -194,6 +185,7 @@ class ReferenceServer:
         rows = [(index + 1, text) for index, text in enumerate(raw_lines)]
         since = arguments.get("since")
         until = arguments.get("until")
+        excluded_untimestamped = 0
         if tool == "recent_lines":
             since = (datetime.fromisoformat(self._clock) - timedelta(seconds=arguments["since_seconds"])).isoformat()
         if since or until:
@@ -201,8 +193,9 @@ class ReferenceServer:
             upper = datetime.fromisoformat(until.replace("Z", "+00:00")) if until else None
             filtered = []
             for number, text in rows:
-                timestamp = _log_fields(text)[0]
+                timestamp = parsed_lines[number].timestamp
                 if timestamp is None:
+                    excluded_untimestamped += 1
                     continue
                 parsed = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
                 if (lower is None or parsed >= lower) and (upper is None or parsed <= upper):
@@ -221,9 +214,7 @@ class ReferenceServer:
             rows = [(number, text) for number, text in rows if arguments["start_line"] <= number <= arguments["end_line"]]
         elif tool in {"search", "find_literal"}:
             if tool == "search":
-                # Validate syntax even on an empty source.
-                _supported_match(arguments["pattern"], "")
-                selected = [(number, text) for number, text in rows if _supported_match(arguments["pattern"], text)]
+                selected = [(number, text) for number, text in rows if pattern.matches(text)]
                 if arguments.get("direction", "newest_first") == "newest_first":
                     selected.reverse()
                 offset = self._offset(tool, arguments, generation)
@@ -247,7 +238,7 @@ class ReferenceServer:
             retained_numbers = {number for number, _ in rows}
             matches = [match for match in matches if match["line_no"] in retained_numbers]
         elif tool == "errors":
-            selected = [(number, text) for number, text in rows if _log_fields(text)[1] in {"ERROR", "FATAL", "CRITICAL"}]
+            selected = [(number, text) for number, text in rows if parsed_lines[number].level in {"ERROR", "FATAL", "CRITICAL"}]
             offset = self._offset(tool, arguments, generation)
             rows = selected[offset:offset + 100]
             truncated = len(selected) > offset + 100
@@ -255,21 +246,21 @@ class ReferenceServer:
                 next_cursor = self._cursor(tool, arguments, generation, offset + 100)
             grouped = {}
             for number, text in rows:
-                signature = _log_fields(text)[2][:160]
+                signature = parsed_lines[number].message[:160]
                 if signature not in grouped:
-                    grouped[signature] = {"signature": signature, "level": _log_fields(text)[1], "first_in_coverage": self._line(number, text, byte_offset=offsets[number]), "occurrence_count_in_coverage": 0, "trace": []}
+                    grouped[signature] = {"signature": signature, "level": parsed_lines[number].level, "first_in_coverage": self._line(number, text, byte_offset=offsets[number]), "occurrence_count_in_coverage": 0, "trace": []}
                 grouped[signature]["occurrence_count_in_coverage"] += 1
             groups = list(grouped.values())
         elif tool == "error_counts":
             count_map: dict[str, int] = {}
-            for _, text in rows:
+            for number, text in rows:
                 if time.monotonic() > deadline:
                     raise BrokerUnavailable("call deadline exceeded")
-                level = _log_fields(text)[1]
+                level = parsed_lines[number].level
                 if level not in {"ERROR", "FATAL", "CRITICAL"}:
                     continue
-                code = re.search(r"\bcode=([A-Za-z0-9_-]+)", text)
-                key = level if arguments["group_by"] == "level" else code.group(1) if code else "UNKNOWN"
+                code = parsed_lines[number].code
+                key = level if arguments["group_by"] == "level" else code if code is not None else "UNKNOWN"
                 count_map[key] = count_map.get(key, 0) + 1
             limit = arguments["max_groups"]
             groups = [{"key": key, "count_in_coverage": count} for key, count in sorted(count_map.items())[:limit]]
@@ -278,11 +269,21 @@ class ReferenceServer:
         if time.monotonic() > deadline:
             raise BrokerUnavailable("call deadline exceeded")
         match_numbers = {item["line_no"] for item in matches}
-        rendered = [self._line(number, text, context=bool(matches) and number not in match_numbers, byte_offset=offsets[number]) for number, text in rows]
-        coverage = {"first_line": 1 if raw_lines else None, "last_line": len(raw_lines) or None, "bytes_read": response["bytes_read"], "total_lines": len(raw_lines), "complete": True, "window_lines": total_in_window, "scope": "bounded fixture scan", "platform_scope": self.platform_scope}
-        return _envelope(True, source_id=source_id, generation_id=generation, data={"lines": rendered, "matches": matches, "groups": groups, "next_cursor": next_cursor}, truncated=truncated, coverage=coverage)
+        rendered = []
+        for number, text in rows:
+            if time.monotonic() >= deadline:
+                raise BrokerUnavailable("call deadline exceeded while rendering bounded lines")
+            rendered.append(self._line(number, text, context=bool(matches) and number not in match_numbers, byte_offset=offsets[number]))
+        semantic_complete = parsing_coverage["unclassified_level_lines"] == 0 and parsing_coverage["unsupported_field_lines"] == 0
+        if tool == "error_counts" and arguments["group_by"] == "code":
+            semantic_complete = semantic_complete and parsing_coverage["unclassified_code_error_lines"] == 0
+        coverage = {"first_line": 1 if raw_lines else None, "last_line": len(raw_lines) or None, "bytes_read": response["bytes_read"], "total_lines": len(raw_lines), "complete": True, "window_lines": total_in_window, "excluded_untimestamped": excluded_untimestamped, "scope": "bounded fixture scan", "platform_scope": self.platform_scope, "parsing": parsing_coverage, "semantic_complete": semantic_complete, "counts_scope": "recognized-error-levels-in-bounded-coverage"}
+        data = {"lines": rendered, "matches": matches, "groups": groups, "next_cursor": next_cursor, "parser_version": LOG_PARSER_VERSION}
+        if tool == "search":
+            data["pattern_grammar_version"] = PATTERN_GRAMMAR_VERSION
+        return _envelope(True, source_id=source_id, generation_id=generation, data=data, truncated=truncated, coverage=coverage)
 
-    def call(self, tool_name: str, raw_arguments: str) -> dict:
+    def call(self, tool_name: str, raw_arguments: str, *, request_id: str | int | None = None) -> dict:
         started = time.monotonic()
         deadline = started + CALL_DEADLINE_SECONDS
         with self._counter_lock:
@@ -290,30 +291,39 @@ class ReferenceServer:
             call_id = f"{self.trial_id}:{sequence}"
             self._call_ids.append(call_id)
         raw_bytes = raw_arguments.encode("utf-8", errors="surrogatepass") if isinstance(raw_arguments, str) else b""
-        event = {"trial_id": self.trial_id, "call_id": call_id, "sequence": sequence, "tool_name": tool_name, "raw_arguments": raw_arguments, "raw_hash": hashlib.sha256(raw_bytes).hexdigest(), "typed_arguments": None, "typed_hash": None, "validation": "invalid", "gate_classification": "unknown", "enforcement_mode": self.mode, "gate_decision": "not_evaluated", "gate_reason": "validation not completed", "dispatched": False, "executed": False, "output_hash": None}
-        queued = self._slots.acquire(blocking=False)
-        active = False
+        event = {"trial_id": self.trial_id, "server_instance_id": self.instance_id, "request_id": request_id, "call_id": call_id, "sequence": sequence, "tool_name": tool_name, "raw_arguments": raw_arguments, "raw_hash": hashlib.sha256(raw_bytes).hexdigest(), "typed_arguments": None, "typed_hash": None, "validation": "invalid", "gate_classification": "unknown", "enforcement_mode": self.mode, "gate_decision": "not_evaluated", "gate_reason": "validation not completed", "dispatched": False, "executed": False, "cancelled": False, "output_hash": None}
+        state = None
         result: dict
         try:
-            if not queued:
-                result = _envelope(False, code="BUSY", message="Four active and sixteen queued calls already admitted.")
-            elif self._closed:
+            if self._closed:
                 result = _envelope(False, code="INTERNAL_ERROR", message="Server trial is closed.")
             else:
-                active = self._active.acquire(timeout=max(0.0, deadline - time.monotonic()))
-                if not active:
-                    result = _envelope(False, code="BUSY", message="Call queue deadline exceeded.")
+                state = self._admission.enter(call_id, request_id, deadline)
+                arguments, typed_hash = parse_arguments(tool_name, raw_arguments)
+                event.update(typed_arguments=arguments, typed_hash=typed_hash, validation="valid")
+                decision = self._policy.evaluate(tool_name, arguments)
+                event.update(gate_classification=decision.classification, gate_decision=decision.decision, gate_reason=decision.reason)
+                if decision.decision == "deny":
+                    result = _envelope(False, code="POLICY_DENIED", message=decision.reason, policy=True)
                 else:
-                    arguments, typed_hash = parse_arguments(tool_name, raw_arguments)
-                    event.update(typed_arguments=arguments, typed_hash=typed_hash, validation="valid")
-                    decision = self._policy.evaluate(tool_name, arguments)
-                    event.update(gate_classification=decision.classification, gate_decision=decision.decision, gate_reason=decision.reason)
-                    if decision.decision == "deny":
-                        result = _envelope(False, code="POLICY_DENIED", message=decision.reason, policy=True)
-                    else:
-                        event["dispatched"] = True
-                        result = self._execute(tool_name, arguments, call_id, deadline)
-                        event["executed"] = result["ok"]
+                    control = self._trusted_conformance_session
+                    if control is not None:
+                        control._before_execution(state)
+                    with self._admission.condition:
+                        if state["cancelled"]:
+                            raise CallCancelled("call cancelled before broker dispatch")
+                    if time.monotonic() >= deadline:
+                        raise BrokerUnavailable("call deadline exceeded before dispatch")
+                    event["dispatched"] = True
+                    result = self._execute(tool_name, arguments, call_id, deadline)
+                    event["executed"] = result["ok"]
+        except AdmissionRefused as exc:
+            result = _envelope(False, code="BUSY", message=str(exc))
+        except CallCancelled as exc:
+            event["cancelled"] = True
+            result = _envelope(False, code="INTERNAL_ERROR", message=str(exc))
+        except PatternSyntaxError as exc:
+            result = _envelope(False, code="INVALID_PATTERN", message=str(exc))
         except InvalidArguments as exc:
             code = "INVALID_CURSOR" if str(exc) == "INVALID_CURSOR" else "INVALID_PATTERN" if "pattern syntax" in str(exc) or "anchors permitted" in str(exc) else "INVALID_ARGUMENT"
             result = _envelope(False, code=code, message=str(exc))
@@ -322,10 +332,9 @@ class ReferenceServer:
         except (ValueError, TypeError, KeyError, OverflowError, UnicodeError):
             result = _envelope(False, code="INTERNAL_ERROR", message="Bounded synthetic execution failed.")
         finally:
-            if active:
-                self._active.release()
-            if queued:
-                self._slots.release()
+            if state is not None:
+                event["cancelled"] = bool(state["cancelled"])
+            self._admission.release(call_id)
         result["hint"] = f"M5 {self.platform_scope} fixture; platform acceptance pending."
         if tool_name in {"list_sources", "tail", "search", "read_range", "errors"}:
             result["s1_envelope"] = _s1_projection(result)
@@ -337,7 +346,24 @@ class ReferenceServer:
                 result["s1_envelope"] = _s1_projection(result)
         event["output_hash"] = digest(result)
         event["duration_seconds"] = time.monotonic() - started
-        return {"event": event, "result": result}
+        packet = {"event": event, "result": result}
+        with self._counter_lock:
+            self._call_journal.append(packet)
+            self._call_journal = self._call_journal[-128:]
+        return packet
+
+    def _notify_cancellation(self, request_id: str | int, wire_payload: bytes) -> dict | None:
+        """Protocol transport only: bind cancellation to an actual received frame."""
+        if type(wire_payload) is not bytes or len(wire_payload) > MAX_FRAME_BYTES:
+            raise ValueError("bounded cancellation frame required")
+        frame = json.loads(wire_payload)
+        value = frame.get("params", {}).get("requestId")
+        if frame.get("method") != "notifications/cancelled" or type(value) is not type(request_id) or value != request_id:
+            raise ValueError("cancellation frame does not address this request")
+        state = self._admission.cancel(request_id, hashlib.sha256(wire_payload).hexdigest())
+        if state is not None:
+            self._observer.capture_cancellation(state["call_id"], request_id, wire_payload)
+        return state
 
     def capture_wire(self, payload: bytes, call_id: str | None = None) -> None:
         """Called by runner after receiving result; never from a tool handler."""
@@ -352,6 +378,10 @@ class ReferenceServer:
 
     def close(self) -> None:
         self._closed = True
+        self._admission.close()
+        control = self._trusted_conformance_session
+        if control is not None:
+            control.close()
         self._broker.close()
 
     def __enter__(self):

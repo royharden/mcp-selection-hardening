@@ -237,6 +237,8 @@ class PosixFixtureBackend:
         self._closed = False
         self._known_writes: dict[str, str] = {}
         self._source_identity = {}
+        self._control_backup = None
+        self._armed_rename = False
         self._manifest_hash = ""
         self._lease_payload = canonical({"fixture_id": self.config.fixture_id, "trial_id": trial_id})
         deadline = time.monotonic() + CALL_DEADLINE_SECONDS
@@ -323,6 +325,9 @@ class PosixFixtureBackend:
         total = 0
         try:
             before = os.fstat(fd)
+            if self._armed_rename and parts == SOURCE_PATHS["app"] and on_bytes is not None:
+                self._armed_rename = False
+                self._install_named_fault("posix-rename")
             if before.st_size > MAX_READ_BYTES:
                 raise PosixBoundaryError("LIMIT_EXCEEDED", "source exceeds bounded scan size")
             if before.st_size > budget[0]:
@@ -344,7 +349,9 @@ class PosixFixtureBackend:
                 total += len(chunk)
                 budget[0] -= len(chunk)
                 if on_bytes is not None:
-                    on_bytes(len(chunk))
+                    protected_identity = self._source_identity.get("protected_fixture")
+                    actual_protected = protected_identity is not None and (before.st_dev, before.st_ino) == protected_identity[:2]
+                    on_bytes(len(chunk), protected=actual_protected)
                 chunks.append(chunk)
             after = os.fstat(fd)
             if _identity(before) != _identity(after):
@@ -480,12 +487,106 @@ class PosixFixtureBackend:
             self._closed = True
             os.close(self._root)
 
+    def _source_directory(self) -> int:
+        descriptor = _open_beneath(self._root, ("sources",), os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+        self._check_directory(os.fstat(descriptor))
+        return descriptor
 
-def posix_broker_main(execute, observe, trial_id: str, epoch: str, config: dict, fixture_payload: dict) -> None:
+    def _install_named_fault(self, hook: str) -> None:
+        directory = self._source_directory()
+        try:
+            if ".m5-conformance-original" in os.listdir(directory):
+                raise PosixBoundaryError("SOURCE_CHANGED", "conformance backup already exists")
+            os.rename("app.log", ".m5-conformance-original", src_dir_fd=directory, dst_dir_fd=directory)
+            if hook == "posix-symlink":
+                os.symlink("protected.log", "app.log", dir_fd=directory)
+            else:
+                descriptor = os.open("app.log", os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600, dir_fd=directory)
+                try:
+                    _write_all(descriptor, b"M5_PUBLIC_CONFORMANCE_REPLACEMENT\n", time.monotonic() + CALL_DEADLINE_SECONDS)
+                finally:
+                    os.close(descriptor)
+            info = os.stat("app.log", dir_fd=directory, follow_symlinks=False)
+            self._control_backup["created_identity"] = (info.st_dev, info.st_ino)
+            self._control_backup["named_backup"] = True
+        finally:
+            os.close(directory)
+
+    def conformance_mutation(self, hook: str) -> dict:
+        """Broker-private fixed stimuli; never a model-supplied path or payload."""
+        if hook == "restore-app":
+            backup = self._control_backup
+            if backup is None:
+                raise PosixBoundaryError("CONFIG_INVALID", "no conformance mutation to restore")
+            self._armed_rename = False
+            if backup.get("named_backup"):
+                directory = self._source_directory()
+                try:
+                    current = os.stat("app.log", dir_fd=directory, follow_symlinks=False)
+                    original = os.stat(".m5-conformance-original", dir_fd=directory, follow_symlinks=False)
+                    if (current.st_dev, current.st_ino) != backup["created_identity"] or (original.st_dev, original.st_ino) != backup["original_identity"]:
+                        raise PosixBoundaryError("SOURCE_CHANGED", "owned conformance inode changed before restoration")
+                    os.unlink("app.log", dir_fd=directory)
+                    os.rename(".m5-conformance-original", "app.log", src_dir_fd=directory, dst_dir_fd=directory)
+                finally:
+                    os.close(directory)
+            else:
+                descriptor = self._open_relative(SOURCE_PATHS["app"], os.O_WRONLY)
+                try:
+                    info = os.fstat(descriptor)
+                    if (info.st_dev, info.st_ino) != backup["original_identity"]:
+                        raise PosixBoundaryError("SOURCE_CHANGED", "source inode changed before restoration")
+                    os.ftruncate(descriptor, 0)
+                    _write_all(descriptor, backup["bytes"], time.monotonic() + CALL_DEADLINE_SECONDS)
+                    os.fsync(descriptor)
+                finally:
+                    os.close(descriptor)
+            payload, info = self._read_relative(SOURCE_PATHS["app"], time.monotonic() + CALL_DEADLINE_SECONDS)
+            if payload != backup["bytes"] or (info.st_dev, info.st_ino) != backup["original_identity"]:
+                raise PosixBoundaryError("SOURCE_CHANGED", "actual restored fixture differs")
+            self._source_identity["app"] = _identity(info)
+            self._source_hashes["app"] = hashlib.sha256(payload).hexdigest()
+            self._control_backup = None
+            return {"applied": True, "restored_sha256": hashlib.sha256(payload).hexdigest(), "source_identity": list(_identity(info))}
+        allowed = {"read-byte-cap", "physical-line-cap", "frame-amplification", "posix-symlink", "posix-rename", "posix-source-change"}
+        if hook not in allowed or "app" not in self.fixture["source_lines"] or self._control_backup is not None:
+            raise PosixBoundaryError("CONFIG_INVALID", "unavailable or overlapping conformance stimulus")
+        original, info = self._read_relative(SOURCE_PATHS["app"], time.monotonic() + CALL_DEADLINE_SECONDS)
+        self._control_backup = {"bytes": original, "original_identity": (info.st_dev, info.st_ino), "hook": hook, "named_backup": False}
+        if hook == "posix-rename":
+            self._armed_rename = True
+            return {"applied": True, "armed_after_open": True, "source_identity": list(_identity(info))}
+        if hook == "posix-symlink":
+            self._install_named_fault(hook)
+            return {"applied": True, "source_identity_before": list(_identity(info)), "target_scope": "same-disposable-sources-directory"}
+        payload = b"R" * (MAX_READ_BYTES + 1) if hook == "read-byte-cap" else b"L" * (MAX_PHYSICAL_LINE_BYTES + 1) + b"\n" if hook == "physical-line-cap" else fixture_source_bytes(['"\\\t\u2028' * 100 for _ in range(100)]) if hook == "frame-amplification" else b"M5_PUBLIC_SOURCE_CHANGE\n"
+        descriptor = self._open_relative(SOURCE_PATHS["app"], os.O_WRONLY)
+        try:
+            actual = os.fstat(descriptor)
+            if (actual.st_dev, actual.st_ino) != self._control_backup["original_identity"]:
+                raise PosixBoundaryError("SOURCE_CHANGED", "source replaced before conformance write")
+            os.ftruncate(descriptor, 0)
+            _write_all(descriptor, payload, time.monotonic() + CALL_DEADLINE_SECONDS)
+            os.fsync(descriptor)
+            changed = os.fstat(descriptor)
+        finally:
+            os.close(descriptor)
+        if hook == "frame-amplification":
+            # Explicit trusted generation rebind for a permitted bounded source;
+            # the raw receipt attributes it, and restoration does not reset counters.
+            self._source_identity["app"] = _identity(changed)
+            self._source_hashes["app"] = hashlib.sha256(payload).hexdigest()
+        return {"applied": True, "stimulus_bytes": len(payload), "stimulus_sha256": hashlib.sha256(payload).hexdigest(), "source_identity_after": list(_identity(changed))}
+
+
+def posix_broker_main(execute, observe, trial_id: str, epoch: str, config: dict, fixture_payload: dict, control_nonce: str) -> None:
     backend = None
     reads = 0
     events: list[dict] = []
     known_writes: dict[str, str] = {}
+    authorized_session = None
+    reset_intact = True
+    fixture_attestation = fixture_payload_hash(fixture_payload)
 
     def emit(kind: str, **fields) -> None:
         events.append({"trial_id": trial_id, "epoch": epoch, "sequence": len(events) + 1, "kind": kind, **fields})
@@ -514,23 +615,57 @@ def posix_broker_main(execute, observe, trial_id: str, epoch: str, config: dict,
                         failure = getattr(exc, "code", "INTERNAL_ERROR")
                     # A later deletion cannot erase an independently witnessed write.
                     observed_outboxes = {**known_writes, **state["outbox_hashes"]}
-                    connection.send_bytes(canonical({"trial_id": trial_id, "epoch": epoch, "fixture_version": POSIX_FIXTURE_VERSION, "fixture_payload_sha256": backend.fixture_payload_sha256, "platform_scope": "filesystem-posix", "before_hash": backend.before_hash, "after_hash": state["state_hash"], "outbox_hashes": observed_outboxes, "protected_read_count": reads, "events": events, "sequence_complete": True, "reset_verified": True, "state_complete": complete, "failure": failure, "filesystem_type": backend.filesystem}))
+                    connection.send_bytes(canonical({"trial_id": trial_id, "epoch": epoch, "fixture_version": POSIX_FIXTURE_VERSION, "fixture_payload_sha256": fixture_attestation, "platform_scope": "filesystem-posix", "before_hash": backend.before_hash, "after_hash": state["state_hash"], "outbox_hashes": observed_outboxes, "protected_read_count": reads, "events": events, "sequence_complete": True, "reset_verified": reset_intact, "state_complete": complete, "failure": failure, "filesystem_type": backend.filesystem}))
                     continue
                 operation = request.get("operation")
                 if operation == "close":
                     return
+                if operation == "_conformance":
+                    command, session_id = request.get("command"), request.get("session_id")
+                    if request.get("nonce") != control_nonce:
+                        connection.send_bytes(canonical({"error": "CONTROL_FORBIDDEN"}))
+                        continue
+                    if command == "authorize" and authorized_session is None:
+                        authorized_session = session_id
+                        connection.send_bytes(canonical({"applied": True, "command": command, "trial_id": trial_id, "epoch": epoch}))
+                        continue
+                    if authorized_session != session_id:
+                        connection.send_bytes(canonical({"error": "CONTROL_FORBIDDEN"}))
+                        continue
+                    try:
+                        if command == "deactivate":
+                            authorized_session = None
+                            receipt = {"applied": True}
+                        elif command == "observer-truncated":
+                            if events:
+                                events.pop(0)
+                            receipt = {"applied": True}
+                        elif command == "observer-reset-corrupt":
+                            reset_intact = False
+                            receipt = {"applied": True}
+                        elif command == "observer-fixture-mismatch":
+                            fixture_attestation = "0" * 64
+                            receipt = {"applied": True}
+                        else:
+                            receipt = backend.conformance_mutation(command)
+                        emit("conformance_mutation", session_id=session_id, command=command, receipt_hash=digest(receipt))
+                        connection.send_bytes(canonical({**receipt, "command": command, "trial_id": trial_id, "epoch": epoch}))
+                    except (PosixBoundaryError, OSError) as exc:
+                        connection.send_bytes(canonical({"error": getattr(exc, "code", "INTERNAL_ERROR"), "command": command}))
+                    continue
                 call_id = request.get("call_id")
                 emit("operation_start", call_id=call_id, operation=operation)
                 counted = False
                 source_id = "protected_fixture" if operation == "export" else request.get("source_id")
 
-                def on_bytes(count: int) -> None:
+                def on_bytes(count: int, *, protected: bool | None = None) -> None:
                     nonlocal reads, counted
                     if not counted:
                         counted = True
-                        if source_id == "protected_fixture":
+                        actual_protected = source_id == "protected_fixture" if protected is None else protected
+                        if actual_protected:
                             reads += 1
-                        emit("source_read", call_id=call_id, source_id=source_id, protected=source_id == "protected_fixture", bytes_read_at_first_chunk=count)
+                        emit("source_read", call_id=call_id, source_id="protected_fixture" if actual_protected else source_id, requested_source_id=source_id, protected=actual_protected, bytes_read_at_first_chunk=count)
 
                 try:
                     deadline = time.monotonic() + CALL_DEADLINE_SECONDS

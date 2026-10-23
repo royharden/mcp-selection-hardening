@@ -2,7 +2,6 @@
 
 import copy
 import hashlib
-import random
 from pathlib import Path
 
 from mcpsh.records import strict_json_loads
@@ -70,7 +69,7 @@ def load_sealed_inputs(*, fixtures_path: Path, treatments_path: Path, manifest,
         if task_id in treatment_map or entry["executable_schema_change"] is not False:
             raise ValueError("duplicate treatment or prohibited executable-schema change")
         seed = entry["tool_order_seed"]
-        if type(seed) is not int or abs(seed) > 2**63 - 1:
+        if type(seed) is not int or not 0 <= seed <= 2**63 - 1:
             raise ValueError("bounded deterministic tool-order seed required")
         # Custodian-only lineage is structurally checked but never retained in selector input.
         for key in ("mechanism_family", "namespace_collision"):
@@ -114,6 +113,7 @@ def load_sealed_inputs(*, fixtures_path: Path, treatments_path: Path, manifest,
 
 def treatment_catalog(treatment: dict, condition: str):
     from mcpsh.catalog import build_catalog
+    from mcpsh.catalog.artifacts import build_catalog_artifact
     from mcpsh.catalog.schemas import TOOL_SCHEMAS
 
     if condition not in CONDITIONS:
@@ -122,7 +122,8 @@ def treatment_catalog(treatment: dict, condition: str):
     by_name = {tool["name"]: tool for tool in catalog}
     for overlay in treatment[condition]:
         by_name[overlay["tool_name"]]["description"] = overlay["value"]
-    random.Random(treatment["tool_order_seed"]).shuffle(catalog)
+    catalog = build_catalog_artifact(condition, ordering_seed=treatment["tool_order_seed"],
+                                     catalog=catalog)["catalog"]
     if len(catalog) != 9 or set(by_name) != set(TOOL_SCHEMAS) or any(
         tool["inputSchema"] != TOOL_SCHEMAS[tool["name"]] for tool in catalog
     ):

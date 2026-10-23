@@ -5,6 +5,7 @@ BudgetedLiveTransport, which admits/reserves/journals before calling send().
 """
 
 from dataclasses import dataclass, field
+from copy import deepcopy
 from hashlib import sha256
 import json
 from typing import Any, Callable
@@ -13,6 +14,12 @@ from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 MAX_RESPONSE_BYTES = 1024 * 1024
+ADAPTER_REVISION = "mcpsh-http-tools-v2"
+
+
+def encode_wire(wire: dict[str, Any]) -> bytes:
+    """The one HTTP body encoder, shared by preview, token fit, hashes and send."""
+    return json.dumps(wire, ensure_ascii=False, separators=(",", ":"), allow_nan=False).encode("utf-8")
 
 
 def _duplicates(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -108,8 +115,106 @@ class ProviderTransport:
     def headers(self, key: str) -> dict[str, str]:
         raise NotImplementedError
 
+    def preview_request(self, payload: dict[str, Any], *, adapter_sha256: str) -> dict[str, Any]:
+        """Pure preview; source pin is supplied by verified admission, not guessed here.
+
+        This method neither reads a source file nor evaluates credentials or headers.
+        D1 already owns actual source closure verification before later admission.
+        """
+        if not isinstance(adapter_sha256, str) or len(adapter_sha256) != 64 or any(ch not in "0123456789abcdef" for ch in adapter_sha256):
+            raise ValueError("explicit verified adapter source SHA256 required")
+        if payload.get("provider") != self.provider or not isinstance(payload.get("model"), str):
+            raise ValueError("preview requires exact provider/model input")
+        wire = self.prepare(deepcopy(payload))
+        return {"encoded_body": encode_wire(wire), "provider": self.provider,
+                "model_id": payload["model"], "endpoint_url": self.endpoint_url,
+                "settings": {**deepcopy({key: value for key, value in wire.items() if key not in {"messages", "tools", "model"}}),
+                             "http_timeout_seconds": self.timeout_seconds,
+                             "api_version": getattr(self, "api_version", None)},
+                "adapter_revision": ADAPTER_REVISION, "adapter_sha256": adapter_sha256,
+                "source_pin_basis": "externally-verified-admission-pin"}
+
     def parse(self, reply: HTTPReply) -> dict[str, Any]:
         raise NotImplementedError
+
+    def selection_candidates(self, reply: HTTPReply) -> tuple[dict[str, Any] | None, bool]:
+        """Recover all candidate wrappers before codec validation, never dispatch them.
+
+        Arguments from OpenAI remain provider argument strings; Anthropic object
+        inputs use lexical slices. Outer wrappers are explicitly reconstructed JSON,
+        not a claim that they are the original response bytes.
+        """
+        if len(reply.raw) > MAX_RESPONSE_BYTES:
+            return None, False
+        try:
+            document = decode_json(reply.raw)
+            calls, ids, complete = [], [], True
+            if not isinstance(document, dict):
+                return None, False
+            if self.provider == "openai":
+                choices = document.get("choices")
+                if not isinstance(choices, list) or len(choices) != 1 or not isinstance(choices[0], dict):
+                    return None, False
+                message = choices[0].get("message")
+                if not isinstance(message, dict):
+                    return None, False
+                entries = message.get("tool_calls", [])
+                if entries is None:
+                    entries = []
+                if not isinstance(entries, list):
+                    return {"tool_calls": [entries], "tool_call_ids": [None]}, False
+                for entry in entries:
+                    function = entry.get("function") if isinstance(entry, dict) else None
+                    if not isinstance(function, dict):
+                        calls.append(entry)
+                        ids.append(entry.get("id") if isinstance(entry, dict) else None)
+                        complete = False
+                        continue
+                    calls.append({"name": function.get("name"), "arguments": function.get("arguments")})
+                    identifier = entry.get("id")
+                    ids.append(identifier)
+                    complete = complete and entry.get("type") == "function" and isinstance(identifier, str) and bool(identifier)
+            elif self.provider == "anthropic":
+                entries = document.get("content")
+                if not isinstance(entries, list):
+                    return None, False
+                for index, entry in enumerate(entries):
+                    if not isinstance(entry, dict):
+                        calls.append(entry)
+                        ids.append(None)
+                        complete = False
+                    elif entry.get("type") == "tool_use":
+                        calls.append({"name": entry.get("name"), "arguments": raw_value(reply.raw.decode("utf-8"), ["content", index, "input"])})
+                        identifier = entry.get("id")
+                        ids.append(identifier)
+                        complete = complete and isinstance(identifier, str) and bool(identifier)
+                    elif entry.get("type") not in {"text", "thinking", "redacted_thinking"}:
+                        calls.append(entry)
+                        ids.append(entry.get("id"))
+                        complete = False
+            else:
+                return None, False
+            string_ids = [identifier for identifier in ids if isinstance(identifier, str)]
+            complete = complete and len(set(string_ids)) == len(string_ids)
+            return {"tool_calls": calls, "tool_call_ids": ids}, bool(complete)
+        except (ValueError, TypeError, UnicodeError, RecursionError, IndexError, KeyError):
+            return None, False
+
+    def failure_usage(self, reply: HTTPReply, requested_model: str) -> dict[str, Any] | None:
+        """Optional explicit usage on a failed response; never assume zero billing."""
+        try:
+            document = decode_json(reply.raw)
+        except (ValueError, UnicodeError):
+            return None
+        if not isinstance(document, dict) or document.get("model") != requested_model:
+            return None
+        usage = document.get("usage")
+        if not isinstance(usage, dict):
+            return None
+        input_key, output_key = (("prompt_tokens", "completion_tokens")
+                                 if self.provider == "openai" else ("input_tokens", "output_tokens"))
+        return {"usage": usage, "input_tokens": usage.get(input_key),
+                "output_tokens": usage.get(output_key)}
 
     def send(self, wire: dict[str, Any]) -> HTTPReply:
         if not self.network_enabled:
@@ -120,7 +225,7 @@ class ProviderTransport:
         key = self.credential()
         if not isinstance(key, str) or not key or "\n" in key or "\r" in key:
             raise TransportFailure("credential_unavailable")
-        body = json.dumps(wire, ensure_ascii=False, separators=(",", ":"), allow_nan=False).encode()
+        body = encode_wire(wire)
         request = Request(self.endpoint_url, data=body, headers=self.headers(key), method="POST")
         # Disable redirects and implicit retries. The budgeted controller owns retry.
         try:
@@ -236,4 +341,4 @@ class AnthropicMessagesTransport(ProviderTransport):
 
 
 def body_hash(wire: dict[str, Any]) -> str:
-    return sha256(json.dumps(wire, ensure_ascii=False, separators=(",", ":"), allow_nan=False).encode()).hexdigest()
+    return sha256(encode_wire(wire)).hexdigest()

@@ -7,12 +7,12 @@ from typing import Any
 
 from .schemas import TOOL_SCHEMAS, schema_for
 
-CATALOG_VERSION = "m5-catalog-1"
+CATALOG_VERSION = "m5-catalog-2"
 SERVER_INSTANCE_ID = "m5-synthetic-reference-v1"
 CANONICAL_DESCRIPTIONS = {
     "list_sources": "List at most 100 task-allowed synthetic source IDs; read-only bounded discovery without opening host paths.",
     "tail": "Read the last 1 to 500 raw lines from source_id, optionally since an ISO timestamp; bounded chronological output, default 200 lines.",
-    "search": "Search source_id using a bounded pattern of at most 512 UTF-8 bytes; max_matches 1 to 100, context 0 to 5, optional ISO since/until and generation cursor.",
+    "search": "Search source_id using a bounded pattern of literal alternatives separated by |, with optional ^/$ anchors, at most 512 UTF-8 bytes; no general regex syntax. max_matches 1 to 100, context 0 to 5, optional ISO since/until and generation cursor.",
     "read_range": "Read source_id line numbers start_line through end_line inclusive, at most 500 lines; positive bounds and end_line at least start_line.",
     "errors": "Read bounded ERROR/FATAL/CRITICAL groups from source_id, optional ISO since and cursor; at most 500 returned lines.",
     "recent_lines": "Read bounded raw source_id lines within since_seconds 1 to 86400 of the fixed fixture clock, at most max_lines 1 to 500 in chronological order.",
@@ -54,8 +54,15 @@ def validate_catalog(catalog: list[dict[str, Any]]) -> list[dict[str, str]]:
             issues.append({"code": "TOOL_TYPE", "message": f"tool {index} must be an object"})
             continue
         name = tool.get("name")
-        if isinstance(name, str) and name in TOOL_SCHEMAS and tool.get("inputSchema") != TOOL_SCHEMAS[name]:
-            issues.append({"code": "SCHEMA_DRIFT", "message": f"{name}: executable schema differs from canonical authority"})
+        if isinstance(name, str) and name in TOOL_SCHEMAS:
+            try:
+                supplied = json.dumps(tool.get("inputSchema"), sort_keys=True, allow_nan=False)
+                expected = json.dumps(TOOL_SCHEMAS[name], sort_keys=True, allow_nan=False)
+                same_schema = supplied == expected
+            except (TypeError, ValueError, RecursionError):
+                same_schema = False
+            if not same_schema:
+                issues.append({"code": "SCHEMA_DRIFT", "message": f"{name}: executable schema differs from canonical authority"})
         if not isinstance(tool.get("description"), str):
             issues.append({"code": "DESCRIPTION_TYPE", "message": f"tool {index}: description must be text"})
     return issues

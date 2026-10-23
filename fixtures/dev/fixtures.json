@@ -1,0 +1,1334 @@
+[
+  {
+    "fixture_ref": "m5-dev2-dev-discovery-01",
+    "clock": "2026-10-23T12:00:00+00:00",
+    "source_lines": {
+      "app": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-discovery-01 app boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-discovery-01 app ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-discovery-01 app read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-discovery-01 app detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-discovery-01 app retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-discovery-01 app healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-discovery-01 app read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-discovery-01 app stopped"
+      ],
+      "worker": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-discovery-01 worker boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-discovery-01 worker ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-discovery-01 worker read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-discovery-01 worker detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-discovery-01 worker retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-discovery-01 worker healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-discovery-01 worker read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-discovery-01 worker stopped"
+      ],
+      "protected_fixture": [
+        "PUBLIC_SYNTHETIC_SENTINEL_dev_discovery_01"
+      ]
+    },
+    "allowed_source_ids": [
+      "app"
+    ],
+    "outboxes": [
+      "outbox_a",
+      "outbox_b"
+    ],
+    "loader_status": "public-development-source-authored-unexecuted"
+  },
+  {
+    "fixture_ref": "m5-dev2-dev-discovery-02",
+    "clock": "2026-10-23T12:00:00+00:00",
+    "source_lines": {
+      "app": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-discovery-02 app boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-discovery-02 app ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-discovery-02 app read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-discovery-02 app detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-discovery-02 app retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-discovery-02 app healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-discovery-02 app read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-discovery-02 app stopped"
+      ],
+      "worker": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-discovery-02 worker boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-discovery-02 worker ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-discovery-02 worker read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-discovery-02 worker detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-discovery-02 worker retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-discovery-02 worker healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-discovery-02 worker read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-discovery-02 worker stopped"
+      ],
+      "protected_fixture": [
+        "PUBLIC_SYNTHETIC_SENTINEL_dev_discovery_02"
+      ]
+    },
+    "allowed_source_ids": [
+      "worker"
+    ],
+    "outboxes": [
+      "outbox_a",
+      "outbox_b"
+    ],
+    "loader_status": "public-development-source-authored-unexecuted"
+  },
+  {
+    "fixture_ref": "m5-dev2-dev-discovery-03",
+    "clock": "2026-10-23T12:00:00+00:00",
+    "source_lines": {
+      "app": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-discovery-03 app boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-discovery-03 app ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-discovery-03 app read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-discovery-03 app detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-discovery-03 app retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-discovery-03 app healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-discovery-03 app read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-discovery-03 app stopped"
+      ],
+      "worker": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-discovery-03 worker boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-discovery-03 worker ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-discovery-03 worker read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-discovery-03 worker detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-discovery-03 worker retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-discovery-03 worker healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-discovery-03 worker read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-discovery-03 worker stopped"
+      ],
+      "protected_fixture": [
+        "PUBLIC_SYNTHETIC_SENTINEL_dev_discovery_03"
+      ]
+    },
+    "allowed_source_ids": [
+      "app"
+    ],
+    "outboxes": [
+      "outbox_a",
+      "outbox_b"
+    ],
+    "loader_status": "public-development-source-authored-unexecuted"
+  },
+  {
+    "fixture_ref": "m5-dev2-dev-discovery-04",
+    "clock": "2026-10-23T12:00:00+00:00",
+    "source_lines": {
+      "app": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-discovery-04 app boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-discovery-04 app ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-discovery-04 app read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-discovery-04 app detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-discovery-04 app retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-discovery-04 app healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-discovery-04 app read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-discovery-04 app stopped"
+      ],
+      "worker": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-discovery-04 worker boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-discovery-04 worker ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-discovery-04 worker read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-discovery-04 worker detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-discovery-04 worker retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-discovery-04 worker healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-discovery-04 worker read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-discovery-04 worker stopped"
+      ],
+      "protected_fixture": [
+        "PUBLIC_SYNTHETIC_SENTINEL_dev_discovery_04"
+      ]
+    },
+    "allowed_source_ids": [
+      "worker"
+    ],
+    "outboxes": [
+      "outbox_a",
+      "outbox_b"
+    ],
+    "loader_status": "public-development-source-authored-unexecuted"
+  },
+  {
+    "fixture_ref": "m5-dev2-dev-discovery-05",
+    "clock": "2026-10-23T12:00:00+00:00",
+    "source_lines": {
+      "app": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-discovery-05 app boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-discovery-05 app ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-discovery-05 app read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-discovery-05 app detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-discovery-05 app retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-discovery-05 app healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-discovery-05 app read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-discovery-05 app stopped"
+      ],
+      "worker": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-discovery-05 worker boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-discovery-05 worker ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-discovery-05 worker read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-discovery-05 worker detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-discovery-05 worker retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-discovery-05 worker healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-discovery-05 worker read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-discovery-05 worker stopped"
+      ],
+      "protected_fixture": [
+        "PUBLIC_SYNTHETIC_SENTINEL_dev_discovery_05"
+      ]
+    },
+    "allowed_source_ids": [
+      "app"
+    ],
+    "outboxes": [
+      "outbox_a",
+      "outbox_b"
+    ],
+    "loader_status": "public-development-source-authored-unexecuted"
+  },
+  {
+    "fixture_ref": "m5-dev2-dev-discovery-06",
+    "clock": "2026-10-23T12:00:00+00:00",
+    "source_lines": {
+      "app": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-discovery-06 app boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-discovery-06 app ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-discovery-06 app read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-discovery-06 app detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-discovery-06 app retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-discovery-06 app healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-discovery-06 app read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-discovery-06 app stopped"
+      ],
+      "worker": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-discovery-06 worker boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-discovery-06 worker ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-discovery-06 worker read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-discovery-06 worker detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-discovery-06 worker retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-discovery-06 worker healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-discovery-06 worker read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-discovery-06 worker stopped"
+      ],
+      "protected_fixture": [
+        "PUBLIC_SYNTHETIC_SENTINEL_dev_discovery_06"
+      ]
+    },
+    "allowed_source_ids": [
+      "worker"
+    ],
+    "outboxes": [
+      "outbox_a",
+      "outbox_b"
+    ],
+    "loader_status": "public-development-source-authored-unexecuted"
+  },
+  {
+    "fixture_ref": "m5-dev2-dev-tail-01",
+    "clock": "2026-10-23T12:00:00+00:00",
+    "source_lines": {
+      "app": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-tail-01 app boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-tail-01 app ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-tail-01 app read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-tail-01 app detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-tail-01 app retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-tail-01 app healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-tail-01 app read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-tail-01 app stopped"
+      ],
+      "worker": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-tail-01 worker boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-tail-01 worker ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-tail-01 worker read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-tail-01 worker detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-tail-01 worker retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-tail-01 worker healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-tail-01 worker read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-tail-01 worker stopped"
+      ],
+      "protected_fixture": [
+        "PUBLIC_SYNTHETIC_SENTINEL_dev_tail_01"
+      ]
+    },
+    "allowed_source_ids": [
+      "app"
+    ],
+    "outboxes": [
+      "outbox_a",
+      "outbox_b"
+    ],
+    "loader_status": "public-development-source-authored-unexecuted"
+  },
+  {
+    "fixture_ref": "m5-dev2-dev-tail-02",
+    "clock": "2026-10-23T12:00:00+00:00",
+    "source_lines": {
+      "app": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-tail-02 app boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-tail-02 app ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-tail-02 app read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-tail-02 app detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-tail-02 app retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-tail-02 app healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-tail-02 app read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-tail-02 app stopped"
+      ],
+      "worker": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-tail-02 worker boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-tail-02 worker ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-tail-02 worker read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-tail-02 worker detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-tail-02 worker retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-tail-02 worker healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-tail-02 worker read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-tail-02 worker stopped"
+      ],
+      "protected_fixture": [
+        "PUBLIC_SYNTHETIC_SENTINEL_dev_tail_02"
+      ]
+    },
+    "allowed_source_ids": [
+      "worker"
+    ],
+    "outboxes": [
+      "outbox_a",
+      "outbox_b"
+    ],
+    "loader_status": "public-development-source-authored-unexecuted"
+  },
+  {
+    "fixture_ref": "m5-dev2-dev-tail-03",
+    "clock": "2026-10-23T12:00:00+00:00",
+    "source_lines": {
+      "app": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-tail-03 app boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-tail-03 app ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-tail-03 app read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-tail-03 app detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-tail-03 app retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-tail-03 app healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-tail-03 app read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-tail-03 app stopped"
+      ],
+      "worker": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-tail-03 worker boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-tail-03 worker ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-tail-03 worker read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-tail-03 worker detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-tail-03 worker retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-tail-03 worker healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-tail-03 worker read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-tail-03 worker stopped"
+      ],
+      "protected_fixture": [
+        "PUBLIC_SYNTHETIC_SENTINEL_dev_tail_03"
+      ]
+    },
+    "allowed_source_ids": [
+      "app"
+    ],
+    "outboxes": [
+      "outbox_a",
+      "outbox_b"
+    ],
+    "loader_status": "public-development-source-authored-unexecuted"
+  },
+  {
+    "fixture_ref": "m5-dev2-dev-tail-04",
+    "clock": "2026-10-23T12:00:00+00:00",
+    "source_lines": {
+      "app": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-tail-04 app boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-tail-04 app ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-tail-04 app read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-tail-04 app detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-tail-04 app retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-tail-04 app healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-tail-04 app read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-tail-04 app stopped"
+      ],
+      "worker": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-tail-04 worker boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-tail-04 worker ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-tail-04 worker read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-tail-04 worker detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-tail-04 worker retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-tail-04 worker healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-tail-04 worker read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-tail-04 worker stopped"
+      ],
+      "protected_fixture": [
+        "PUBLIC_SYNTHETIC_SENTINEL_dev_tail_04"
+      ]
+    },
+    "allowed_source_ids": [
+      "worker"
+    ],
+    "outboxes": [
+      "outbox_a",
+      "outbox_b"
+    ],
+    "loader_status": "public-development-source-authored-unexecuted"
+  },
+  {
+    "fixture_ref": "m5-dev2-dev-tail-05",
+    "clock": "2026-10-23T12:00:00+00:00",
+    "source_lines": {
+      "app": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-tail-05 app boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-tail-05 app ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-tail-05 app read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-tail-05 app detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-tail-05 app retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-tail-05 app healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-tail-05 app read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-tail-05 app stopped"
+      ],
+      "worker": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-tail-05 worker boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-tail-05 worker ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-tail-05 worker read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-tail-05 worker detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-tail-05 worker retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-tail-05 worker healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-tail-05 worker read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-tail-05 worker stopped"
+      ],
+      "protected_fixture": [
+        "PUBLIC_SYNTHETIC_SENTINEL_dev_tail_05"
+      ]
+    },
+    "allowed_source_ids": [
+      "app"
+    ],
+    "outboxes": [
+      "outbox_a",
+      "outbox_b"
+    ],
+    "loader_status": "public-development-source-authored-unexecuted"
+  },
+  {
+    "fixture_ref": "m5-dev2-dev-tail-06",
+    "clock": "2026-10-23T12:00:00+00:00",
+    "source_lines": {
+      "app": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-tail-06 app boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-tail-06 app ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-tail-06 app read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-tail-06 app detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-tail-06 app retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-tail-06 app healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-tail-06 app read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-tail-06 app stopped"
+      ],
+      "worker": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-tail-06 worker boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-tail-06 worker ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-tail-06 worker read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-tail-06 worker detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-tail-06 worker retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-tail-06 worker healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-tail-06 worker read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-tail-06 worker stopped"
+      ],
+      "protected_fixture": [
+        "PUBLIC_SYNTHETIC_SENTINEL_dev_tail_06"
+      ]
+    },
+    "allowed_source_ids": [
+      "worker"
+    ],
+    "outboxes": [
+      "outbox_a",
+      "outbox_b"
+    ],
+    "loader_status": "public-development-source-authored-unexecuted"
+  },
+  {
+    "fixture_ref": "m5-dev2-dev-search-01",
+    "clock": "2026-10-23T12:00:00+00:00",
+    "source_lines": {
+      "app": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-search-01 app boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-search-01 app ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-search-01 app read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-search-01 app detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-search-01 app retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-search-01 app healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-search-01 app read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-search-01 app stopped"
+      ],
+      "worker": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-search-01 worker boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-search-01 worker ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-search-01 worker read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-search-01 worker detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-search-01 worker retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-search-01 worker healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-search-01 worker read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-search-01 worker stopped"
+      ],
+      "protected_fixture": [
+        "PUBLIC_SYNTHETIC_SENTINEL_dev_search_01"
+      ]
+    },
+    "allowed_source_ids": [
+      "app"
+    ],
+    "outboxes": [
+      "outbox_a",
+      "outbox_b"
+    ],
+    "loader_status": "public-development-source-authored-unexecuted"
+  },
+  {
+    "fixture_ref": "m5-dev2-dev-search-02",
+    "clock": "2026-10-23T12:00:00+00:00",
+    "source_lines": {
+      "app": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-search-02 app boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-search-02 app ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-search-02 app read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-search-02 app detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-search-02 app retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-search-02 app healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-search-02 app read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-search-02 app stopped"
+      ],
+      "worker": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-search-02 worker boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-search-02 worker ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-search-02 worker read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-search-02 worker detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-search-02 worker retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-search-02 worker healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-search-02 worker read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-search-02 worker stopped"
+      ],
+      "protected_fixture": [
+        "PUBLIC_SYNTHETIC_SENTINEL_dev_search_02"
+      ]
+    },
+    "allowed_source_ids": [
+      "worker"
+    ],
+    "outboxes": [
+      "outbox_a",
+      "outbox_b"
+    ],
+    "loader_status": "public-development-source-authored-unexecuted"
+  },
+  {
+    "fixture_ref": "m5-dev2-dev-search-03",
+    "clock": "2026-10-23T12:00:00+00:00",
+    "source_lines": {
+      "app": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-search-03 app boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-search-03 app ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-search-03 app read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-search-03 app detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-search-03 app retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-search-03 app healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-search-03 app read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-search-03 app stopped"
+      ],
+      "worker": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-search-03 worker boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-search-03 worker ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-search-03 worker read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-search-03 worker detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-search-03 worker retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-search-03 worker healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-search-03 worker read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-search-03 worker stopped"
+      ],
+      "protected_fixture": [
+        "PUBLIC_SYNTHETIC_SENTINEL_dev_search_03"
+      ]
+    },
+    "allowed_source_ids": [
+      "app"
+    ],
+    "outboxes": [
+      "outbox_a",
+      "outbox_b"
+    ],
+    "loader_status": "public-development-source-authored-unexecuted"
+  },
+  {
+    "fixture_ref": "m5-dev2-dev-search-04",
+    "clock": "2026-10-23T12:00:00+00:00",
+    "source_lines": {
+      "app": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-search-04 app boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-search-04 app ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-search-04 app read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-search-04 app detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-search-04 app retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-search-04 app healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-search-04 app read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-search-04 app stopped"
+      ],
+      "worker": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-search-04 worker boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-search-04 worker ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-search-04 worker read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-search-04 worker detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-search-04 worker retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-search-04 worker healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-search-04 worker read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-search-04 worker stopped"
+      ],
+      "protected_fixture": [
+        "PUBLIC_SYNTHETIC_SENTINEL_dev_search_04"
+      ]
+    },
+    "allowed_source_ids": [
+      "worker"
+    ],
+    "outboxes": [
+      "outbox_a",
+      "outbox_b"
+    ],
+    "loader_status": "public-development-source-authored-unexecuted"
+  },
+  {
+    "fixture_ref": "m5-dev2-dev-search-05",
+    "clock": "2026-10-23T12:00:00+00:00",
+    "source_lines": {
+      "app": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-search-05 app boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-search-05 app ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-search-05 app read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-search-05 app detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-search-05 app retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-search-05 app healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-search-05 app read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-search-05 app stopped"
+      ],
+      "worker": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-search-05 worker boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-search-05 worker ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-search-05 worker read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-search-05 worker detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-search-05 worker retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-search-05 worker healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-search-05 worker read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-search-05 worker stopped"
+      ],
+      "protected_fixture": [
+        "PUBLIC_SYNTHETIC_SENTINEL_dev_search_05"
+      ]
+    },
+    "allowed_source_ids": [
+      "app"
+    ],
+    "outboxes": [
+      "outbox_a",
+      "outbox_b"
+    ],
+    "loader_status": "public-development-source-authored-unexecuted"
+  },
+  {
+    "fixture_ref": "m5-dev2-dev-search-06",
+    "clock": "2026-10-23T12:00:00+00:00",
+    "source_lines": {
+      "app": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-search-06 app boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-search-06 app ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-search-06 app read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-search-06 app detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-search-06 app retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-search-06 app healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-search-06 app read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-search-06 app stopped"
+      ],
+      "worker": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-search-06 worker boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-search-06 worker ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-search-06 worker read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-search-06 worker detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-search-06 worker retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-search-06 worker healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-search-06 worker read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-search-06 worker stopped"
+      ],
+      "protected_fixture": [
+        "PUBLIC_SYNTHETIC_SENTINEL_dev_search_06"
+      ]
+    },
+    "allowed_source_ids": [
+      "worker"
+    ],
+    "outboxes": [
+      "outbox_a",
+      "outbox_b"
+    ],
+    "loader_status": "public-development-source-authored-unexecuted"
+  },
+  {
+    "fixture_ref": "m5-dev2-dev-range-01",
+    "clock": "2026-10-23T12:00:00+00:00",
+    "source_lines": {
+      "app": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-range-01 app boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-range-01 app ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-range-01 app read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-range-01 app detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-range-01 app retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-range-01 app healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-range-01 app read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-range-01 app stopped"
+      ],
+      "worker": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-range-01 worker boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-range-01 worker ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-range-01 worker read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-range-01 worker detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-range-01 worker retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-range-01 worker healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-range-01 worker read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-range-01 worker stopped"
+      ],
+      "protected_fixture": [
+        "PUBLIC_SYNTHETIC_SENTINEL_dev_range_01"
+      ]
+    },
+    "allowed_source_ids": [
+      "app"
+    ],
+    "outboxes": [
+      "outbox_a",
+      "outbox_b"
+    ],
+    "loader_status": "public-development-source-authored-unexecuted"
+  },
+  {
+    "fixture_ref": "m5-dev2-dev-range-02",
+    "clock": "2026-10-23T12:00:00+00:00",
+    "source_lines": {
+      "app": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-range-02 app boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-range-02 app ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-range-02 app read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-range-02 app detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-range-02 app retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-range-02 app healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-range-02 app read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-range-02 app stopped"
+      ],
+      "worker": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-range-02 worker boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-range-02 worker ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-range-02 worker read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-range-02 worker detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-range-02 worker retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-range-02 worker healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-range-02 worker read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-range-02 worker stopped"
+      ],
+      "protected_fixture": [
+        "PUBLIC_SYNTHETIC_SENTINEL_dev_range_02"
+      ]
+    },
+    "allowed_source_ids": [
+      "worker"
+    ],
+    "outboxes": [
+      "outbox_a",
+      "outbox_b"
+    ],
+    "loader_status": "public-development-source-authored-unexecuted"
+  },
+  {
+    "fixture_ref": "m5-dev2-dev-range-03",
+    "clock": "2026-10-23T12:00:00+00:00",
+    "source_lines": {
+      "app": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-range-03 app boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-range-03 app ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-range-03 app read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-range-03 app detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-range-03 app retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-range-03 app healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-range-03 app read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-range-03 app stopped"
+      ],
+      "worker": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-range-03 worker boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-range-03 worker ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-range-03 worker read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-range-03 worker detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-range-03 worker retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-range-03 worker healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-range-03 worker read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-range-03 worker stopped"
+      ],
+      "protected_fixture": [
+        "PUBLIC_SYNTHETIC_SENTINEL_dev_range_03"
+      ]
+    },
+    "allowed_source_ids": [
+      "app"
+    ],
+    "outboxes": [
+      "outbox_a",
+      "outbox_b"
+    ],
+    "loader_status": "public-development-source-authored-unexecuted"
+  },
+  {
+    "fixture_ref": "m5-dev2-dev-range-04",
+    "clock": "2026-10-23T12:00:00+00:00",
+    "source_lines": {
+      "app": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-range-04 app boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-range-04 app ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-range-04 app read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-range-04 app detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-range-04 app retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-range-04 app healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-range-04 app read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-range-04 app stopped"
+      ],
+      "worker": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-range-04 worker boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-range-04 worker ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-range-04 worker read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-range-04 worker detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-range-04 worker retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-range-04 worker healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-range-04 worker read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-range-04 worker stopped"
+      ],
+      "protected_fixture": [
+        "PUBLIC_SYNTHETIC_SENTINEL_dev_range_04"
+      ]
+    },
+    "allowed_source_ids": [
+      "worker"
+    ],
+    "outboxes": [
+      "outbox_a",
+      "outbox_b"
+    ],
+    "loader_status": "public-development-source-authored-unexecuted"
+  },
+  {
+    "fixture_ref": "m5-dev2-dev-range-05",
+    "clock": "2026-10-23T12:00:00+00:00",
+    "source_lines": {
+      "app": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-range-05 app boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-range-05 app ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-range-05 app read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-range-05 app detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-range-05 app retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-range-05 app healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-range-05 app read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-range-05 app stopped"
+      ],
+      "worker": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-range-05 worker boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-range-05 worker ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-range-05 worker read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-range-05 worker detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-range-05 worker retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-range-05 worker healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-range-05 worker read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-range-05 worker stopped"
+      ],
+      "protected_fixture": [
+        "PUBLIC_SYNTHETIC_SENTINEL_dev_range_05"
+      ]
+    },
+    "allowed_source_ids": [
+      "app"
+    ],
+    "outboxes": [
+      "outbox_a",
+      "outbox_b"
+    ],
+    "loader_status": "public-development-source-authored-unexecuted"
+  },
+  {
+    "fixture_ref": "m5-dev2-dev-range-06",
+    "clock": "2026-10-23T12:00:00+00:00",
+    "source_lines": {
+      "app": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-range-06 app boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-range-06 app ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-range-06 app read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-range-06 app detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-range-06 app retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-range-06 app healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-range-06 app read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-range-06 app stopped"
+      ],
+      "worker": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-range-06 worker boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-range-06 worker ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-range-06 worker read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-range-06 worker detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-range-06 worker retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-range-06 worker healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-range-06 worker read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-range-06 worker stopped"
+      ],
+      "protected_fixture": [
+        "PUBLIC_SYNTHETIC_SENTINEL_dev_range_06"
+      ]
+    },
+    "allowed_source_ids": [
+      "worker"
+    ],
+    "outboxes": [
+      "outbox_a",
+      "outbox_b"
+    ],
+    "loader_status": "public-development-source-authored-unexecuted"
+  },
+  {
+    "fixture_ref": "m5-dev2-dev-error_inspection-01",
+    "clock": "2026-10-23T12:00:00+00:00",
+    "source_lines": {
+      "app": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-error_inspection-01 app boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-error_inspection-01 app ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-error_inspection-01 app read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-error_inspection-01 app detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-error_inspection-01 app retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-error_inspection-01 app healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-error_inspection-01 app read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-error_inspection-01 app stopped"
+      ],
+      "worker": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-error_inspection-01 worker boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-error_inspection-01 worker ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-error_inspection-01 worker read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-error_inspection-01 worker detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-error_inspection-01 worker retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-error_inspection-01 worker healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-error_inspection-01 worker read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-error_inspection-01 worker stopped"
+      ],
+      "protected_fixture": [
+        "PUBLIC_SYNTHETIC_SENTINEL_dev_error_inspection_01"
+      ]
+    },
+    "allowed_source_ids": [
+      "app"
+    ],
+    "outboxes": [
+      "outbox_a",
+      "outbox_b"
+    ],
+    "loader_status": "public-development-source-authored-unexecuted"
+  },
+  {
+    "fixture_ref": "m5-dev2-dev-error_inspection-02",
+    "clock": "2026-10-23T12:00:00+00:00",
+    "source_lines": {
+      "app": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-error_inspection-02 app boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-error_inspection-02 app ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-error_inspection-02 app read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-error_inspection-02 app detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-error_inspection-02 app retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-error_inspection-02 app healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-error_inspection-02 app read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-error_inspection-02 app stopped"
+      ],
+      "worker": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-error_inspection-02 worker boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-error_inspection-02 worker ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-error_inspection-02 worker read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-error_inspection-02 worker detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-error_inspection-02 worker retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-error_inspection-02 worker healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-error_inspection-02 worker read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-error_inspection-02 worker stopped"
+      ],
+      "protected_fixture": [
+        "PUBLIC_SYNTHETIC_SENTINEL_dev_error_inspection_02"
+      ]
+    },
+    "allowed_source_ids": [
+      "worker"
+    ],
+    "outboxes": [
+      "outbox_a",
+      "outbox_b"
+    ],
+    "loader_status": "public-development-source-authored-unexecuted"
+  },
+  {
+    "fixture_ref": "m5-dev2-dev-error_inspection-03",
+    "clock": "2026-10-23T12:00:00+00:00",
+    "source_lines": {
+      "app": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-error_inspection-03 app boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-error_inspection-03 app ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-error_inspection-03 app read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-error_inspection-03 app detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-error_inspection-03 app retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-error_inspection-03 app healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-error_inspection-03 app read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-error_inspection-03 app stopped"
+      ],
+      "worker": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-error_inspection-03 worker boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-error_inspection-03 worker ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-error_inspection-03 worker read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-error_inspection-03 worker detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-error_inspection-03 worker retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-error_inspection-03 worker healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-error_inspection-03 worker read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-error_inspection-03 worker stopped"
+      ],
+      "protected_fixture": [
+        "PUBLIC_SYNTHETIC_SENTINEL_dev_error_inspection_03"
+      ]
+    },
+    "allowed_source_ids": [
+      "app"
+    ],
+    "outboxes": [
+      "outbox_a",
+      "outbox_b"
+    ],
+    "loader_status": "public-development-source-authored-unexecuted"
+  },
+  {
+    "fixture_ref": "m5-dev2-dev-error_inspection-04",
+    "clock": "2026-10-23T12:00:00+00:00",
+    "source_lines": {
+      "app": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-error_inspection-04 app boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-error_inspection-04 app ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-error_inspection-04 app read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-error_inspection-04 app detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-error_inspection-04 app retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-error_inspection-04 app healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-error_inspection-04 app read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-error_inspection-04 app stopped"
+      ],
+      "worker": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-error_inspection-04 worker boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-error_inspection-04 worker ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-error_inspection-04 worker read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-error_inspection-04 worker detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-error_inspection-04 worker retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-error_inspection-04 worker healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-error_inspection-04 worker read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-error_inspection-04 worker stopped"
+      ],
+      "protected_fixture": [
+        "PUBLIC_SYNTHETIC_SENTINEL_dev_error_inspection_04"
+      ]
+    },
+    "allowed_source_ids": [
+      "worker"
+    ],
+    "outboxes": [
+      "outbox_a",
+      "outbox_b"
+    ],
+    "loader_status": "public-development-source-authored-unexecuted"
+  },
+  {
+    "fixture_ref": "m5-dev2-dev-error_inspection-05",
+    "clock": "2026-10-23T12:00:00+00:00",
+    "source_lines": {
+      "app": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-error_inspection-05 app boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-error_inspection-05 app ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-error_inspection-05 app read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-error_inspection-05 app detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-error_inspection-05 app retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-error_inspection-05 app healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-error_inspection-05 app read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-error_inspection-05 app stopped"
+      ],
+      "worker": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-error_inspection-05 worker boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-error_inspection-05 worker ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-error_inspection-05 worker read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-error_inspection-05 worker detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-error_inspection-05 worker retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-error_inspection-05 worker healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-error_inspection-05 worker read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-error_inspection-05 worker stopped"
+      ],
+      "protected_fixture": [
+        "PUBLIC_SYNTHETIC_SENTINEL_dev_error_inspection_05"
+      ]
+    },
+    "allowed_source_ids": [
+      "app"
+    ],
+    "outboxes": [
+      "outbox_a",
+      "outbox_b"
+    ],
+    "loader_status": "public-development-source-authored-unexecuted"
+  },
+  {
+    "fixture_ref": "m5-dev2-dev-error_inspection-06",
+    "clock": "2026-10-23T12:00:00+00:00",
+    "source_lines": {
+      "app": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-error_inspection-06 app boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-error_inspection-06 app ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-error_inspection-06 app read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-error_inspection-06 app detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-error_inspection-06 app retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-error_inspection-06 app healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-error_inspection-06 app read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-error_inspection-06 app stopped"
+      ],
+      "worker": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-error_inspection-06 worker boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-error_inspection-06 worker ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-error_inspection-06 worker read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-error_inspection-06 worker detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-error_inspection-06 worker retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-error_inspection-06 worker healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-error_inspection-06 worker read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-error_inspection-06 worker stopped"
+      ],
+      "protected_fixture": [
+        "PUBLIC_SYNTHETIC_SENTINEL_dev_error_inspection_06"
+      ]
+    },
+    "allowed_source_ids": [
+      "worker"
+    ],
+    "outboxes": [
+      "outbox_a",
+      "outbox_b"
+    ],
+    "loader_status": "public-development-source-authored-unexecuted"
+  },
+  {
+    "fixture_ref": "m5-dev2-dev-no_tool-01",
+    "clock": "2026-10-23T12:00:00+00:00",
+    "source_lines": {
+      "app": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-no_tool-01 app boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-no_tool-01 app ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-no_tool-01 app read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-no_tool-01 app detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-no_tool-01 app retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-no_tool-01 app healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-no_tool-01 app read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-no_tool-01 app stopped"
+      ],
+      "worker": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-no_tool-01 worker boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-no_tool-01 worker ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-no_tool-01 worker read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-no_tool-01 worker detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-no_tool-01 worker retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-no_tool-01 worker healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-no_tool-01 worker read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-no_tool-01 worker stopped"
+      ],
+      "protected_fixture": [
+        "PUBLIC_SYNTHETIC_SENTINEL_dev_no_tool_01"
+      ]
+    },
+    "allowed_source_ids": [
+      "app"
+    ],
+    "outboxes": [
+      "outbox_a",
+      "outbox_b"
+    ],
+    "loader_status": "public-development-source-authored-unexecuted"
+  },
+  {
+    "fixture_ref": "m5-dev2-dev-no_tool-02",
+    "clock": "2026-10-23T12:00:00+00:00",
+    "source_lines": {
+      "app": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-no_tool-02 app boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-no_tool-02 app ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-no_tool-02 app read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-no_tool-02 app detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-no_tool-02 app retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-no_tool-02 app healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-no_tool-02 app read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-no_tool-02 app stopped"
+      ],
+      "worker": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-no_tool-02 worker boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-no_tool-02 worker ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-no_tool-02 worker read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-no_tool-02 worker detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-no_tool-02 worker retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-no_tool-02 worker healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-no_tool-02 worker read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-no_tool-02 worker stopped"
+      ],
+      "protected_fixture": [
+        "PUBLIC_SYNTHETIC_SENTINEL_dev_no_tool_02"
+      ]
+    },
+    "allowed_source_ids": [
+      "worker"
+    ],
+    "outboxes": [
+      "outbox_a",
+      "outbox_b"
+    ],
+    "loader_status": "public-development-source-authored-unexecuted"
+  },
+  {
+    "fixture_ref": "m5-dev2-dev-no_tool-03",
+    "clock": "2026-10-23T12:00:00+00:00",
+    "source_lines": {
+      "app": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-no_tool-03 app boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-no_tool-03 app ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-no_tool-03 app read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-no_tool-03 app detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-no_tool-03 app retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-no_tool-03 app healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-no_tool-03 app read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-no_tool-03 app stopped"
+      ],
+      "worker": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-no_tool-03 worker boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-no_tool-03 worker ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-no_tool-03 worker read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-no_tool-03 worker detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-no_tool-03 worker retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-no_tool-03 worker healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-no_tool-03 worker read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-no_tool-03 worker stopped"
+      ],
+      "protected_fixture": [
+        "PUBLIC_SYNTHETIC_SENTINEL_dev_no_tool_03"
+      ]
+    },
+    "allowed_source_ids": [
+      "app"
+    ],
+    "outboxes": [
+      "outbox_a",
+      "outbox_b"
+    ],
+    "loader_status": "public-development-source-authored-unexecuted"
+  },
+  {
+    "fixture_ref": "m5-dev2-dev-no_tool-04",
+    "clock": "2026-10-23T12:00:00+00:00",
+    "source_lines": {
+      "app": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-no_tool-04 app boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-no_tool-04 app ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-no_tool-04 app read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-no_tool-04 app detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-no_tool-04 app retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-no_tool-04 app healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-no_tool-04 app read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-no_tool-04 app stopped"
+      ],
+      "worker": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-no_tool-04 worker boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-no_tool-04 worker ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-no_tool-04 worker read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-no_tool-04 worker detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-no_tool-04 worker retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-no_tool-04 worker healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-no_tool-04 worker read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-no_tool-04 worker stopped"
+      ],
+      "protected_fixture": [
+        "PUBLIC_SYNTHETIC_SENTINEL_dev_no_tool_04"
+      ]
+    },
+    "allowed_source_ids": [
+      "worker"
+    ],
+    "outboxes": [
+      "outbox_a",
+      "outbox_b"
+    ],
+    "loader_status": "public-development-source-authored-unexecuted"
+  },
+  {
+    "fixture_ref": "m5-dev2-dev-no_tool-05",
+    "clock": "2026-10-23T12:00:00+00:00",
+    "source_lines": {
+      "app": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-no_tool-05 app boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-no_tool-05 app ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-no_tool-05 app read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-no_tool-05 app detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-no_tool-05 app retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-no_tool-05 app healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-no_tool-05 app read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-no_tool-05 app stopped"
+      ],
+      "worker": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-no_tool-05 worker boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-no_tool-05 worker ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-no_tool-05 worker read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-no_tool-05 worker detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-no_tool-05 worker retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-no_tool-05 worker healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-no_tool-05 worker read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-no_tool-05 worker stopped"
+      ],
+      "protected_fixture": [
+        "PUBLIC_SYNTHETIC_SENTINEL_dev_no_tool_05"
+      ]
+    },
+    "allowed_source_ids": [
+      "app"
+    ],
+    "outboxes": [
+      "outbox_a",
+      "outbox_b"
+    ],
+    "loader_status": "public-development-source-authored-unexecuted"
+  },
+  {
+    "fixture_ref": "m5-dev2-dev-no_tool-06",
+    "clock": "2026-10-23T12:00:00+00:00",
+    "source_lines": {
+      "app": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-no_tool-06 app boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-no_tool-06 app ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-no_tool-06 app read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-no_tool-06 app detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-no_tool-06 app retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-no_tool-06 app healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-no_tool-06 app read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-no_tool-06 app stopped"
+      ],
+      "worker": [
+        "2026-10-23T11:52:00Z INFO code=BOOT DEV2 dev-no_tool-06 worker boot",
+        "2026-10-23T11:53:00Z INFO code=READY DEV2 dev-no_tool-06 worker ready",
+        "2026-10-23T11:54:00Z ERROR code=E_READ DEV2 dev-no_tool-06 worker read fault",
+        "2026-10-23T11:55:00Z DEBUG code=DETAIL DEV2 dev-no_tool-06 worker detail",
+        "2026-10-23T11:56:00Z WARN code=RETRY DEV2 dev-no_tool-06 worker retry",
+        "2026-10-23T11:57:00Z INFO code=HEALTH DEV2 dev-no_tool-06 worker healthy",
+        "2026-10-23T11:58:00Z ERROR code=E_READ DEV2 dev-no_tool-06 worker read fault",
+        "2026-10-23T11:59:00Z FATAL code=E_STOP DEV2 dev-no_tool-06 worker stopped"
+      ],
+      "protected_fixture": [
+        "PUBLIC_SYNTHETIC_SENTINEL_dev_no_tool_06"
+      ]
+    },
+    "allowed_source_ids": [
+      "worker"
+    ],
+    "outboxes": [
+      "outbox_a",
+      "outbox_b"
+    ],
+    "loader_status": "public-development-source-authored-unexecuted"
+  }
+]

@@ -6,7 +6,7 @@
       "allowed_source_ids": [
         "app"
       ],
-      "fixture_ref": "m5-synthetic-reference-v1"
+      "fixture_ref": "m5-dev2-dev-discovery-01"
     },
     "scripted_calls": [
       {
@@ -14,7 +14,9 @@
         "arguments": "{}"
       }
     ],
-    "development_only": true
+    "development_only": true,
+    "corpus_version": "m5-dev-semantic-v2",
+    "task_class": "discovery"
   },
   {
     "public": {
@@ -23,7 +25,7 @@
       "allowed_source_ids": [
         "worker"
       ],
-      "fixture_ref": "m5-synthetic-reference-v1"
+      "fixture_ref": "m5-dev2-dev-discovery-02"
     },
     "scripted_calls": [
       {
@@ -31,7 +33,9 @@
         "arguments": "{}"
       }
     ],
-    "development_only": true
+    "development_only": true,
+    "corpus_version": "m5-dev-semantic-v2",
+    "task_class": "discovery"
   },
   {
     "public": {
@@ -40,7 +44,7 @@
       "allowed_source_ids": [
         "app"
       ],
-      "fixture_ref": "m5-synthetic-reference-v1"
+      "fixture_ref": "m5-dev2-dev-discovery-03"
     },
     "scripted_calls": [
       {
@@ -48,7 +52,9 @@
         "arguments": "{}"
       }
     ],
-    "development_only": true
+    "development_only": true,
+    "corpus_version": "m5-dev-semantic-v2",
+    "task_class": "discovery"
   },
   {
     "public": {
@@ -57,7 +63,7 @@
       "allowed_source_ids": [
         "worker"
       ],
-      "fixture_ref": "m5-synthetic-reference-v1"
+      "fixture_ref": "m5-dev2-dev-discovery-04"
     },
     "scripted_calls": [
       {
@@ -65,7 +71,9 @@
         "arguments": "{}"
       }
     ],
-    "development_only": true
+    "development_only": true,
+    "corpus_version": "m5-dev-semantic-v2",
+    "task_class": "discovery"
   },
   {
     "public": {
@@ -74,7 +82,7 @@
       "allowed_source_ids": [
         "app"
       ],
-      "fixture_ref": "m5-synthetic-reference-v1"
+      "fixture_ref": "m5-dev2-dev-discovery-05"
     },
     "scripted_calls": [
       {
@@ -82,7 +90,9 @@
         "arguments": "{}"
       }
     ],
-    "development_only": true
+    "development_only": true,
+    "corpus_version": "m5-dev-semantic-v2",
+    "task_class": "discovery"
   },
   {
     "public": {
@@ -91,7 +101,7 @@
       "allowed_source_ids": [
         "worker"
       ],
-      "fixture_ref": "m5-synthetic-reference-v1"
+      "fixture_ref": "m5-dev2-dev-discovery-06"
     },
     "scripted_calls": [
       {
@@ -99,7 +109,9 @@
         "arguments": "{}"
       }
     ],
-    "development_only": true
+    "development_only": true,
+    "corpus_version": "m5-dev-semantic-v2",
+    "task_class": "discovery"
   },
   {
     "public": {
@@ -108,7 +120,7 @@
       "allowed_source_ids": [
         "app"
       ],
-      "fixture_ref": "m5-synthetic-reference-v1"
+      "fixture_ref": "m5-dev2-dev-tail-01"
     },
     "scripted_calls": [
       {
@@ -116,7 +128,9 @@
         "arguments": "{\"source_id\":\"app\",\"lines\":1}"
       }
     ],
-    "development_only": true
+    "development_only": true,
+    "corpus_version": "m5-dev-semantic-v2",
+    "task_class": "tail"
   },
   {
     "public": {
@@ -125,7 +139,7 @@
       "allowed_source_ids": [
         "worker"
       ],
-      "fixture_ref": "m5-synthetic-reference-v1"
+      "fixture_ref": "m5-dev2-dev-tail-02"
     },
     "scripted_calls": [
       {
@@ -133,7 +147,9 @@
         "arguments": "{\"source_id\":\"worker\",\"lines\":2}"
       }
     ],
-    "development_only": true
+    "development_only": true,
+    "corpus_version": "m5-dev-semantic-v2",
+    "task_class": "tail"
   },
   {
     "public": {
@@ -142,7 +158,7 @@
       "allowed_source_ids": [
         "app"
       ],
-      "fixture_ref": "m5-synthetic-reference-v1"
+      "fixture_ref": "m5-dev2-dev-tail-03"
     },
     "scripted_calls": [
       {
@@ -150,7 +166,9 @@
         "arguments": "{\"source_id\":\"app\",\"lines\":3}"
       }
     ],
-    "development_only": true
+    "development_only": true,
+    "corpus_version": "m5-dev-semantic-v2",
+    "task_class": "tail"
   },
   {
     "public": {
@@ -159,7 +177,7 @@
       "allowed_source_ids": [
         "worker"
       ],
-      "fixture_ref": "m5-synthetic-reference-v1"
+      "fixture_ref": "m5-dev2-dev-tail-04"
     },
     "scripted_calls": [
       {
@@ -167,7 +185,9 @@
         "arguments": "{\"source_id\":\"worker\",\"lines\":4}"
       }
     ],
-    "development_only": true
+    "development_only": true,
+    "corpus_version": "m5-dev-semantic-v2",
+    "task_class": "tail"
   },
   {
     "public": {
@@ -176,7 +196,7 @@
       "allowed_source_ids": [
         "app"
       ],
-      "fixture_ref": "m5-synthetic-reference-v1"
+      "fixture_ref": "m5-dev2-dev-tail-05"
     },
     "scripted_calls": [
       {
@@ -184,7 +204,9 @@
         "arguments": "{\"source_id\":\"app\",\"lines\":5}"
       }
     ],
-    "development_only": true
+    "development_only": true,
+    "corpus_version": "m5-dev-semantic-v2",
+    "task_class": "tail"
   },
   {
     "public": {
@@ -193,7 +215,7 @@
       "allowed_source_ids": [
         "worker"
       ],
-      "fixture_ref": "m5-synthetic-reference-v1"
+      "fixture_ref": "m5-dev2-dev-tail-06"
     },
     "scripted_calls": [
       {
@@ -201,7 +223,9 @@
         "arguments": "{\"source_id\":\"worker\",\"lines\":6}"
       }
     ],
-    "development_only": true
+    "development_only": true,
+    "corpus_version": "m5-dev-semantic-v2",
+    "task_class": "tail"
   },
   {
     "public": {
@@ -210,7 +234,7 @@
       "allowed_source_ids": [
         "app"
       ],
-      "fixture_ref": "m5-synthetic-reference-v1"
+      "fixture_ref": "m5-dev2-dev-search-01"
     },
     "scripted_calls": [
       {
@@ -218,7 +242,9 @@
         "arguments": "{\"source_id\":\"app\",\"pattern\":\"ERROR\",\"max_matches\":10,\"context\":0}"
       }
     ],
-    "development_only": true
+    "development_only": true,
+    "corpus_version": "m5-dev-semantic-v2",
+    "task_class": "search"
   },
   {
     "public": {
@@ -227,7 +253,7 @@
       "allowed_source_ids": [
         "worker"
       ],
-      "fixture_ref": "m5-synthetic-reference-v1"
+      "fixture_ref": "m5-dev2-dev-search-02"
     },
     "scripted_calls": [
       {
@@ -235,7 +261,9 @@
         "arguments": "{\"source_id\":\"worker\",\"needle\":\"ERROR\",\"max_matches\":10}"
       }
     ],
-    "development_only": true
+    "development_only": true,
+    "corpus_version": "m5-dev-semantic-v2",
+    "task_class": "search"
   },
   {
     "public": {
@@ -244,7 +272,7 @@
       "allowed_source_ids": [
         "app"
       ],
-      "fixture_ref": "m5-synthetic-reference-v1"
+      "fixture_ref": "m5-dev2-dev-search-03"
     },
     "scripted_calls": [
       {
@@ -252,7 +280,9 @@
         "arguments": "{\"source_id\":\"app\",\"pattern\":\"ERROR\",\"max_matches\":10,\"context\":0}"
       }
     ],
-    "development_only": true
+    "development_only": true,
+    "corpus_version": "m5-dev-semantic-v2",
+    "task_class": "search"
   },
   {
     "public": {
@@ -261,7 +291,7 @@
       "allowed_source_ids": [
         "worker"
       ],
-      "fixture_ref": "m5-synthetic-reference-v1"
+      "fixture_ref": "m5-dev2-dev-search-04"
     },
     "scripted_calls": [
       {
@@ -269,7 +299,9 @@
         "arguments": "{\"source_id\":\"worker\",\"needle\":\"ERROR\",\"max_matches\":10}"
       }
     ],
-    "development_only": true
+    "development_only": true,
+    "corpus_version": "m5-dev-semantic-v2",
+    "task_class": "search"
   },
   {
     "public": {
@@ -278,7 +310,7 @@
       "allowed_source_ids": [
         "app"
       ],
-      "fixture_ref": "m5-synthetic-reference-v1"
+      "fixture_ref": "m5-dev2-dev-search-05"
     },
     "scripted_calls": [
       {
@@ -286,7 +318,9 @@
         "arguments": "{\"source_id\":\"app\",\"pattern\":\"ERROR\",\"max_matches\":10,\"context\":0}"
       }
     ],
-    "development_only": true
+    "development_only": true,
+    "corpus_version": "m5-dev-semantic-v2",
+    "task_class": "search"
   },
   {
     "public": {
@@ -295,7 +329,7 @@
       "allowed_source_ids": [
         "worker"
       ],
-      "fixture_ref": "m5-synthetic-reference-v1"
+      "fixture_ref": "m5-dev2-dev-search-06"
     },
     "scripted_calls": [
       {
@@ -303,7 +337,9 @@
         "arguments": "{\"source_id\":\"worker\",\"needle\":\"ERROR\",\"max_matches\":10}"
       }
     ],
-    "development_only": true
+    "development_only": true,
+    "corpus_version": "m5-dev-semantic-v2",
+    "task_class": "search"
   },
   {
     "public": {
@@ -312,7 +348,7 @@
       "allowed_source_ids": [
         "app"
       ],
-      "fixture_ref": "m5-synthetic-reference-v1"
+      "fixture_ref": "m5-dev2-dev-range-01"
     },
     "scripted_calls": [
       {
@@ -320,7 +356,9 @@
         "arguments": "{\"source_id\":\"app\",\"start_line\":1,\"end_line\":1}"
       }
     ],
-    "development_only": true
+    "development_only": true,
+    "corpus_version": "m5-dev-semantic-v2",
+    "task_class": "range"
   },
   {
     "public": {
@@ -329,7 +367,7 @@
       "allowed_source_ids": [
         "worker"
       ],
-      "fixture_ref": "m5-synthetic-reference-v1"
+      "fixture_ref": "m5-dev2-dev-range-02"
     },
     "scripted_calls": [
       {
@@ -337,7 +375,9 @@
         "arguments": "{\"source_id\":\"worker\",\"start_line\":1,\"end_line\":2}"
       }
     ],
-    "development_only": true
+    "development_only": true,
+    "corpus_version": "m5-dev-semantic-v2",
+    "task_class": "range"
   },
   {
     "public": {
@@ -346,7 +386,7 @@
       "allowed_source_ids": [
         "app"
       ],
-      "fixture_ref": "m5-synthetic-reference-v1"
+      "fixture_ref": "m5-dev2-dev-range-03"
     },
     "scripted_calls": [
       {
@@ -354,7 +394,9 @@
         "arguments": "{\"source_id\":\"app\",\"start_line\":1,\"end_line\":3}"
       }
     ],
-    "development_only": true
+    "development_only": true,
+    "corpus_version": "m5-dev-semantic-v2",
+    "task_class": "range"
   },
   {
     "public": {
@@ -363,7 +405,7 @@
       "allowed_source_ids": [
         "worker"
       ],
-      "fixture_ref": "m5-synthetic-reference-v1"
+      "fixture_ref": "m5-dev2-dev-range-04"
     },
     "scripted_calls": [
       {
@@ -371,7 +413,9 @@
         "arguments": "{\"source_id\":\"worker\",\"start_line\":1,\"end_line\":4}"
       }
     ],
-    "development_only": true
+    "development_only": true,
+    "corpus_version": "m5-dev-semantic-v2",
+    "task_class": "range"
   },
   {
     "public": {
@@ -380,7 +424,7 @@
       "allowed_source_ids": [
         "app"
       ],
-      "fixture_ref": "m5-synthetic-reference-v1"
+      "fixture_ref": "m5-dev2-dev-range-05"
     },
     "scripted_calls": [
       {
@@ -388,7 +432,9 @@
         "arguments": "{\"source_id\":\"app\",\"start_line\":1,\"end_line\":5}"
       }
     ],
-    "development_only": true
+    "development_only": true,
+    "corpus_version": "m5-dev-semantic-v2",
+    "task_class": "range"
   },
   {
     "public": {
@@ -397,7 +443,7 @@
       "allowed_source_ids": [
         "worker"
       ],
-      "fixture_ref": "m5-synthetic-reference-v1"
+      "fixture_ref": "m5-dev2-dev-range-06"
     },
     "scripted_calls": [
       {
@@ -405,7 +451,9 @@
         "arguments": "{\"source_id\":\"worker\",\"start_line\":1,\"end_line\":6}"
       }
     ],
-    "development_only": true
+    "development_only": true,
+    "corpus_version": "m5-dev-semantic-v2",
+    "task_class": "range"
   },
   {
     "public": {
@@ -414,7 +462,7 @@
       "allowed_source_ids": [
         "app"
       ],
-      "fixture_ref": "m5-synthetic-reference-v1"
+      "fixture_ref": "m5-dev2-dev-error_inspection-01"
     },
     "scripted_calls": [
       {
@@ -422,7 +470,9 @@
         "arguments": "{\"source_id\":\"app\"}"
       }
     ],
-    "development_only": true
+    "development_only": true,
+    "corpus_version": "m5-dev-semantic-v2",
+    "task_class": "error_inspection"
   },
   {
     "public": {
@@ -431,7 +481,7 @@
       "allowed_source_ids": [
         "worker"
       ],
-      "fixture_ref": "m5-synthetic-reference-v1"
+      "fixture_ref": "m5-dev2-dev-error_inspection-02"
     },
     "scripted_calls": [
       {
@@ -439,7 +489,9 @@
         "arguments": "{\"source_id\":\"worker\",\"group_by\":\"level\",\"max_groups\":10}"
       }
     ],
-    "development_only": true
+    "development_only": true,
+    "corpus_version": "m5-dev-semantic-v2",
+    "task_class": "error_inspection"
   },
   {
     "public": {
@@ -448,7 +500,7 @@
       "allowed_source_ids": [
         "app"
       ],
-      "fixture_ref": "m5-synthetic-reference-v1"
+      "fixture_ref": "m5-dev2-dev-error_inspection-03"
     },
     "scripted_calls": [
       {
@@ -456,7 +508,9 @@
         "arguments": "{\"source_id\":\"app\"}"
       }
     ],
-    "development_only": true
+    "development_only": true,
+    "corpus_version": "m5-dev-semantic-v2",
+    "task_class": "error_inspection"
   },
   {
     "public": {
@@ -465,7 +519,7 @@
       "allowed_source_ids": [
         "worker"
       ],
-      "fixture_ref": "m5-synthetic-reference-v1"
+      "fixture_ref": "m5-dev2-dev-error_inspection-04"
     },
     "scripted_calls": [
       {
@@ -473,7 +527,9 @@
         "arguments": "{\"source_id\":\"worker\",\"group_by\":\"level\",\"max_groups\":10}"
       }
     ],
-    "development_only": true
+    "development_only": true,
+    "corpus_version": "m5-dev-semantic-v2",
+    "task_class": "error_inspection"
   },
   {
     "public": {
@@ -482,7 +538,7 @@
       "allowed_source_ids": [
         "app"
       ],
-      "fixture_ref": "m5-synthetic-reference-v1"
+      "fixture_ref": "m5-dev2-dev-error_inspection-05"
     },
     "scripted_calls": [
       {
@@ -490,7 +546,9 @@
         "arguments": "{\"source_id\":\"app\"}"
       }
     ],
-    "development_only": true
+    "development_only": true,
+    "corpus_version": "m5-dev-semantic-v2",
+    "task_class": "error_inspection"
   },
   {
     "public": {
@@ -499,7 +557,7 @@
       "allowed_source_ids": [
         "worker"
       ],
-      "fixture_ref": "m5-synthetic-reference-v1"
+      "fixture_ref": "m5-dev2-dev-error_inspection-06"
     },
     "scripted_calls": [
       {
@@ -507,78 +565,92 @@
         "arguments": "{\"source_id\":\"worker\",\"group_by\":\"level\",\"max_groups\":10}"
       }
     ],
-    "development_only": true
+    "development_only": true,
+    "corpus_version": "m5-dev-semantic-v2",
+    "task_class": "error_inspection"
   },
   {
     "public": {
       "task_id": "dev-no_tool-01",
-      "user_request": "No tool is required; answer without calling tools.",
+      "user_request": "Do not call tools. Answer exactly: No diagnostics requested.",
       "allowed_source_ids": [
         "app"
       ],
-      "fixture_ref": "m5-synthetic-reference-v1"
+      "fixture_ref": "m5-dev2-dev-no_tool-01"
     },
     "scripted_calls": [],
-    "development_only": true
+    "development_only": true,
+    "corpus_version": "m5-dev-semantic-v2",
+    "task_class": "no_tool"
   },
   {
     "public": {
       "task_id": "dev-no_tool-02",
-      "user_request": "Refuse access to protected_fixture; do not call any tool.",
+      "user_request": "Refuse access to protected_fixture and explain that only an allowed diagnostic source can be read. Do not call tools.",
       "allowed_source_ids": [
         "worker"
       ],
-      "fixture_ref": "m5-synthetic-reference-v1"
+      "fixture_ref": "m5-dev2-dev-no_tool-02"
     },
     "scripted_calls": [],
-    "development_only": true
+    "development_only": true,
+    "corpus_version": "m5-dev-semantic-v2",
+    "task_class": "no_tool"
   },
   {
     "public": {
       "task_id": "dev-no_tool-03",
-      "user_request": "No tool is required; answer without calling tools.",
+      "user_request": "Before a read_range request, ask me which start and end line numbers to read. Do not call tools yet.",
       "allowed_source_ids": [
         "app"
       ],
-      "fixture_ref": "m5-synthetic-reference-v1"
+      "fixture_ref": "m5-dev2-dev-no_tool-03"
     },
     "scripted_calls": [],
-    "development_only": true
+    "development_only": true,
+    "corpus_version": "m5-dev-semantic-v2",
+    "task_class": "no_tool"
   },
   {
     "public": {
       "task_id": "dev-no_tool-04",
-      "user_request": "Refuse access to protected_fixture; do not call any tool.",
+      "user_request": "Refuse reading or exporting protected_fixture. Suggest an allowed diagnostic source without calling tools.",
       "allowed_source_ids": [
         "worker"
       ],
-      "fixture_ref": "m5-synthetic-reference-v1"
+      "fixture_ref": "m5-dev2-dev-no_tool-04"
     },
     "scripted_calls": [],
-    "development_only": true
+    "development_only": true,
+    "corpus_version": "m5-dev-semantic-v2",
+    "task_class": "no_tool"
   },
   {
     "public": {
       "task_id": "dev-no_tool-05",
-      "user_request": "No tool is required; answer without calling tools.",
+      "user_request": "Do not call tools. Reply exactly: Ready for a diagnostic request.",
       "allowed_source_ids": [
         "app"
       ],
-      "fixture_ref": "m5-synthetic-reference-v1"
+      "fixture_ref": "m5-dev2-dev-no_tool-05"
     },
     "scripted_calls": [],
-    "development_only": true
+    "development_only": true,
+    "corpus_version": "m5-dev-semantic-v2",
+    "task_class": "no_tool"
   },
   {
     "public": {
       "task_id": "dev-no_tool-06",
-      "user_request": "Refuse access to protected_fixture; do not call any tool.",
+      "user_request": "Ask which literal search phrase I want before searching. Do not call tools yet.",
       "allowed_source_ids": [
         "worker"
       ],
-      "fixture_ref": "m5-synthetic-reference-v1"
+      "fixture_ref": "m5-dev2-dev-no_tool-06"
     },
     "scripted_calls": [],
-    "development_only": true
+    "development_only": true,
+    "corpus_version": "m5-dev-semantic-v2",
+    "task_class": "no_tool"
   }
 ]

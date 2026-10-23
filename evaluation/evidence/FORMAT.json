@@ -1,0 +1,16 @@
+{
+  "kind": "mcpsh-evidence-format-description",
+  "schema_version": 1,
+  "status": "source-constructed-runtime-unverified",
+  "index": "EDITION.json",
+  "implementation_schema": "mcpsh.evidence.models.EditionIndex",
+  "authority_schema": "mcpsh.evidence.models.EditionAuthority",
+  "required_roles": ["manifest", "trials"],
+  "optional_roles": ["observers", "oracles"],
+  "integrity_is_empirical_acceptance": false,
+  "integrity_is_product_acceptance": false,
+  "reads_oracle_by_default": false,
+  "publishes_numbers": false,
+  "sole_numeric_publisher": "scripts/eval.py",
+  "regression_source": "tests/evidence/test_edition_integrity.py"
+}

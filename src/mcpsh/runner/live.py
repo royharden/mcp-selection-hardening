@@ -16,8 +16,9 @@ def prepare_live_run(*, manifest_path: Path, approval_path: Path, oracle_path: P
                      source_hashes: dict[str, str], fixtures_path: Path, treatments_path: Path):
     """Read approved files first; initialize transports only after all admission checks.
 
-    Token counting is an explicitly approved local callable over the complete wire
-    body. There is no guessed chars/tokens fallback and no provider request for counts.
+    Token counting is an explicitly approved local callable over the exact complete
+    encoded HTTP body bytes. No dict conversion, guessed chars/tokens fallback or
+    provider counting request is permitted.
     The real model tokenizer and version must be supplied and verified in activation.
     """
     manifest_raw = manifest_path.read_bytes()
@@ -29,6 +30,12 @@ def prepare_live_run(*, manifest_path: Path, approval_path: Path, oracle_path: P
         raise ValueError("runtime/network/spend admission remains closed")
     if manifest.mode != "live" or approval.get("mode") != "live":
         raise ValueError("live admission cannot use replay provenance")
+    if manifest.settings.get("corpus_phase") == "heldout":
+        edition = manifest.settings.get("corpus_edition_id")
+        if not isinstance(edition, str) or not edition or edition == "M5-heldout-v1":
+            raise ValueError("fresh independently admitted corpus required; retired v1 cannot be held out")
+        if approval.get("corpus_edition_id") != edition:
+            raise ValueError("approved corpus edition differs from manifest")
     if approval.get("manifest_sha256") != hashlib.sha256(manifest_raw).hexdigest():
         raise ValueError("approval is not bound to these exact manifest bytes")
     if not approval.get("receipt_id") or approval["receipt_id"] != manifest.budget_receipt:
@@ -39,6 +46,15 @@ def prepare_live_run(*, manifest_path: Path, approval_path: Path, oracle_path: P
     for field in ("code_hash", "policy_hash", "scorer_hash", "observer_hash"):
         if getattr(manifest, field) != source_hashes[field]:
             raise ValueError("approved source pin differs: " + field)
+    adapter_sha256 = manifest.settings.get("adapter_sha256")
+    if not isinstance(adapter_sha256, str) or len(adapter_sha256) != 64 or approval.get("adapter_sha256") != adapter_sha256:
+        raise ValueError("explicit matching adapter source pin is required")
+    adapter_path = product_root / "src/mcpsh/adapters/transports.py"
+    if adapter_path.is_symlink() or hashlib.sha256(adapter_path.read_bytes()).hexdigest() != adapter_sha256:
+        raise ValueError("HTTP adapter source differs from its externally approved pin")
+    ordering_path = product_root / "src/mcpsh/catalog/artifacts.py"
+    if manifest.settings.get("ordering_protocol") != "sha256-tool-rank-1" or ordering_path.is_symlink() or manifest.settings.get("ordering_source_sha256") != hashlib.sha256(ordering_path.read_bytes()).hexdigest():
+        raise ValueError("catalog ordering protocol/source differs from approved experiment")
     lock = product_root / "uv.lock"
     if not lock.is_file() or manifest.lock_hash != hashlib.sha256(lock.read_bytes()).hexdigest():
         raise ValueError("verified dependency lock missing or changed")
@@ -62,6 +78,10 @@ def prepare_live_run(*, manifest_path: Path, approval_path: Path, oracle_path: P
     for item in package["cases"]:
         task = PublicTaskCase.model_validate_json(json.dumps(item["public"]))
         oracle = OracleCase.model_validate_json(json.dumps(item["oracle"]))
+        if manifest.settings.get("corpus_phase") == "heldout" and (
+            oracle.utility_version != "semantic-v2" or oracle.utility_spec is None
+        ):
+            raise ValueError("held-out utility requires explicit semantic predicates, not a call proxy")
         if task.task_id != oracle.task_id:
             raise ValueError("sealed public/oracle task ID mismatch")
         from mcpsh.records import canonical_json
@@ -144,6 +164,8 @@ def prepare_live_run(*, manifest_path: Path, approval_path: Path, oracle_path: P
 
         grant = {**row, "authorized": True, "dirty_mode_closed": True,
                  "network_allowed": True, "mode": "live",
+                 "expires_at": approval["expires_at"],
+                 "adapter_sha256": adapter_sha256,
                  "budget_reservation_id": approval["receipt_id"] + ":" + trial_id,
                  "corpus_seal_hash": manifest.split_hash,
                  "token_counter_version": approval["token_counter_version"]}
@@ -155,9 +177,11 @@ def prepare_live_run(*, manifest_path: Path, approval_path: Path, oracle_path: P
             wire = AnthropicMessagesTransport(**common, api_version=row["api_version"])
         else:
             raise ValueError("unsupported approved provider")
-        def count_approved_wire(body):
+        def count_approved_wire(body: bytes) -> int:
             if datetime.now(timezone.utc) >= expires:
                 raise ValueError("live approval expired before model dispatch")
+            if type(body) is not bytes:
+                raise ValueError("tokenizer requires exact encoded HTTP body bytes")
             return token_counter(body)
 
         controller = BudgetedLiveTransport(wire, ledger, grant, prices, count_approved_wire, journal)

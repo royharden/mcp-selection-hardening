@@ -1,0 +1,506 @@
+{
+  "version": "m5-public-lint-review-1",
+  "created_at": "2026-10-23T21:45:51.479015+00:00",
+  "reviewer": "0012_Codex_gpt-61-sol_D5",
+  "reviewer_thread": "01a16a96-acca-7b92-873c-e8f0c21ae100",
+  "scope": "public-development-controls-only",
+  "independent_review": false,
+  "detector_executed": false,
+  "source_hashes": {
+    "lint-labels.json": "cac8d56f8a3d46f2aa2ff4a1d32f786b36616175208fd8585c14202a2fb594af",
+    "lint-bypasses.json": "879b6c077cc3a97373d2e603008b57acbe026d0d4042a106fc4b54dade6a02c8"
+  },
+  "cases": {
+    "L01-positive-1": {
+      "status": "confirmed",
+      "rule_id": "L01",
+      "expected_detection": true,
+      "catalog_sha256": "47968bde70b377cab2fb9f885cd30198bead8cdb5df8e83a8021616db73180b8",
+      "basis": "static public target-control adjudication; not executed detector output",
+      "reason": "Positive imperatives explicitly make another tool a prerequisite; negative read timing/call wording does not."
+    },
+    "L01-positive-2": {
+      "status": "confirmed",
+      "rule_id": "L01",
+      "expected_detection": true,
+      "catalog_sha256": "14ddf1682de52981e2f3ae123537a21b2214ac31f18b1d8ea91da1044e1b3b3c",
+      "basis": "static public target-control adjudication; not executed detector output",
+      "reason": "Positive imperatives explicitly make another tool a prerequisite; negative read timing/call wording does not."
+    },
+    "L01-benign-1": {
+      "status": "confirmed",
+      "rule_id": "L01",
+      "expected_detection": false,
+      "catalog_sha256": "5e1655410e8e1411acd2e1fb573399ab855296aa046d5cbc9f9b67fb49b840af",
+      "basis": "static public target-control adjudication; not executed detector output",
+      "reason": "Positive imperatives explicitly make another tool a prerequisite; negative read timing/call wording does not."
+    },
+    "L01-benign-2": {
+      "status": "confirmed",
+      "rule_id": "L01",
+      "expected_detection": false,
+      "catalog_sha256": "745e26818457763946d69f1b9ef408b0906324f76fc66931f39a0bf2cb7783dc",
+      "basis": "static public target-control adjudication; not executed detector output",
+      "reason": "Positive imperatives explicitly make another tool a prerequisite; negative read timing/call wording does not."
+    },
+    "L02-positive-1": {
+      "status": "confirmed",
+      "rule_id": "L02",
+      "expected_detection": true,
+      "catalog_sha256": "c9e52b93b1a67ccbbe8607fa4724887c72bdbf6409f5a16e12d4a3985fe034ce",
+      "basis": "static public target-control adjudication; not executed detector output",
+      "reason": "Positive fragments name credentials or protected_fixture; negatives name sanitized/public data. Target is lexical reference, not inferred disclosure intent."
+    },
+    "L02-positive-2": {
+      "status": "confirmed",
+      "rule_id": "L02",
+      "expected_detection": true,
+      "catalog_sha256": "61ea581c51f41be337578b0030c49a8aea742e034d12292928aae624fde73b4e",
+      "basis": "static public target-control adjudication; not executed detector output",
+      "reason": "Positive fragments name credentials or protected_fixture; negatives name sanitized/public data. Target is lexical reference, not inferred disclosure intent."
+    },
+    "L02-benign-1": {
+      "status": "confirmed",
+      "rule_id": "L02",
+      "expected_detection": false,
+      "catalog_sha256": "ed415c29a3c8914e66334df3282c7c6593fd489d186e66e13e2f528dcd3df2bf",
+      "basis": "static public target-control adjudication; not executed detector output",
+      "reason": "Positive fragments name credentials or protected_fixture; negatives name sanitized/public data. Target is lexical reference, not inferred disclosure intent."
+    },
+    "L02-benign-2": {
+      "status": "confirmed",
+      "rule_id": "L02",
+      "expected_detection": false,
+      "catalog_sha256": "cc33eea45de6d665a986e2ae740f37d13474534af4d880a35b710581046afc79",
+      "basis": "static public target-control adjudication; not executed detector output",
+      "reason": "Positive fragments name credentials or protected_fixture; negatives name sanitized/public data. Target is lexical reference, not inferred disclosure intent."
+    },
+    "L03-positive-1": {
+      "status": "confirmed",
+      "rule_id": "L03",
+      "expected_detection": true,
+      "catalog_sha256": "a1492b41b488afb09421e8e9bb7be9e556cafbd5e3a9d2d99945e23028f9d88a",
+      "basis": "static public target-control adjudication; not executed detector output",
+      "reason": "Positives contain exact declared authority-override phrases. Domain system text and ignore-errors example are negative controls."
+    },
+    "L03-positive-2": {
+      "status": "confirmed",
+      "rule_id": "L03",
+      "expected_detection": true,
+      "catalog_sha256": "7d245f0a634f0cd9e858857e17af9dc5ed9eed1bb7f82ec43465ea9684afcc77",
+      "basis": "static public target-control adjudication; not executed detector output",
+      "reason": "Positives contain exact declared authority-override phrases. Domain system text and ignore-errors example are negative controls."
+    },
+    "L03-benign-1": {
+      "status": "confirmed",
+      "rule_id": "L03",
+      "expected_detection": false,
+      "catalog_sha256": "7d536ec6c8d80e8a316eba566ccabe8671525e4797db28508a85d7fecaad180e",
+      "basis": "static public target-control adjudication; not executed detector output",
+      "reason": "Positives contain exact declared authority-override phrases. Domain system text and ignore-errors example are negative controls."
+    },
+    "L03-benign-2": {
+      "status": "confirmed",
+      "rule_id": "L03",
+      "expected_detection": false,
+      "catalog_sha256": "cc89dfdf56e52e0548d9ef2a5f365502a9c1fbad6620dcfb848c7556d5df4268",
+      "basis": "static public target-control adjudication; not executed detector output",
+      "reason": "Positives contain exact declared authority-override phrases. Domain system text and ignore-errors example are negative controls."
+    },
+    "L04-positive-1": {
+      "status": "confirmed",
+      "rule_id": "L04",
+      "expected_detection": true,
+      "catalog_sha256": "a17e4531758e8c0126aec475ee0141dfbec737fddc95fbc7398d139b7c78fa04",
+      "basis": "static public target-control adjudication; not executed detector output",
+      "reason": "Positive strings contain named zero-width/bidi codepoints; ASCII and ordinary accented Unicode are target negatives."
+    },
+    "L04-positive-2": {
+      "status": "confirmed",
+      "rule_id": "L04",
+      "expected_detection": true,
+      "catalog_sha256": "dbbfd9fbe283befbcce9bf62a899f34dc67fa7195de2cb926d7c4becd086bc66",
+      "basis": "static public target-control adjudication; not executed detector output",
+      "reason": "Positive strings contain named zero-width/bidi codepoints; ASCII and ordinary accented Unicode are target negatives."
+    },
+    "L04-benign-1": {
+      "status": "confirmed",
+      "rule_id": "L04",
+      "expected_detection": false,
+      "catalog_sha256": "ca819e75124618e4047b731b192b4e6d63c3a65b610dc60aaa6b1766921b4087",
+      "basis": "static public target-control adjudication; not executed detector output",
+      "reason": "Positive strings contain named zero-width/bidi codepoints; ASCII and ordinary accented Unicode are target negatives."
+    },
+    "L04-benign-2": {
+      "status": "confirmed",
+      "rule_id": "L04",
+      "expected_detection": false,
+      "catalog_sha256": "fadef93f43c7fc3a12e69d654799450b63038a78ab818b7ff1b58bf1175113b5",
+      "basis": "static public target-control adjudication; not executed detector output",
+      "reason": "Positive strings contain named zero-width/bidi codepoints; ASCII and ordinary accented Unicode are target negatives."
+    },
+    "L05-positive-1": {
+      "status": "confirmed",
+      "rule_id": "L05",
+      "expected_detection": true,
+      "catalog_sha256": "e373c6702a7a42f796fe4668543c65b72caa235b9cf9c11f2a8d07df8ece638b",
+      "basis": "static public target-control adjudication; not executed detector output",
+      "reason": "Positives explicitly introduce undeclared parameter/argument identifiers; negatives name properties present in their fragment schemas."
+    },
+    "L05-positive-2": {
+      "status": "confirmed",
+      "rule_id": "L05",
+      "expected_detection": true,
+      "catalog_sha256": "420d54f1dad81834a678acfdd9034b170b23bfd7077ff4216d4b419318121ebf",
+      "basis": "static public target-control adjudication; not executed detector output",
+      "reason": "Positives explicitly introduce undeclared parameter/argument identifiers; negatives name properties present in their fragment schemas."
+    },
+    "L05-benign-1": {
+      "status": "confirmed",
+      "rule_id": "L05",
+      "expected_detection": false,
+      "catalog_sha256": "2b65976f5cc866f544fc451eb25935fcb88e960afeaeeb9dcbd631dc68fbfad0",
+      "basis": "static public target-control adjudication; not executed detector output",
+      "reason": "Positives explicitly introduce undeclared parameter/argument identifiers; negatives name properties present in their fragment schemas."
+    },
+    "L05-benign-2": {
+      "status": "confirmed",
+      "rule_id": "L05",
+      "expected_detection": false,
+      "catalog_sha256": "a98d02e3239087efedc7aad553d9846160e5e92be6431db23aa5b68bdb2bd147",
+      "basis": "static public target-control adjudication; not executed detector output",
+      "reason": "Positives explicitly introduce undeclared parameter/argument identifiers; negatives name properties present in their fragment schemas."
+    },
+    "L06-positive-1": {
+      "status": "confirmed",
+      "rule_id": "L06",
+      "expected_detection": true,
+      "catalog_sha256": "5d3d72f6feda6f42a8f077ae64009f75268349c5f8f78dcd2bad9668b28b5887",
+      "basis": "static public target-control adjudication; not executed detector output",
+      "reason": "Write/delete verbs contradict the declared read tool; read/inspect negatives do not. Not a semantic detector for neutral verbs."
+    },
+    "L06-positive-2": {
+      "status": "confirmed",
+      "rule_id": "L06",
+      "expected_detection": true,
+      "catalog_sha256": "9f5764541cb0e7d561cdd732101c9b454121fe517dadeee293d73d9c3c8c0167",
+      "basis": "static public target-control adjudication; not executed detector output",
+      "reason": "Write/delete verbs contradict the declared read tool; read/inspect negatives do not. Not a semantic detector for neutral verbs."
+    },
+    "L06-benign-1": {
+      "status": "confirmed",
+      "rule_id": "L06",
+      "expected_detection": false,
+      "catalog_sha256": "d0b139621a2ec2b35e46cacf3cacef4404056717ba98546746027993580d78bf",
+      "basis": "static public target-control adjudication; not executed detector output",
+      "reason": "Write/delete verbs contradict the declared read tool; read/inspect negatives do not. Not a semantic detector for neutral verbs."
+    },
+    "L06-benign-2": {
+      "status": "confirmed",
+      "rule_id": "L06",
+      "expected_detection": false,
+      "catalog_sha256": "184bfaed1ec256de73c30b2a3c3da6456d4cb218fbf8609a8ad3b732c18ff80d",
+      "basis": "static public target-control adjudication; not executed detector output",
+      "reason": "Write/delete verbs contradict the declared read tool; read/inspect negatives do not. Not a semantic detector for neutral verbs."
+    },
+    "L07-positive-1": {
+      "status": "confirmed",
+      "rule_id": "L07",
+      "expected_detection": true,
+      "catalog_sha256": "3edd0ed4f8bfc5dbccdbdd94fd67f2d55c41393560be9793ebbd538ddf1e4cde",
+      "basis": "static public target-control adjudication; not executed detector output",
+      "reason": "Both positive records have duplicate tail identities and sentences. Negative pairs differ lexically. Positives repeat one control template, not two independent mechanisms."
+    },
+    "L07-positive-2": {
+      "status": "confirmed",
+      "rule_id": "L07",
+      "expected_detection": true,
+      "catalog_sha256": "3edd0ed4f8bfc5dbccdbdd94fd67f2d55c41393560be9793ebbd538ddf1e4cde",
+      "basis": "static public target-control adjudication; not executed detector output",
+      "reason": "Both positive records have duplicate tail identities and sentences. Negative pairs differ lexically. Positives repeat one control template, not two independent mechanisms."
+    },
+    "L07-benign-1": {
+      "status": "confirmed",
+      "rule_id": "L07",
+      "expected_detection": false,
+      "catalog_sha256": "ce63c81c4c47fe311e30581c1e9687c74f12cc0054b79cd20142967a1b38e011",
+      "basis": "static public target-control adjudication; not executed detector output",
+      "reason": "Both positive records have duplicate tail identities and sentences. Negative pairs differ lexically. Positives repeat one control template, not two independent mechanisms."
+    },
+    "L07-benign-2": {
+      "status": "confirmed",
+      "rule_id": "L07",
+      "expected_detection": false,
+      "catalog_sha256": "b50a3030687ec184c8ef2ce16c5ceeb27c9428a650e9c1d46124e57711a9ef91",
+      "basis": "static public target-control adjudication; not executed detector output",
+      "reason": "Both positive records have duplicate tail identities and sentences. Negative pairs differ lexically. Positives repeat one control template, not two independent mechanisms."
+    },
+    "L08-positive-1": {
+      "status": "confirmed",
+      "rule_id": "L08",
+      "expected_detection": true,
+      "catalog_sha256": "bad13fa2667858c8a708eb1c76010b81682a16ebbbe00b2a09fa484477e0c92d",
+      "basis": "static public target-control adjudication; not executed detector output",
+      "reason": "Positives omit lexical bounds. Negative strings explicitly say bounded or at most 500 lines; truthful enforcement is outside lint label meaning."
+    },
+    "L08-positive-2": {
+      "status": "confirmed",
+      "rule_id": "L08",
+      "expected_detection": true,
+      "catalog_sha256": "6ea24d4608ff38bacb4907e6969a262a563655cf029be86dd68bdfff4762aa02",
+      "basis": "static public target-control adjudication; not executed detector output",
+      "reason": "Positives omit lexical bounds. Negative strings explicitly say bounded or at most 500 lines; truthful enforcement is outside lint label meaning."
+    },
+    "L08-benign-1": {
+      "status": "confirmed",
+      "rule_id": "L08",
+      "expected_detection": false,
+      "catalog_sha256": "d0b139621a2ec2b35e46cacf3cacef4404056717ba98546746027993580d78bf",
+      "basis": "static public target-control adjudication; not executed detector output",
+      "reason": "Positives omit lexical bounds. Negative strings explicitly say bounded or at most 500 lines; truthful enforcement is outside lint label meaning."
+    },
+    "L08-benign-2": {
+      "status": "confirmed",
+      "rule_id": "L08",
+      "expected_detection": false,
+      "catalog_sha256": "d854513af4a5242dbe26b7ddf9c44642f9ae34c4905a2390bfa92db8fb75ba8c",
+      "basis": "static public target-control adjudication; not executed detector output",
+      "reason": "Positives omit lexical bounds. Negative strings explicitly say bounded or at most 500 lines; truthful enforcement is outside lint label meaning."
+    },
+    "L09-positive-1": {
+      "status": "confirmed",
+      "rule_id": "L09",
+      "expected_detection": true,
+      "catalog_sha256": "2a1003278cbdaf51315cf37e41f28bbf32a45244921fecfce8b951ab9d632461",
+      "basis": "static public target-control adjudication; not executed detector output",
+      "reason": "Positives explicitly upload or name an HTTPS channel. Negative strings return local data without channel language."
+    },
+    "L09-positive-2": {
+      "status": "confirmed",
+      "rule_id": "L09",
+      "expected_detection": true,
+      "catalog_sha256": "b0b24f6af9f0bb6afc77d6cdb8b225e689625496ac095be1ae4dd238c3884a9e",
+      "basis": "static public target-control adjudication; not executed detector output",
+      "reason": "Positives explicitly upload or name an HTTPS channel. Negative strings return local data without channel language."
+    },
+    "L09-benign-1": {
+      "status": "confirmed",
+      "rule_id": "L09",
+      "expected_detection": false,
+      "catalog_sha256": "af6913e5f392a707e6e3874e4d1681f1f7064a3e9d1479f00b5ed542436b1e11",
+      "basis": "static public target-control adjudication; not executed detector output",
+      "reason": "Positives explicitly upload or name an HTTPS channel. Negative strings return local data without channel language."
+    },
+    "L09-benign-2": {
+      "status": "confirmed",
+      "rule_id": "L09",
+      "expected_detection": false,
+      "catalog_sha256": "7a83b4617cb2c7b59c2e6cb4950721d9fd1400aae652344636faf2ed74ef7520",
+      "basis": "static public target-control adjudication; not executed detector output",
+      "reason": "Positives explicitly upload or name an HTTPS channel. Negative strings return local data without channel language."
+    },
+    "L10-positive-1": {
+      "status": "confirmed",
+      "rule_id": "L10",
+      "expected_detection": true,
+      "catalog_sha256": "606d9bd6b708a68ca80c91105a88f92e35cbfae4705bd53a5252de91aec3842e",
+      "basis": "static public target-control adjudication; not executed detector output",
+      "reason": "Positives explicitly replace source_id/override a parameter; negatives preserve provided source_id."
+    },
+    "L10-positive-2": {
+      "status": "confirmed",
+      "rule_id": "L10",
+      "expected_detection": true,
+      "catalog_sha256": "f31f0ffe0bb284ba4e04a5f5fef6360706410cc7585822c460e8293888bd2736",
+      "basis": "static public target-control adjudication; not executed detector output",
+      "reason": "Positives explicitly replace source_id/override a parameter; negatives preserve provided source_id."
+    },
+    "L10-benign-1": {
+      "status": "confirmed",
+      "rule_id": "L10",
+      "expected_detection": false,
+      "catalog_sha256": "d065bb5a1d0497d6dfc5de62b8fa8b24513bdf15a43064d115aa8bb7c5f6b4d7",
+      "basis": "static public target-control adjudication; not executed detector output",
+      "reason": "Positives explicitly replace source_id/override a parameter; negatives preserve provided source_id."
+    },
+    "L10-benign-2": {
+      "status": "confirmed",
+      "rule_id": "L10",
+      "expected_detection": false,
+      "catalog_sha256": "8c30ceb970b59b54ec9c8d017802de322832f47685281a77187a9d69e0d35379",
+      "basis": "static public target-control adjudication; not executed detector output",
+      "reason": "Positives explicitly replace source_id/override a parameter; negatives preserve provided source_id."
+    },
+    "L11-positive-1": {
+      "status": "confirmed",
+      "rule_id": "L11",
+      "expected_detection": true,
+      "catalog_sha256": "ab751c748a1afa9ef33b19023b5c6382b6daf7daca186b90d73fdfb4d496a3fe",
+      "basis": "static public target-control adjudication; not executed detector output",
+      "reason": "Positive descriptions exceed 4096 codepoints; negatives are short and shallow. Not a claim that short text is benign."
+    },
+    "L11-positive-2": {
+      "status": "confirmed",
+      "rule_id": "L11",
+      "expected_detection": true,
+      "catalog_sha256": "5cb1b6f60bea2e8103bbeca37ca531d98c2febda39637e0943093b539d7000b5",
+      "basis": "static public target-control adjudication; not executed detector output",
+      "reason": "Positive descriptions exceed 4096 codepoints; negatives are short and shallow. Not a claim that short text is benign."
+    },
+    "L11-benign-1": {
+      "status": "confirmed",
+      "rule_id": "L11",
+      "expected_detection": false,
+      "catalog_sha256": "d0b139621a2ec2b35e46cacf3cacef4404056717ba98546746027993580d78bf",
+      "basis": "static public target-control adjudication; not executed detector output",
+      "reason": "Positive descriptions exceed 4096 codepoints; negatives are short and shallow. Not a claim that short text is benign."
+    },
+    "L11-benign-2": {
+      "status": "confirmed",
+      "rule_id": "L11",
+      "expected_detection": false,
+      "catalog_sha256": "49570096df5065660e8fe2b0ec5798e19d9a2b577452daa2bd490e8388c0c9fb",
+      "basis": "static public target-control adjudication; not executed detector output",
+      "reason": "Positive descriptions exceed 4096 codepoints; negatives are short and shallow. Not a claim that short text is benign."
+    },
+    "L12-positive-1": {
+      "status": "confirmed",
+      "rule_id": "L12",
+      "expected_detection": true,
+      "catalog_sha256": "e0e80e2d3b0c1f60f6c4d10e39daa612ca4fd36511f40d27acecb2e41e85b606",
+      "basis": "static public target-control adjudication; not executed detector output",
+      "reason": "Positive write/copy language conflicts with readOnlyHint. Negative read/count text has no target mismatch."
+    },
+    "L12-positive-2": {
+      "status": "confirmed",
+      "rule_id": "L12",
+      "expected_detection": true,
+      "catalog_sha256": "41853a87e1619d86c8fcb5e3261e2bf1d2aabde922bd9a0df9d81c6ec805c62b",
+      "basis": "static public target-control adjudication; not executed detector output",
+      "reason": "Positive write/copy language conflicts with readOnlyHint. Negative read/count text has no target mismatch."
+    },
+    "L12-benign-1": {
+      "status": "confirmed",
+      "rule_id": "L12",
+      "expected_detection": false,
+      "catalog_sha256": "d0b139621a2ec2b35e46cacf3cacef4404056717ba98546746027993580d78bf",
+      "basis": "static public target-control adjudication; not executed detector output",
+      "reason": "Positive write/copy language conflicts with readOnlyHint. Negative read/count text has no target mismatch."
+    },
+    "L12-benign-2": {
+      "status": "confirmed",
+      "rule_id": "L12",
+      "expected_detection": false,
+      "catalog_sha256": "92761f3178649cba984a6a084efe7ba785e2c88316f92bb9c46d55eab6dd9eeb",
+      "basis": "static public target-control adjudication; not executed detector output",
+      "reason": "Positive write/copy language conflicts with readOnlyHint. Negative read/count text has no target mismatch."
+    }
+  },
+  "bypasses": {
+    "L01-known-bypass": {
+      "rule_id": "L01",
+      "status": "diagnostic-only",
+      "expected_detection": false,
+      "catalog_sha256": "1f0101a8a59300774898f0bb07e71ee564c3d1fc42af1b47d8d92c70fb112630",
+      "semantic_hazard": "not-established",
+      "reason": "Documents target-feature absence or lexical/semantic limitation; do not interpret a miss as independently proven successful attack."
+    },
+    "L02-known-bypass": {
+      "rule_id": "L02",
+      "status": "diagnostic-only",
+      "expected_detection": false,
+      "catalog_sha256": "51118aa64e3849eb2e6688d7621dcb213336f0947e07288dee0400a1a2a3191a",
+      "semantic_hazard": "not-established",
+      "reason": "Documents target-feature absence or lexical/semantic limitation; do not interpret a miss as independently proven successful attack."
+    },
+    "L03-known-bypass": {
+      "rule_id": "L03",
+      "status": "diagnostic-only",
+      "expected_detection": false,
+      "catalog_sha256": "cab3228565350bfc23f8f41a75537d9ddd224af5d8ee7f824c31c95bae9151ca",
+      "semantic_hazard": "not-established",
+      "reason": "Documents target-feature absence or lexical/semantic limitation; do not interpret a miss as independently proven successful attack."
+    },
+    "L04-known-bypass": {
+      "rule_id": "L04",
+      "status": "diagnostic-only",
+      "expected_detection": false,
+      "catalog_sha256": "7f36e88730ebf3ba8ad5ca057a6259b44bbbb41833a2b8f32507610a79bfd63c",
+      "semantic_hazard": "not-established",
+      "reason": "Documents target-feature absence or lexical/semantic limitation; do not interpret a miss as independently proven successful attack."
+    },
+    "L05-known-bypass": {
+      "rule_id": "L05",
+      "status": "diagnostic-only",
+      "expected_detection": false,
+      "catalog_sha256": "a9c0e94de72d76321cdfd60c3e1555ca97021e84940cb382bac2f92b8e034020",
+      "semantic_hazard": "not-established",
+      "reason": "Documents target-feature absence or lexical/semantic limitation; do not interpret a miss as independently proven successful attack."
+    },
+    "L06-known-bypass": {
+      "rule_id": "L06",
+      "status": "diagnostic-only",
+      "expected_detection": false,
+      "catalog_sha256": "1caa0abebce9bb142e218fdd2da3588943832c698b7fb1f49b3397d360a23a75",
+      "semantic_hazard": "not-established",
+      "reason": "Documents target-feature absence or lexical/semantic limitation; do not interpret a miss as independently proven successful attack."
+    },
+    "L07-known-bypass": {
+      "rule_id": "L07",
+      "status": "diagnostic-only",
+      "expected_detection": false,
+      "catalog_sha256": "3672e0ac511a5c8afde43fb67bb53efedbfae938c5f41c4da9ed20d6d7069fef",
+      "semantic_hazard": "not-established",
+      "reason": "Documents target-feature absence or lexical/semantic limitation; do not interpret a miss as independently proven successful attack."
+    },
+    "L08-known-bypass": {
+      "rule_id": "L08",
+      "status": "diagnostic-only",
+      "expected_detection": false,
+      "catalog_sha256": "235996d79dc0f11687798b04448c9d6c2ae91d64b7c1a237bcbd966caafc6aba",
+      "semantic_hazard": "not-established",
+      "reason": "Documents target-feature absence or lexical/semantic limitation; do not interpret a miss as independently proven successful attack."
+    },
+    "L09-known-bypass": {
+      "rule_id": "L09",
+      "status": "diagnostic-only",
+      "expected_detection": false,
+      "catalog_sha256": "92845a7161e046c7d267327507f0ada30aa6eee740c746725b33ba3a1bd76947",
+      "semantic_hazard": "not-established",
+      "reason": "Documents target-feature absence or lexical/semantic limitation; do not interpret a miss as independently proven successful attack."
+    },
+    "L10-known-bypass": {
+      "rule_id": "L10",
+      "status": "diagnostic-only",
+      "expected_detection": false,
+      "catalog_sha256": "d13bc9a4ee8605f8344d57c0e662d1e959a2ee4ecf8b68b2d664e3a649f1de9f",
+      "semantic_hazard": "not-established",
+      "reason": "Documents target-feature absence or lexical/semantic limitation; do not interpret a miss as independently proven successful attack."
+    },
+    "L11-known-bypass": {
+      "rule_id": "L11",
+      "status": "diagnostic-only",
+      "expected_detection": false,
+      "catalog_sha256": "9bd66fd4b13de6d38713c60c4dcc7e7494017639df5376a62d85c898eb5df26f",
+      "semantic_hazard": "not-established",
+      "reason": "Documents target-feature absence or lexical/semantic limitation; do not interpret a miss as independently proven successful attack."
+    },
+    "L12-known-bypass": {
+      "rule_id": "L12",
+      "status": "diagnostic-only",
+      "expected_detection": false,
+      "catalog_sha256": "16daa3dbd6ba5c8d872ceae77c6eeebfd671bbe876819e1e0ded924b54c000c9",
+      "semantic_hazard": "not-established",
+      "reason": "Documents target-feature absence or lexical/semantic limitation; do not interpret a miss as independently proven successful attack."
+    }
+  },
+  "limitations": [
+    "Static author/reviewer inspection only; no measured detector accuracy, malicious-effect or generalization evidence.",
+    "Original label_review fields remain unchanged; this sidecar does not imply independent reviewer lineage.",
+    "Per-rule expected_detection is a target projection, not the exhaustive rule set.",
+    "Two positive L07 records are identical catalog templates and must remain disclosed as dependent.",
+    "Known-bypass files also contain absence-of-feature controls; no claim of actual exploit efficacy.",
+    "No hidden/retired corpus read or copied in this package.",
+    "Future publisher must pin input/code versions and label provisional versus reviewed source metadata."
+  ]
+}

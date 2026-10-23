@@ -32,6 +32,8 @@ class CostLedger:
             db.execute("CREATE TABLE IF NOT EXISTS operations (id TEXT PRIMARY KEY, reserved INTEGER NOT NULL, status TEXT NOT NULL, metadata TEXT NOT NULL)")
             db.execute("CREATE TABLE IF NOT EXISTS attempts (id TEXT PRIMARY KEY, operation_id TEXT NOT NULL REFERENCES operations(id), provider TEXT NOT NULL, model TEXT NOT NULL, status TEXT NOT NULL, cost INTEGER, usage TEXT NOT NULL)")
             db.execute("CREATE TABLE IF NOT EXISTS non_model (id TEXT PRIMARY KEY, category TEXT NOT NULL)")
+            db.execute("CREATE TABLE IF NOT EXISTS dispatches (attempt_id TEXT PRIMARY KEY REFERENCES attempts(id), scope TEXT NOT NULL)")
+            db.execute("CREATE TABLE IF NOT EXISTS dispatch_stops (reason TEXT PRIMARY KEY)")
             row = db.execute("SELECT amount FROM budget WHERE id=1").fetchone()
             if row is None:
                 db.execute("INSERT INTO budget VALUES (1,?)", (budget_microunits,))
@@ -73,17 +75,71 @@ class CostLedger:
             if previous:
                 if previous[:2] != (amount_microunits, encoded) or previous[2] == "finished":
                     raise BudgetDenied("operation reuse has different reservation or is already finished")
+                self._assert_clear(db, operation_id)
                 return operation_id
+            self._assert_clear(db)
             budget, _, committed = self._totals(db)
             if committed + amount_microunits > budget:
                 raise BudgetDenied("reservation would exceed persistent budget")
             db.execute("INSERT INTO operations VALUES (?,?,?,?)", (operation_id, amount_microunits, "reserved", encoded))
         return operation_id
 
+    @staticmethod
+    def _assert_clear(db: sqlite3.Connection, current_operation_id: str | None = None,
+                      prepared_attempt_id: str | None = None) -> None:
+        if db.execute("SELECT 1 FROM dispatch_stops LIMIT 1").fetchone():
+            raise BudgetDenied("durable dispatch stop requires explicit reconciliation")
+        budget, _, committed = CostLedger._totals(db)
+        if committed > budget or db.execute("SELECT 1 FROM operations WHERE status='overrun'").fetchone():
+            raise BudgetDenied("known overrun blocks dispatch")
+        if current_operation_id is not None:
+            row = db.execute("SELECT status FROM operations WHERE id=?", (current_operation_id,)).fetchone()
+            if row is None or row[0] not in {"reserved", "inflight"}:
+                raise BudgetDenied("current reservation is absent or not dispatchable")
+        if prepared_attempt_id is not None:
+            row = db.execute("SELECT operation_id,status FROM attempts WHERE id=?", (prepared_attempt_id,)).fetchone()
+            if row != (current_operation_id, "prepared"):
+                raise BudgetDenied("only the current unsent prepared attempt may be exempted")
+        if db.execute("SELECT 1 FROM operations WHERE status!='finished' AND (? IS NULL OR id!=?) LIMIT 1",
+                      (current_operation_id, current_operation_id)).fetchone():
+            raise BudgetDenied("prior unsettled reservation blocks dispatch")
+        if db.execute("SELECT 1 FROM attempts WHERE cost IS NULL AND (? IS NULL OR id!=?) LIMIT 1",
+                      (prepared_attempt_id, prepared_attempt_id)).fetchone():
+            raise BudgetDenied("prior unknown/inflight usage blocks dispatch")
+
+    def assert_dispatch_allowed(self, *, current_operation_id: str | None = None,
+                                prepared_attempt_id: str | None = None) -> None:
+        with self._transaction() as db:
+            self._assert_clear(db, current_operation_id, prepared_attempt_id)
+
+    def dispatch_count(self, scope: str) -> int:
+        with self._transaction() as db:
+            return db.execute("SELECT COUNT(*) FROM dispatches WHERE scope=?", (scope,)).fetchone()[0]
+
+    def authorize_dispatch(self, operation_id: str, attempt_id: str, *, scope: str,
+                           max_requests: int) -> None:
+        """Durably count a send intent before network; ambiguity consumes the cap."""
+        if not scope or type(max_requests) is not int or max_requests < 1:
+            raise BudgetDenied("explicit dispatch scope and request cap required")
+        with self._transaction() as db:
+            self._assert_clear(db, operation_id, attempt_id)
+            count = db.execute("SELECT COUNT(*) FROM dispatches WHERE scope=?", (scope,)).fetchone()[0]
+            if count >= max_requests:
+                raise BudgetDenied("durable model request cap reached")
+            db.execute("INSERT INTO dispatches VALUES (?,?)", (attempt_id, scope))
+            db.execute("UPDATE attempts SET status='sent' WHERE id=?", (attempt_id,))
+
+    def halt_dispatch(self, reason: str) -> None:
+        if not isinstance(reason, str) or not reason:
+            raise ValueError("dispatch stop reason required")
+        with self._transaction() as db:
+            db.execute("INSERT OR IGNORE INTO dispatch_stops VALUES (?)", (reason,))
+
     def begin_attempt(self, operation_id: str, attempt_id: str, provider: str, model: str) -> None:
         if not all((attempt_id, provider, model)):
             raise ValueError("exact attempt/provider/model identity required")
         with self._transaction() as db:
+            self._assert_clear(db, operation_id)
             row = db.execute("SELECT status,metadata FROM operations WHERE id=?", (operation_id,)).fetchone()
             if row is None or row[0] not in {"reserved", "inflight"}:
                 raise BudgetDenied("active reservation required before dispatch")
@@ -95,7 +151,7 @@ class CostLedger:
                 # One transient retry at most, settled/explicitly marked first.
                 if len(attempts) >= 2 or attempts[0][1] != "retryable":
                     raise BudgetDenied("only one explicit transient retry is permitted")
-            db.execute("INSERT INTO attempts VALUES (?,?,?,?,?,?,?)", (attempt_id, operation_id, provider, model, "sent", None, "{}"))
+            db.execute("INSERT INTO attempts VALUES (?,?,?,?,?,?,?)", (attempt_id, operation_id, provider, model, "prepared", None, "{}"))
             db.execute("UPDATE operations SET status='inflight' WHERE id=?", (operation_id,))
 
     def settle(self, attempt_id: str, cost_microunits: int | None, usage: dict[str, Any] | None = None) -> None:
@@ -123,8 +179,8 @@ class CostLedger:
             raise BudgetDenied("semantic failures are never retryable")
         with self._transaction() as db:
             row = db.execute("SELECT operation_id,status FROM attempts WHERE id=?", (attempt_id,)).fetchone()
-            if row is None or row[1] not in {"settled", "unknown"}:
-                raise BudgetDenied("settle or preserve unknown usage before retry")
+            if row is None or row[1] != "settled":
+                raise BudgetDenied("only known settled transient usage permits retry")
             count = db.execute("SELECT COUNT(*) FROM attempts WHERE operation_id=?", (row[0],)).fetchone()[0]
             if count != 1:
                 raise BudgetDenied("retry allowance exhausted")
