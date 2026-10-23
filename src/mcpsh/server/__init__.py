@@ -11,28 +11,50 @@ import threading
 import time
 
 from mcpsh.broker import (
-    CALL_DEADLINE_SECONDS, FIXTURE_VERSION, MAX_FRAME_BYTES, PINNED_CLOCK,
+    CALL_DEADLINE_SECONDS, MAX_FRAME_BYTES,
     SYNTHETIC_CANARY, BrokerUnavailable, FixtureBroker, canonical, digest,
 )
 from mcpsh.observer import EffectObserver
+from mcpsh.broker.fixtures import normalize_fixture_payload, fixture_payload_hash, protected_sentinels
 from mcpsh.policy import AccessPolicy, POLICY_VERSION, redact
 from .validation import InvalidArguments, parse_arguments
 
-SERVER_VERSION = "m5-reference-v1"
-SOURCE_IDS = ("app", "worker", "protected_fixture")
+SERVER_VERSION = "m5-reference-v2"
 
 
-def redact_public(value):
+def redact_public(value, fixture_payload: dict | None = None):
     """Bounded JSON projection: preserve raw trace hashes, remove protected text."""
-    if isinstance(value, str):
-        return redact(value, "hardened", SYNTHETIC_CANARY)
-    if isinstance(value, list):
-        return [redact_public(item) for item in value]
-    if isinstance(value, tuple):
-        return [redact_public(item) for item in value]
-    if isinstance(value, dict):
-        return {redact_public(key): redact_public(item) for key, item in value.items()}
-    return value
+    sentinels = protected_sentinels(fixture_payload)
+    if fixture_payload is None:
+        sentinels = (*sentinels, SYNTHETIC_CANARY)
+    def project(item):
+        if isinstance(item, str):
+            return redact(item, "hardened", sentinels)
+        if isinstance(item, (list, tuple)):
+            return [project(child) for child in item]
+        if isinstance(item, dict):
+            return {project(key): project(child) for key, child in item.items()}
+        return item
+    return project(value)
+
+
+def _log_fields(text: str) -> tuple[str | None, str | None, str]:
+    parts = text.split(" ", 2)
+    timestamp = None
+    try:
+        candidate = datetime.fromisoformat(parts[0].replace("Z", "+00:00"))
+        if candidate.tzinfo is not None:
+            timestamp = parts[0]
+    except ValueError:
+        pass
+    level_index = 1 if timestamp else 0
+    level = parts[level_index] if len(parts) > level_index and parts[level_index] in {"TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL", "CRITICAL"} else None
+    message = text
+    if timestamp and level and len(parts) > 2:
+        message = parts[2]
+    elif level and " " in text:
+        message = text.split(" ", 1)[1]
+    return timestamp, level, message
 
 
 def _envelope(ok: bool, *, source_id=None, generation_id=None, data=None, code=None, message="", policy=False, truncated=False, coverage=None) -> dict:
@@ -86,18 +108,25 @@ def _s1_projection(result: dict) -> dict:
 
 
 class ReferenceServer:
-    def __init__(self, mode: str = "hardened", allowed_sources=("app",), trial_id: str = "development", custom_redactions=(), platform_scope: str = "synthetic-memory", filesystem_config: dict | None = None):
+    def __init__(self, mode: str = "hardened", allowed_sources=("app",), trial_id: str = "development", custom_redactions=(), platform_scope: str = "synthetic-memory", filesystem_config: dict | None = None, fixture_payload: dict | None = None):
         self._policy = AccessPolicy(mode, tuple(allowed_sources))
-        if not self._policy.allowed_sources.issubset(SOURCE_IDS):
+        self._fixture_payload = normalize_fixture_payload(fixture_payload)
+        self.fixture_payload_sha256 = fixture_payload_hash(self._fixture_payload)
+        self._source_ids = frozenset(self._fixture_payload["source_lines"])
+        self._sentinels = protected_sentinels(self._fixture_payload)
+        self._clock = self._fixture_payload["clock"]
+        if not self._policy.allowed_sources.issubset(self._source_ids):
             raise ValueError("configured source does not exist in synthetic fixture")
+        if fixture_payload is not None and self._policy.allowed_sources != frozenset(self._fixture_payload["allowed_source_ids"]):
+            raise ValueError("task source policy differs from trusted fixture payload")
         if type(trial_id) is not str or not 1 <= len(trial_id) <= 128:
             raise ValueError("invalid trial ID")
         self._custom_redactions = tuple(custom_redactions)
-        redact("", mode, SYNTHETIC_CANARY, self._custom_redactions)
+        redact("", mode, self._sentinels, self._custom_redactions)
         self.trial_id = trial_id
         self.platform_scope = platform_scope
-        self._broker = FixtureBroker(trial_id, platform_scope=platform_scope, filesystem_config=filesystem_config)
-        self._observer = EffectObserver(self._broker.observation_connection, trial_id, self._broker.epoch, platform_scope=platform_scope)
+        self._broker = FixtureBroker(trial_id, platform_scope=platform_scope, filesystem_config=filesystem_config, fixture_payload=self._fixture_payload)
+        self._observer = EffectObserver(self._broker.observation_connection, trial_id, self._broker.epoch, platform_scope=platform_scope, sentinels=self._sentinels, fixture_payload_sha256=self.fixture_payload_sha256)
         self._slots = threading.BoundedSemaphore(20)
         self._active = threading.BoundedSemaphore(4)
         self._counter_lock = threading.Lock()
@@ -136,8 +165,8 @@ class ReferenceServer:
             raise InvalidArguments("INVALID_CURSOR") from exc
 
     def _line(self, number: int, text: str, *, context: bool = False, byte_offset: int = 0) -> dict:
-        parts = text.split(" ", 2)
-        return {"line_no": number, "byte_offset": byte_offset, "timestamp": parts[0], "level": parts[1] if len(parts) > 1 else None, "timestamp_inherited": False, "level_inherited": False, "text": redact(text, self.mode, SYNTHETIC_CANARY, self._custom_redactions), "context": context, "omitted": None}
+        timestamp, level, _ = _log_fields(text)
+        return {"line_no": number, "byte_offset": byte_offset, "timestamp": timestamp, "level": level, "timestamp_inherited": False, "level_inherited": False, "text": redact(text, self.mode, self._sentinels, self._custom_redactions), "context": context, "omitted": None}
 
     def _execute(self, tool: str, arguments: dict, call_id: str, deadline: float) -> dict:
         if tool == "list_sources":
@@ -149,7 +178,7 @@ class ReferenceServer:
                 return _envelope(False, code=value["error"], message="Disposable fixture export refused.")
             return _envelope(True, data=value)
         source_id = arguments["source_id"]
-        if source_id not in SOURCE_IDS:
+        if source_id not in self._source_ids:
             return _envelope(False, code="UNKNOWN_SOURCE", message="Unknown synthetic source.")
         self._expected_operations.append(call_id)
         response = self._broker.request("read", call_id, deadline, source_id=source_id)
@@ -166,11 +195,19 @@ class ReferenceServer:
         since = arguments.get("since")
         until = arguments.get("until")
         if tool == "recent_lines":
-            since = (datetime.fromisoformat(PINNED_CLOCK) - timedelta(seconds=arguments["since_seconds"])).isoformat()
+            since = (datetime.fromisoformat(self._clock) - timedelta(seconds=arguments["since_seconds"])).isoformat()
         if since or until:
             lower = datetime.fromisoformat(since.replace("Z", "+00:00")) if since else None
             upper = datetime.fromisoformat(until.replace("Z", "+00:00")) if until else None
-            rows = [(number, text) for number, text in rows if (lower is None or datetime.fromisoformat(text.split(" ", 1)[0]) >= lower) and (upper is None or datetime.fromisoformat(text.split(" ", 1)[0]) <= upper)]
+            filtered = []
+            for number, text in rows:
+                timestamp = _log_fields(text)[0]
+                if timestamp is None:
+                    continue
+                parsed = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+                if (lower is None or parsed >= lower) and (upper is None or parsed <= upper):
+                    filtered.append((number, text))
+            rows = filtered
         total_in_window = len(rows)
         matches = []
         groups = []
@@ -210,7 +247,7 @@ class ReferenceServer:
             retained_numbers = {number for number, _ in rows}
             matches = [match for match in matches if match["line_no"] in retained_numbers]
         elif tool == "errors":
-            selected = [(number, text) for number, text in rows if text.split(" ", 2)[1] in {"ERROR", "FATAL", "CRITICAL"}]
+            selected = [(number, text) for number, text in rows if _log_fields(text)[1] in {"ERROR", "FATAL", "CRITICAL"}]
             offset = self._offset(tool, arguments, generation)
             rows = selected[offset:offset + 100]
             truncated = len(selected) > offset + 100
@@ -218,9 +255,9 @@ class ReferenceServer:
                 next_cursor = self._cursor(tool, arguments, generation, offset + 100)
             grouped = {}
             for number, text in rows:
-                signature = text.split(" ", 2)[-1][:160]
+                signature = _log_fields(text)[2][:160]
                 if signature not in grouped:
-                    grouped[signature] = {"signature": signature, "level": text.split(" ", 2)[1], "first_in_coverage": self._line(number, text, byte_offset=offsets[number]), "occurrence_count_in_coverage": 0, "trace": []}
+                    grouped[signature] = {"signature": signature, "level": _log_fields(text)[1], "first_in_coverage": self._line(number, text, byte_offset=offsets[number]), "occurrence_count_in_coverage": 0, "trace": []}
                 grouped[signature]["occurrence_count_in_coverage"] += 1
             groups = list(grouped.values())
         elif tool == "error_counts":
@@ -228,11 +265,11 @@ class ReferenceServer:
             for _, text in rows:
                 if time.monotonic() > deadline:
                     raise BrokerUnavailable("call deadline exceeded")
-                parts = text.split(" ", 2)
-                if parts[1] not in {"ERROR", "FATAL", "CRITICAL"}:
+                level = _log_fields(text)[1]
+                if level not in {"ERROR", "FATAL", "CRITICAL"}:
                     continue
                 code = re.search(r"\bcode=([A-Za-z0-9_-]+)", text)
-                key = parts[1] if arguments["group_by"] == "level" else code.group(1) if code else "UNKNOWN"
+                key = level if arguments["group_by"] == "level" else code.group(1) if code else "UNKNOWN"
                 count_map[key] = count_map.get(key, 0) + 1
             limit = arguments["max_groups"]
             groups = [{"key": key, "count_in_coverage": count} for key, count in sorted(count_map.items())[:limit]]

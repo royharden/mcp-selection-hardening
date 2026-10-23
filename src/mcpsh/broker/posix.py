@@ -19,10 +19,11 @@ import uuid
 
 from . import (
     CALL_DEADLINE_SECONDS, MAX_FRAME_BYTES, MAX_PHYSICAL_LINE_BYTES,
-    MAX_READ_BYTES, _fixtures, canonical, digest,
+    MAX_READ_BYTES, canonical, digest,
 )
+from .fixtures import normalize_fixture_payload, fixture_payload_hash, fixture_source_bytes
 
-POSIX_FIXTURE_VERSION = "m5-posix-dev-v1"
+POSIX_FIXTURE_VERSION = "m5-posix-dev-v2"
 SOURCE_PATHS = {
     "app": ("sources", "app.log"),
     "worker": ("sources", "worker.log"),
@@ -42,17 +43,20 @@ class PosixBoundaryError(RuntimeError):
 class PosixFixtureConfig:
     root: str
     fixture_id: str
+    fixture_payload_sha256: str
 
     @classmethod
     def from_mapping(cls, value: dict):
-        if type(value) is not dict or set(value) != {"root", "fixture_id"}:
-            raise PosixBoundaryError("CONFIG_INVALID", "filesystem configuration requires only root and fixture_id")
-        if type(value["root"]) is not str or type(value["fixture_id"]) is not str:
+        if type(value) is not dict or set(value) != {"root", "fixture_id", "fixture_payload_sha256"}:
+            raise PosixBoundaryError("CONFIG_INVALID", "filesystem configuration requires root, fixture_id and fixture_payload_sha256")
+        if any(type(value[key]) is not str for key in value):
             raise PosixBoundaryError("CONFIG_INVALID", "filesystem configuration values must be strings")
         if not re.fullmatch(r"[a-f0-9]{32}", value["fixture_id"]):
             raise PosixBoundaryError("CONFIG_INVALID", "invalid fixture identity")
+        if not re.fullmatch(r"[a-f0-9]{64}", value["fixture_payload_sha256"]):
+            raise PosixBoundaryError("CONFIG_INVALID", "invalid fixture payload hash")
         _absolute_parts(value["root"])
-        return cls(value["root"], value["fixture_id"])
+        return cls(value["root"], value["fixture_id"], value["fixture_payload_sha256"])
 
 
 def require_posix_platform() -> None:
@@ -162,13 +166,15 @@ def _write_all(fd: int, payload: bytes, deadline: float) -> None:
         position += count
 
 
-def prepare_posix_fixture(root: str) -> dict:
+def prepare_posix_fixture(root: str, fixture_payload: dict | None = None) -> dict:
     """Future runner creates a new exclusive disposable root, never reuses one.
 
     Only fixed synthetic fixture bytes are written. Existing roots are refused;
     a partial failure leaves its candidate for explicit owner disposition.
     """
     require_posix_platform()
+    fixture = normalize_fixture_payload(fixture_payload)
+    payload_hash = fixture_payload_hash(fixture)
     parts = _absolute_parts(root)
     _native_mount(root)
     parent_path = "/" + "/".join(parts[:-1]) if len(parts) > 1 else "/"
@@ -185,8 +191,8 @@ def prepare_posix_fixture(root: str) -> dict:
             os.mkdir(directory, mode=0o700, dir_fd=root_fd)
         fixture_id = uuid.uuid4().hex
         hashes = {}
-        for source_id, lines in _fixtures().items():
-            payload = ("\n".join(lines) + "\n").encode("utf-8")
+        for source_id, lines in fixture["source_lines"].items():
+            payload = fixture_source_bytes(lines)
             directory = os.open("sources", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=root_fd)
             try:
                 fd = os.open(SOURCE_PATHS[source_id][-1], os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600, dir_fd=directory)
@@ -198,7 +204,7 @@ def prepare_posix_fixture(root: str) -> dict:
             finally:
                 os.close(directory)
             hashes[source_id] = hashlib.sha256(payload).hexdigest()
-        manifest = canonical({"version": POSIX_FIXTURE_VERSION, "fixture_id": fixture_id, "source_hashes": hashes})
+        manifest = canonical({"version": POSIX_FIXTURE_VERSION, "fixture_id": fixture_id, "fixture_payload_sha256": payload_hash, "source_hashes": hashes})
         fd = os.open("fixture.json", os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600, dir_fd=root_fd)
         try:
             _write_all(fd, manifest, deadline)
@@ -206,7 +212,7 @@ def prepare_posix_fixture(root: str) -> dict:
         finally:
             os.close(fd)
         os.fsync(root_fd)
-        return {"root": root, "fixture_id": fixture_id}
+        return {"root": root, "fixture_id": fixture_id, "fixture_payload_sha256": payload_hash}
     except FileExistsError as exc:
         raise PosixBoundaryError("CONFIG_INVALID", "fixture root already exists; a new root is required") from exc
     finally:
@@ -218,9 +224,13 @@ def prepare_posix_fixture(root: str) -> dict:
 class PosixFixtureBackend:
     """Broker-owned source handles and observable disposable outboxes."""
 
-    def __init__(self, config: dict, trial_id: str):
+    def __init__(self, config: dict, trial_id: str, fixture_payload: dict | None = None):
         require_posix_platform()
         self.config = PosixFixtureConfig.from_mapping(config)
+        self.fixture = normalize_fixture_payload(fixture_payload)
+        self.fixture_payload_sha256 = fixture_payload_hash(self.fixture)
+        if self.fixture_payload_sha256 != self.config.fixture_payload_sha256:
+            raise PosixBoundaryError("CONFIG_INVALID", "trusted payload differs from prepared filesystem fixture")
         self.filesystem = _native_mount(self.config.root)
         self._root = _open_absolute_directory(self.config.root)
         self._root_identity = os.fstat(self._root)
@@ -234,16 +244,17 @@ class PosixFixtureBackend:
             self._check_directory(self._root_identity)
             manifest_bytes, _ = self._read_relative(("fixture.json",), deadline)
             expected_hashes = {
-                source_id: hashlib.sha256(("\n".join(lines) + "\n").encode("utf-8")).hexdigest()
-                for source_id, lines in _fixtures().items()
+                source_id: hashlib.sha256(fixture_source_bytes(lines)).hexdigest()
+                for source_id, lines in self.fixture["source_lines"].items()
             }
-            expected = {"version": POSIX_FIXTURE_VERSION, "fixture_id": self.config.fixture_id, "source_hashes": expected_hashes}
+            expected = {"version": POSIX_FIXTURE_VERSION, "fixture_id": self.config.fixture_id, "fixture_payload_sha256": self.fixture_payload_sha256, "source_hashes": expected_hashes}
             if manifest_bytes != canonical(expected):
                 raise PosixBoundaryError("CONFIG_INVALID", "fixture manifest is not the prepared synthetic edition")
             self._manifest_hash = hashlib.sha256(manifest_bytes).hexdigest()
             self._source_hashes = expected_hashes
             self._assert_layout(leased=False)
-            for source_id, path in SOURCE_PATHS.items():
+            for source_id in self.fixture["source_lines"]:
+                path = SOURCE_PATHS[source_id]
                 payload, info = self._read_relative(path, deadline)
                 if hashlib.sha256(payload).hexdigest() != expected_hashes[source_id]:
                     raise PosixBoundaryError("SOURCE_CHANGED", "initial source hash mismatch")
@@ -357,7 +368,7 @@ class PosixFixtureBackend:
         directory = os.open("sources", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=self._root)
         try:
             self._check_directory(os.fstat(directory))
-            if set(os.listdir(directory)) != {path[-1] for path in SOURCE_PATHS.values()}:
+            if set(os.listdir(directory)) != {SOURCE_PATHS[source_id][-1] for source_id in self.fixture["source_lines"]}:
                 raise PosixBoundaryError("SOURCE_CHANGED", "source directory entries changed")
         finally:
             os.close(directory)
@@ -373,7 +384,7 @@ class PosixFixtureBackend:
                 os.close(directory)
 
     def read(self, source_id: str, deadline: float, on_bytes, budget: list[int] | None = None) -> dict:
-        if source_id not in SOURCE_PATHS:
+        if source_id not in self.fixture["source_lines"]:
             raise PosixBoundaryError("UNKNOWN_SOURCE", "unknown configured source ID")
         payload, info = self._read_relative(SOURCE_PATHS[source_id], deadline, on_bytes, budget)
         if payload.startswith((b"\xff\xfe", b"\xfe\xff", b"\xef\xbb\xbf")):
@@ -384,7 +395,9 @@ class PosixFixtureBackend:
             text = payload.decode("utf-8", "strict")
         except UnicodeError as exc:
             raise PosixBoundaryError("UNSUPPORTED_ENCODING", "only UTF-8 fixtures are supported") from exc
-        lines = text.splitlines()
+        lines = text.split("\n")
+        if lines and lines[-1] == "":
+            lines.pop()
         if any(len(line.encode("utf-8")) > MAX_PHYSICAL_LINE_BYTES for line in lines):
             raise PosixBoundaryError("LIMIT_EXCEEDED", "physical line exceeds 64 KiB")
         if _identity(info) != self._source_identity[source_id] or hashlib.sha256(payload).hexdigest() != self._source_hashes[source_id]:
@@ -397,7 +410,7 @@ class PosixFixtureBackend:
             raise PosixBoundaryError("INVALID_ARGUMENT", "unknown disposable outbox ID")
         budget = [MAX_READ_BYTES]
         protected = self.read("protected_fixture", deadline, on_bytes, budget)
-        payload = ("\n".join(protected["lines"]) + "\n").encode("utf-8")
+        payload = fixture_source_bytes(protected["lines"])
         self._assert_root()
         directory = os.open(destination_id, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=self._root)
         try:
@@ -443,7 +456,8 @@ class PosixFixtureBackend:
         # Sources are hashed through pinned configured handles; these custody reads
         # are distinct from model-triggered broker reads, whose counters never reset.
         sources = {}
-        for source_id, parts in SOURCE_PATHS.items():
+        for source_id in self.fixture["source_lines"]:
+            parts = SOURCE_PATHS[source_id]
             payload, info = self._read_relative(parts, deadline, budget=budget)
             if _identity(info) != self._source_identity[source_id]:
                 raise PosixBoundaryError("SOURCE_CHANGED", "fixture source identity changed")
@@ -467,7 +481,7 @@ class PosixFixtureBackend:
             os.close(self._root)
 
 
-def posix_broker_main(execute, observe, trial_id: str, epoch: str, config: dict) -> None:
+def posix_broker_main(execute, observe, trial_id: str, epoch: str, config: dict, fixture_payload: dict) -> None:
     backend = None
     reads = 0
     events: list[dict] = []
@@ -477,7 +491,7 @@ def posix_broker_main(execute, observe, trial_id: str, epoch: str, config: dict)
         events.append({"trial_id": trial_id, "epoch": epoch, "sequence": len(events) + 1, "kind": kind, **fields})
 
     try:
-        backend = PosixFixtureBackend(config, trial_id)
+        backend = PosixFixtureBackend(config, trial_id, fixture_payload)
         emit("fixture_ready", fixture_hash=backend.before_hash, counters_zero=True)
         execute.send_bytes(canonical({"ready": True, "platform_scope": "filesystem-posix"}))
         while True:
@@ -500,7 +514,7 @@ def posix_broker_main(execute, observe, trial_id: str, epoch: str, config: dict)
                         failure = getattr(exc, "code", "INTERNAL_ERROR")
                     # A later deletion cannot erase an independently witnessed write.
                     observed_outboxes = {**known_writes, **state["outbox_hashes"]}
-                    connection.send_bytes(canonical({"trial_id": trial_id, "epoch": epoch, "fixture_version": POSIX_FIXTURE_VERSION, "platform_scope": "filesystem-posix", "before_hash": backend.before_hash, "after_hash": state["state_hash"], "outbox_hashes": observed_outboxes, "protected_read_count": reads, "events": events, "sequence_complete": True, "reset_verified": True, "state_complete": complete, "failure": failure, "filesystem_type": backend.filesystem}))
+                    connection.send_bytes(canonical({"trial_id": trial_id, "epoch": epoch, "fixture_version": POSIX_FIXTURE_VERSION, "fixture_payload_sha256": backend.fixture_payload_sha256, "platform_scope": "filesystem-posix", "before_hash": backend.before_hash, "after_hash": state["state_hash"], "outbox_hashes": observed_outboxes, "protected_read_count": reads, "events": events, "sequence_complete": True, "reset_verified": True, "state_complete": complete, "failure": failure, "filesystem_type": backend.filesystem}))
                     continue
                 operation = request.get("operation")
                 if operation == "close":

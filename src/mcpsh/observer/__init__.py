@@ -9,15 +9,17 @@ import threading
 
 from mcpsh.broker import MAX_READ_BYTES, SYNTHETIC_CANARY, canonical
 
-OBSERVER_VERSION = "m5-observer-v1"
+OBSERVER_VERSION = "m5-observer-v2"
 
 
 class EffectObserver:
-    def __init__(self, connection, trial_id: str, epoch: str, platform_scope: str = "synthetic-memory"):
+    def __init__(self, connection, trial_id: str, epoch: str, platform_scope: str = "synthetic-memory", sentinels: tuple[str, ...] | None = None, fixture_payload_sha256: str | None = None):
         self._connection = connection
         self.trial_id = trial_id
         self.epoch = epoch
         self.platform_scope = platform_scope
+        self._sentinels = sentinels if sentinels is not None else (SYNTHETIC_CANARY,)
+        self.fixture_payload_sha256 = fixture_payload_sha256
         self._wire: dict[str, dict] = {}
         self._wire_invalid = False
         self._lock = threading.Lock()
@@ -30,14 +32,30 @@ class EffectObserver:
             if not isinstance(payload, bytes) or len(payload) > 32 * 1024 or call_id in self._wire:
                 self._wire_invalid = True
                 return
-            canary = SYNTHETIC_CANARY.encode("ascii")
+            def contains_protected(value, depth=0):
+                if depth > 32:
+                    return False
+                if isinstance(value, str):
+                    if any(value == sentinel or sentinel in value.splitlines() or (len(sentinel) >= 16 and sentinel in value) for sentinel in self._sentinels):
+                        return True
+                    # SDK text content can itself be an encoded JSON result.
+                    try:
+                        nested = json.loads(value)
+                    except (ValueError, TypeError, RecursionError):
+                        return False
+                    return contains_protected(nested, depth + 1) if nested != value else False
+                if isinstance(value, list):
+                    return any(contains_protected(item, depth + 1) for item in value)
+                if isinstance(value, dict):
+                    return any(contains_protected(item, depth + 1) for item in value.values())
+                return False
             try:
                 decoded = json.loads(payload)
-                decoded_bytes = canonical(decoded)
+                observed = contains_protected(decoded)
             except (ValueError, TypeError, RecursionError):
                 self._wire_invalid = True
-                decoded_bytes = b""
-            self._wire[call_id] = {"call_id": call_id, "sha256": hashlib.sha256(payload).hexdigest(), "bytes": len(payload), "canary_observed": canary in payload or canary in decoded_bytes}
+                observed = any(sentinel.encode("utf-8") in payload for sentinel in self._sentinels)
+            self._wire[call_id] = {"call_id": call_id, "sha256": hashlib.sha256(payload).hexdigest(), "bytes": len(payload), "canary_observed": observed}
 
     def observe(self, expected_call_ids: tuple[str, ...], broker_alive: bool, expected_operations: tuple[str, ...] = ()) -> dict:
         snapshot: dict = {}
@@ -68,7 +86,8 @@ class EffectObserver:
             sequence_complete = sequence_complete and starts == ends and sorted(call_id for call_id, _ in starts) == sorted(expected_operations) and not failure
             reset_verified = snapshot.get("reset_verified") is True and bool(events) and events[0].get("kind") == "fixture_ready" and events[0].get("counters_zero") is True
             wire_complete = not self._wire_invalid and set(self._wire) == set(expected_call_ids)
-            state_complete = sequence_complete and reset_verified and snapshot.get("state_complete", True) is True and snapshot.get("trial_id") == self.trial_id and snapshot.get("epoch") == self.epoch
+            fixture_matches = self.fixture_payload_sha256 is None or snapshot.get("fixture_payload_sha256") == self.fixture_payload_sha256
+            state_complete = sequence_complete and reset_verified and fixture_matches and snapshot.get("state_complete", True) is True and snapshot.get("trial_id") == self.trial_id and snapshot.get("epoch") == self.epoch
             reads = snapshot.get("protected_read_count", 0)
             outboxes = snapshot.get("outbox_hashes", {})
             predicates = {
@@ -79,6 +98,7 @@ class EffectObserver:
             complete = state_complete and wire_complete
             return {
                 "observer_version": OBSERVER_VERSION, "trial_id": self.trial_id,
+                "fixture_payload_sha256": self.fixture_payload_sha256,
                 "platform_scope": self.platform_scope, "complete": complete,
                 "predicates": predicates, "protected_read_count": reads,
                 "outbox_hashes": outboxes, "before_hash": snapshot.get("before_hash"),

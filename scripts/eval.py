@@ -27,20 +27,23 @@ def source_hash(directory: Path) -> str:
     return typed_hash(records)
 
 
-def public_projection(value):
+def public_projection(value, fixture_map=None, fixture_payload=None):
     """Conservative bounded public trace projection; raw results never leave this process."""
     if isinstance(value, list):
-        return [public_projection(item) for item in value]
+        return [public_projection(item, fixture_map, fixture_payload) for item in value]
     if isinstance(value, dict):
+        if fixture_map is not None and isinstance(value.get("fixture_ref"), str):
+            fixture_payload = fixture_map.get(value["fixture_ref"])
         # Retain evidence hashes and classifications, omit raw provider/log/wire payloads.
-        return {key: public_projection(item) for key, item in value.items()
+        return {key: public_projection(item, fixture_map, fixture_payload) for key, item in value.items()
                 if key not in {"results", "raw_arguments", "typed_arguments", "events",
-                               "public_task", "outbox_hashes", "family_id", "attack_family", "split"}}
+                               "public_task", "outbox_hashes", "family_id", "attack_family", "split",
+                               "metadata_diffs"}}
     if isinstance(value, str):
         # Never publish arbitrary server reasons or untrusted strings containing the canary marker.
         from mcpsh.server import redact_public
 
-        return redact_public(value)[:4096]
+        return redact_public(value, fixture_payload=fixture_payload)[:4096]
     return value
 
 
@@ -60,15 +63,18 @@ def main() -> int:
     parser.add_argument("--approval", type=Path)
     parser.add_argument("--protocol-record", type=Path)
     parser.add_argument("--filesystem-config", type=Path)
+    parser.add_argument("--fixtures-package", type=Path)
+    parser.add_argument("--treatments-package", type=Path)
     args = parser.parse_args()
     if args.mode == "live":
-        if not all((args.manifest, args.approval, args.oracle_package, args.protocol_record)):
-            parser.error("live requires exact manifest, approval, sealed oracle and protocol record; no defaults authorize dispatch")
+        if not all((args.manifest, args.approval, args.oracle_package, args.protocol_record,
+                    args.fixtures_package, args.treatments_package)):
+            parser.error("live requires manifest, approval, sealed oracle/fixtures/treatments and protocol record; no defaults authorize dispatch")
         preview = ExperimentManifest.model_validate_json(args.manifest.read_bytes())
         if args.edition and args.edition != preview.edition_id:
             parser.error("CLI edition differs from the approved manifest")
         args.edition = preview.edition_id
-    elif args.oracle_package or args.manifest or args.approval:
+    elif args.oracle_package or args.manifest or args.approval or args.fixtures_package or args.treatments_package:
         parser.error("independent held-out custody and execution are not admitted in this development runner")
     if not args.edition:
         args.edition = "replay-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
@@ -90,16 +96,18 @@ def main() -> int:
     if private_destination.exists():
         parser.error("private immutable edition already exists")
     source = ROOT / "src" / "mcpsh"
+    fixture_map = None
     if args.mode == "live":
         from mcpsh.runner.live import prepare_live_run
 
         pins = {"code_hash": source_hash(source), "policy_hash": source_hash(source / "policy"),
                 "scorer_hash": source_hash(source / "evaluation"),
                 "observer_hash": source_hash(source / "observer")}
-        admitted, cases, factory = prepare_live_run(
+        admitted, cases, factory, fixture_map, treatment_map = prepare_live_run(
             manifest_path=args.manifest, approval_path=args.approval,
             oracle_path=args.oracle_package, protocol_record=args.protocol_record,
-            product_root=ROOT, private_directory=private_destination, source_hashes=pins)
+            product_root=ROOT, private_directory=private_destination, source_hashes=pins,
+            fixtures_path=args.fixtures_package, treatments_path=args.treatments_package)
         filesystem_config = None
         if args.filesystem_config:
             config = strict_json_loads(args.filesystem_config.read_bytes())
@@ -109,12 +117,13 @@ def main() -> int:
             if not parent.is_absolute():
                 parser.error("POSIX fixture parent must be an explicit absolute approved path")
 
-            def filesystem_config(trial_id):
+            def filesystem_config(trial_id, fixture_payload):
                 from mcpsh.broker.posix import prepare_posix_fixture
 
-                return prepare_posix_fixture(str(parent / trial_id))
+                return prepare_posix_fixture(str(parent / trial_id), fixture_payload=fixture_payload)
         result = run_live_matrix(manifest=admitted, cases=cases, selector_factory=factory,
-                                 filesystem_config=filesystem_config)
+                                 filesystem_config=filesystem_config, fixture_map=fixture_map,
+                                 treatment_map=treatment_map)
         manifest = admitted.model_dump(mode="json")
     else:
         result = run_matrix(seed=args.seed, cases=load_development_cases(ROOT)
@@ -142,7 +151,7 @@ def main() -> int:
                 for row in result["rows"]), encoding="utf-8", newline="\n")
     (private_destination / "MANIFEST.json").write_text(
         json.dumps(manifest, ensure_ascii=True, indent=2) + "\n", encoding="utf-8")
-    safe = public_projection(result)
+    safe = public_projection(result, fixture_map=fixture_map)
     files = render_bundle(safe)
     files["MANIFEST.json"] = json.dumps(manifest, ensure_ascii=True, indent=2) + "\n"
     staging = Path(tempfile.mkdtemp(prefix=".stage-" + args.edition + "-", dir=args.out))

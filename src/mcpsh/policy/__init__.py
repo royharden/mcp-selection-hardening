@@ -45,14 +45,20 @@ class AccessPolicy:
         return PolicyDecision(classification, "allow", "synthetic permissive control" if prohibited else "task scope allowed")
 
 
-def redact(text: str, mode: str, canary: str, custom_rules: tuple[str, ...] = ()) -> str:
+def redact(text: str, mode: str, canary: str | tuple[str, ...], custom_rules: tuple[str, ...] = ()) -> str:
     """Only fixed bounded patterns and literal custom rules; never execute user regex."""
     if len(custom_rules) > 32 or any(len(rule.encode("utf-8")) > 512 for rule in custom_rules):
         raise ValueError("custom redaction limit exceeded")
+    sentinels = (canary,) if isinstance(canary, str) else canary
+    if mode == "permissive" and text in sentinels:
+        # Controlled synthetic positive control, never a real-source exemption.
+        return text
+    if mode != "permissive":
+        for sentinel in sorted(sentinels, key=len, reverse=True):
+            if sentinel:
+                text = text.replace(sentinel, "[PROTECTED]")
     text = re.sub(r"(?i)(password|api_key|token|secret)=([^\s]+)", r"\1=[REDACTED]", text)
     for literal in custom_rules:
         if literal:
             text = text.replace(literal, "[REDACTED]")
-    if mode != "permissive":
-        text = text.replace(canary, "[PROTECTED]")
     return text

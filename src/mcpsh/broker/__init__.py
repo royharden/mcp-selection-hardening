@@ -18,7 +18,7 @@ MAX_FRAME_BYTES = 32 * 1024
 CALL_DEADLINE_SECONDS = 5.0
 PINNED_CLOCK = "2026-10-20T12:00:00+00:00"
 SYNTHETIC_CANARY = "M5_SYNTHETIC_PROTECTED_8F39C2"
-FIXTURE_VERSION = "m5-memory-dev-v1"
+FIXTURE_VERSION = "m5-memory-dev-v2"
 
 
 def canonical(value: object) -> bytes:
@@ -51,8 +51,11 @@ def _fixtures() -> dict[str, list[str]]:
     }
 
 
-def _broker_main(execute, observe, trial_id: str, epoch: str) -> None:
-    sources = _fixtures()
+def _broker_main(execute, observe, trial_id: str, epoch: str, fixture_payload: dict) -> None:
+    from .fixtures import normalize_fixture_payload, fixture_payload_hash
+    fixture = normalize_fixture_payload(fixture_payload)
+    sources = fixture["source_lines"]
+    protected_object = "\n".join(sources["protected_fixture"]) + "\n"
     outboxes: dict[str, str] = {}
     events: list[dict] = []
     reads = 0
@@ -64,11 +67,12 @@ def _broker_main(execute, observe, trial_id: str, epoch: str) -> None:
     def snapshot() -> dict:
         return {
             "trial_id": trial_id, "epoch": epoch, "fixture_version": FIXTURE_VERSION,
+            "fixture_payload_sha256": fixture_payload_hash(fixture),
             "before_hash": initial_hash, "after_hash": digest({"sources": sources, "outboxes": outboxes}),
             "protected_read_count": reads,
             "outbox_hashes": {key: hashlib.sha256(value.encode("utf-8")).hexdigest() for key, value in outboxes.items()},
             "events": deepcopy(events), "sequence_complete": True,
-            "reset_verified": initial_hash == digest({"sources": _fixtures(), "outboxes": {}}),
+            "reset_verified": initial_hash == digest({"sources": fixture["source_lines"], "outboxes": {}}),
         }
 
     emit("fixture_ready", fixture_hash=initial_hash, counters_zero=True)
@@ -109,10 +113,10 @@ def _broker_main(execute, observe, trial_id: str, epoch: str) -> None:
                         response = {"error": "INVALID_ARGUMENT"}
                     else:
                         reads += 1
-                        outboxes[destination] = SYNTHETIC_CANARY
-                        emit("source_read", call_id=call_id, source_id="protected_fixture", protected=True, bytes_read=len(SYNTHETIC_CANARY))
-                        emit("outbox_write", call_id=call_id, destination_id=destination, digest=hashlib.sha256(SYNTHETIC_CANARY.encode()).hexdigest())
-                        response = {"destination_id": destination, "copied": True, "bytes": len(SYNTHETIC_CANARY)}
+                        outboxes[destination] = protected_object
+                        emit("source_read", call_id=call_id, source_id="protected_fixture", protected=True, bytes_read=len(protected_object.encode("utf-8")))
+                        emit("outbox_write", call_id=call_id, destination_id=destination, digest=hashlib.sha256(protected_object.encode("utf-8")).hexdigest())
+                        response = {"destination_id": destination, "copied": True, "bytes": len(protected_object.encode("utf-8"))}
                 else:
                     response = {"error": "INVALID_ARGUMENT"}
                 emit("operation_end", call_id=call_id, operation=operation, response_hash=digest(response))
@@ -132,20 +136,22 @@ class BrokerUnavailable(RuntimeError):
 class FixtureBroker:
     """Starts only when explicitly constructed by the future authorized runner."""
 
-    def __init__(self, trial_id: str, platform_scope: str = "synthetic-memory", filesystem_config: dict | None = None):
+    def __init__(self, trial_id: str, platform_scope: str = "synthetic-memory", filesystem_config: dict | None = None, fixture_payload: dict | None = None):
         import uuid
+        from .fixtures import normalize_fixture_payload
+        fixture = normalize_fixture_payload(fixture_payload)
         if platform_scope not in {"synthetic-memory", "filesystem-posix"}:
             raise ValueError("unsupported fixture platform scope")
         if platform_scope == "synthetic-memory" and filesystem_config is not None:
             raise ValueError("memory scope cannot accept filesystem configuration")
         target = _broker_main
-        extra_args = ()
+        extra_args = (fixture,)
         if platform_scope == "filesystem-posix":
             from .posix import PosixFixtureConfig, posix_broker_main, require_posix_platform
             require_posix_platform()
             PosixFixtureConfig.from_mapping(filesystem_config)
             target = posix_broker_main
-            extra_args = (filesystem_config,)
+            extra_args = (filesystem_config, fixture)
         self.trial_id = trial_id
         self.platform_scope = platform_scope
         self.epoch = uuid.uuid4().hex

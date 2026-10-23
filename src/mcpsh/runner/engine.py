@@ -38,7 +38,8 @@ def run_trial(*, task: PublicTaskCase, oracle: OracleCase, selector: Any,
               mode: str, selector_name: str = "scripted-replay", max_turns: int = 3,
               max_calls: int = 6, execution_mode: str = "replay",
               manifest: ExperimentManifest | None = None,
-              platform_scope: str = "synthetic-memory", filesystem_config=None) -> dict[str, Any]:
+              platform_scope: str = "synthetic-memory", filesystem_config=None,
+              fixture_payload=None) -> dict[str, Any]:
     from mcpsh.server import ReferenceServer
 
     if task.task_id != oracle.task_id:
@@ -67,7 +68,7 @@ def run_trial(*, task: PublicTaskCase, oracle: OracleCase, selector: Any,
     try:
         server = ReferenceServer(mode=mode, allowed_sources=task.allowed_source_ids,
                                  trial_id=trial_id, platform_scope=platform_scope,
-                                 filesystem_config=filesystem_config)
+                                 filesystem_config=filesystem_config, fixture_payload=fixture_payload)
         for turn in range(1, max_turns + 1):
             deadline = manifest.settings.get("task_deadline_seconds") if manifest else None
             if execution_mode == "live" and (type(deadline) not in (int, float) or deadline <= 0):
@@ -161,11 +162,13 @@ def run_trial(*, task: PublicTaskCase, oracle: OracleCase, selector: Any,
     return {"outcome": outcome.model_dump(mode="json"), "trace": trace,
             "results": results, "observation": observation,
             "public_task": public_task_projection(task), "catalog_hash": typed_hash(catalog),
+            "fixture_ref": task.fixture_ref,
+            "fixture_payload_hash": typed_hash(fixture_payload) if fixture_payload is not None else None,
             "model_attempts": normalized_attempts, "accounting_attempts": attempts}
 
 
 def run_live_matrix(*, manifest: ExperimentManifest, cases, selector_factory,
-                    filesystem_config=None) -> dict[str, Any]:
+                    filesystem_config=None, fixture_map, treatment_map) -> dict[str, Any]:
     """Approved closed-loop source path; every scheduled failure remains in the edition.
 
     The caller verifies an explicit approval receipt and raw oracle-package seal before
@@ -174,8 +177,8 @@ def run_live_matrix(*, manifest: ExperimentManifest, cases, selector_factory,
     """
     import random
 
-    from mcpsh.catalog import build_catalog
     from mcpsh.lint import normalize_catalog
+    from .sealed import CONDITIONS, treatment_catalog
 
     if manifest.mode != "live" or manifest.matrix != ("C0", "C1", "C2"):
         raise ValueError("live core requires the approved three-cell manifest")
@@ -199,33 +202,40 @@ def run_live_matrix(*, manifest: ExperimentManifest, cases, selector_factory,
         raise ValueError("POSIX matrix requires a fresh disposable fixture factory per trial")
     if manifest.platform_scope == "synthetic-memory" and filesystem_config is not None:
         raise ValueError("memory mode cannot receive host filesystem configuration")
-    catalogs = {condition: build_catalog(condition) for condition in ("clean", "ambiguous", "poisoned")}
+    if set(treatment_map) != {task.task_id for task, _ in cases}:
+        raise ValueError("every sealed task requires its exact metadata treatments")
+    catalogs = {task.task_id: {condition: treatment_catalog(treatment_map[task.task_id], condition)
+                               for condition in CONDITIONS} for task, _ in cases}
     if manifest.catalog_hash != typed_hash(catalogs):
         raise ValueError("catalog/schema set differs from immutable manifest")
     schedule = [(task, oracle, model, condition, cell, repeat)
                 for task, oracle in cases for model in manifest.model_ids
-                for condition in catalogs for cell in manifest.matrix for repeat in range(repeats)]
+                for condition in CONDITIONS for cell in manifest.matrix for repeat in range(repeats)]
     random.Random(manifest.seed).shuffle(schedule)
     rows = []
     stop_reason = None
     for index, (task, oracle, model, condition, cell, repeat) in enumerate(schedule):
         trial_id = f"{manifest.edition_id}-{index:05d}-{repeat}"
-        catalog = catalogs[condition]
+        catalog = catalogs[task.task_id][condition]
+        diffs = []
         if cell == "C2":
-            catalog, _ = normalize_catalog(catalog)
+            catalog, diffs = normalize_catalog(catalog)
         try:
             if stop_reason:
                 raise RuntimeError("dispatch stopped: " + stop_reason)
             selector = selector_factory(model, trial_id)
             _admit_live(selector, manifest)
-            trial_config = filesystem_config(trial_id) if callable(filesystem_config) else None
+            fixture_payload = fixture_map[task.fixture_ref]
+            trial_config = filesystem_config(trial_id, fixture_payload) if callable(filesystem_config) else None
             row = run_trial(task=task, oracle=oracle, selector=selector, catalog=catalog,
                             trial_id=trial_id, condition=condition, cell=cell,
                             mode="permissive" if cell == "C0" else "hardened",
                             selector_name=model, max_turns=manifest.max_turns,
                             max_calls=manifest.max_calls, execution_mode="live", manifest=manifest,
                             platform_scope=manifest.platform_scope,
-                            filesystem_config=trial_config)
+                            filesystem_config=trial_config, fixture_payload=fixture_payload)
+            row["normalization_diff_hash"] = typed_hash(diffs)
+            row["metadata_diffs"] = diffs
             # Unknown money/identity/observation is not a reason to keep dispatching.
             if row["outcome"]["cost_status"] in ("unknown", "reserved"):
                 stop_reason = "unsettled_cost_or_admission"
@@ -245,13 +255,13 @@ def run_live_matrix(*, manifest: ExperimentManifest, cases, selector_factory,
             row = {"outcome": outcome.model_dump(mode="json"), "trace": [], "results": [],
                    "observation": {"complete": False, "predicates": {}},
                    "public_task": public_task_projection(task), "catalog_hash": typed_hash(catalog),
-                   "model_attempts": []}
+                   "model_attempts": [], "fixture_ref": task.fixture_ref}
             stop_reason = stop_reason or type(exc).__name__
         rows.append(row)
     outcomes = [row["outcome"] for row in rows]
     paired = []
     for model in manifest.model_ids:
-        for condition in catalogs:
+        for condition in CONDITIONS:
             selected = [item for item in outcomes if item["model_id"] == model
                         and item["condition"] == condition]
             for before, after in (("C0", "C1"), ("C1", "C2"), ("C0", "C2")):

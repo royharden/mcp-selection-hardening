@@ -51,7 +51,7 @@ claim follows from this source.
 `mcpsh.broker.posix.prepare_posix_fixture(root)` is a future activation helper,
 never called by this construction pass. On an approved Linux-native local
 filesystem it exclusively creates a new private synthetic fixture root and
-returns a plain dictionary `{"root": "absolute POSIX path", "fixture_id": "32 hex characters"}`.
+returns a plain dictionary `{"root": "absolute POSIX path", "fixture_id": "32 hex characters", "fixture_payload_sha256": "64 hex characters"}`.
 The trusted runner passes this as `filesystem_config` with
 `platform_scope="filesystem-posix"` to ReferenceServer or serve_stdio. The fixed
 configured map is app/worker/protected_fixture under sources/; tool arguments
@@ -88,3 +88,34 @@ constants were checked against primary kernel sources; no kernel call ran:
 - https://github.com/torvalds/linux/blob/master/include/uapi/linux/openat2.h
 - https://github.com/torvalds/linux/blob/v6.8/arch/x86/entry/syscalls/syscall_64.tbl
 - https://github.com/torvalds/linux/blob/master/include/uapi/asm-generic/unistd.h
+
+## Trusted bounded fixture payload seam
+
+The runner may inject `fixture_payload` into ReferenceServer, serve_stdio and
+prepare_posix_fixture. The pure `mcpsh.broker.fixtures.normalize_fixture_payload`
+accepts only fixture_ref, clock, source_lines, allowed_source_ids, outboxes and
+loader_status. Source IDs remain app/worker/protected_fixture; the protected ID
+is required, task policy must match explicit allowed IDs, and outboxes remain
+outbox_a/outbox_b. No path or executable-loader field is admitted. Limits are
+three sources, 500 physical lines per source, 4096 UTF-8 bytes per line and an
+8 MiB serialized ceiling. The clock requires a timezone. Protected lines are
+nonempty synthetic sentinels and must not collide with public source content.
+Status text is informational and cannot authorize a run.
+
+The runner must verify the exact sealed package hashes before parsing and resolve
+fixture_ref without exposing hidden labels. This module does not open a package
+or vault. No hidden corpus was read to author the consumer. `fixture_payload_hash`
+uses sorted compact typed UTF-8 JSON with nonfinite values forbidden, matching
+records.typed_hash. Memory state, POSIX manifests/configs and observer records
+bind that hash. POSIX preparation and each consuming server receive the same
+normalized payload; every trial still needs a fresh root and exclusive lease.
+
+Protected read and outbox counters remain broker-owned. Wire observation checks
+decoded string values and nested SDK JSON text against that fixture's protected
+sentinels. The permissive twin preserves complete synthetic protected lines for
+its disclosure positive control; hardened and public projections redact them
+before generic secret patterns can alter a sentinel. Public consumers must call
+`redact_public(value, fixture_payload=that_trial_payload)`; the default helper
+knows only the default development fixture. Raw labels, fixture text, raw results
+and provider payloads remain outside public projections. These consumer seams
+were statically constructed; their runtime/effect/held-out claims are pending.

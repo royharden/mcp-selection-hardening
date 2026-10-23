@@ -13,7 +13,7 @@ from mcpsh.records import ExperimentManifest, OracleCase, PublicTaskCase, strict
 
 def prepare_live_run(*, manifest_path: Path, approval_path: Path, oracle_path: Path,
                      protocol_record: Path, product_root: Path, private_directory: Path,
-                     source_hashes: dict[str, str]):
+                     source_hashes: dict[str, str], fixtures_path: Path, treatments_path: Path):
     """Read approved files first; initialize transports only after all admission checks.
 
     Token counting is an explicitly approved local callable over the complete wire
@@ -49,12 +49,15 @@ def prepare_live_run(*, manifest_path: Path, approval_path: Path, oracle_path: P
         resolved_oracle == product_root or product_root in resolved_oracle.parents
     ):
         raise ValueError("held-out oracle custody must remain outside the product repository")
-    oracle_raw = resolved_oracle.read_bytes()
-    if manifest.split_hash != hashlib.sha256(oracle_raw).hexdigest():
-        raise ValueError("raw oracle package seal differs from approved corpus")
-    package = strict_json_loads(oracle_raw)
-    if package.get("schema_version") != 1 or not isinstance(package.get("cases"), list):
+    from .sealed import load_pinned_json
+
+    package = load_pinned_json(resolved_oracle, expected=manifest.split_hash,
+                               maximum_bytes=8 * 1024 * 1024, product_root=product_root,
+                               private=manifest.settings.get("corpus_phase") == "heldout")
+    if not isinstance(package, dict) or set(package) != {"schema_version", "cases"} or package.get("schema_version") != 1 or not isinstance(package.get("cases"), list):
         raise ValueError("unsupported sealed oracle package")
+    if not 1 <= len(package["cases"]) <= 36:
+        raise ValueError("sealed oracle case count outside bounds")
     cases = []
     for item in package["cases"]:
         task = PublicTaskCase.model_validate_json(json.dumps(item["public"]))
@@ -68,6 +71,11 @@ def prepare_live_run(*, manifest_path: Path, approval_path: Path, oracle_path: P
             for predicate in alternative:
                 parse_arguments(predicate.tool_name, canonical_json(predicate.arguments))
         cases.append((task, oracle))
+    from .sealed import load_sealed_inputs
+
+    fixture_map, treatment_map = load_sealed_inputs(
+        fixtures_path=fixtures_path, treatments_path=treatments_path, manifest=manifest,
+        approval=approval, cases=cases, product_root=product_root)
     counter_spec = approval.get("token_counter")
     if not isinstance(counter_spec, str) or counter_spec.count(":") != 1 or not approval.get("token_counter_version"):
         raise ValueError("versioned full-wire token counter is required")
@@ -156,4 +164,4 @@ def prepare_live_run(*, manifest_path: Path, approval_path: Path, oracle_path: P
         arm = LiveArm(provider, row["family"], model, environment_name)
         return LiveSelector(arm, transport=controller, approval=grant)
 
-    return manifest, cases, selector_factory
+    return manifest, cases, selector_factory, fixture_map, treatment_map
