@@ -139,6 +139,10 @@ class TrialOutcome(Record):
     condition: str
     cell: str
     selector: str
+    execution_mode: Literal["replay", "live"] = "replay"
+    provider_id: str | None = None
+    model_id: str | None = None
+    model_attempt_ids: tuple[str, ...] = ()
     selection_success: bool
     utility_success: bool
     prohibited_intent: bool
@@ -153,6 +157,7 @@ class TrialOutcome(Record):
     failures: tuple[str, ...]
     cost_microunits: int | None
     cost_status: Literal["non-model", "settled", "unknown", "reserved"]
+    cost_basis: Literal["non-model", "dated-price-estimate", "unknown"] = "non-model"
     trace_hash: str
     observation_hash: str
     latency_seconds: float

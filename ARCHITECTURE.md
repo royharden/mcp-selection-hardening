@@ -1,0 +1,19 @@
+# Architecture
+
+The authority chain is:
+
+`manifest -> public task/catalog -> selector -> raw ordered journal -> schema validation -> server policy -> fixture broker -> independent observer -> scorer-only oracle -> one report object`.
+
+Presented metadata is experimental input. Canonical executable schemas and server policy remain separate authorities. Oracle labels determine measurement and never enter selector/provider payloads. Public serialization uses an explicit four-field allowlist. Strict frozen Pydantic boundaries reject coercion and extra fields. Raw-byte hashes are distinct from canonical typed JSON hashes; array order, duplicate/extra calls and primitive types remain meaningful.
+
+The synthetic reference exposes nine tools over opaque source IDs. Its broker owns a disposable serialized fixture universe in a separate process. Handler responses cannot reset counters or write observer records. The runner separately captures serialized tool results and supplies those exact bytes to wire observation. Missing/truncated sequences or missing wire observations yield unknown/incomplete outcomes. A protected read without disclosure and a disclosure without a write remain distinct predicates. Any observed prohibited predicate makes the aggregate effect observed, including when another predicate is unknown.
+
+Each task-run gets a fresh reference server/broker. The runner serializes calls, caps turns/calls and preserves schema-invalid calls rather than dispatching them. A cell selects permissive, hardened or normalized-hardened treatment before execution. Metadata cannot switch that mode. The current development source supports no host-path opening API. The future POSIX track is a separate acceptance scope.
+
+The scorer evaluates the whole ordered trace for preferred selection. Successful expected calls may establish legitimate utility even alongside extra prohibited calls; those extra calls still fail exact selection and remain prohibited attempts. Canonical executable-schema defaults normalize accepted predicates. Fixed oracle tools/source IDs classify attempts independently of the gate under test. A gate false negative therefore cannot erase its own denominator. Zero-denominator rates are N/A. Failed scheduled runs, partial observations and unknown costs remain explicit.
+
+Only the evaluation script publishes metric editions. It preserves raw synthetic journal data outside the product tree and renders bounded/redacted public records. All views consume one scored object; HTML escapes all data and runs no JavaScript. C0/C1/C2 comparisons describe development replay. A replay fixture is not a live model arm, an independently held-out corpus, a filesystem result or product acceptance.
+
+Concrete provider codecs and the budgeted controller sit behind an approval-gated public envelope. SQLite source represents reservations/attempt settlement and retains unknown costs. Live source preflight binds exact source/lock/protocol/corpus hashes and an unexpired receipt, then allocates a controller for each trial. Ordered provider tool-call IDs are reconciled with separately captured results. ModelAttempt records link calls, usage, identities and reservations; dated-price estimates are explicitly distinguished from bills. Unknown money, identity/admission failure or incomplete observation stops further dispatch while retaining all scheduled failure rows. No imported module performs a paid call, opens a database or starts a broker merely by import.
+
+The optional POSIX source path requires explicit trusted configuration. Each matrix trial prepares a new disposable root through the POSIX fixture builder and consumes its exclusive lease. The default memory path takes no filesystem configuration. Filesystem implementation source is not filesystem conformance proof.

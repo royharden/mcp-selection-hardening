@@ -1,0 +1,16 @@
+# Validation handoff
+
+Status: construction/static-only. Runtime and independent product acceptance are pending.
+
+After Dirty Mode closes, prioritize:
+
+1. Install and lock compatible dependencies, then run the keyless clean/poison journey on the actual host. Verify the CLI, catalog, lint, replay selectors and report writer together. Add meaningful regression fixtures for any defects found.
+2. Exercise broker process startup/teardown, isolation/reset, sequence and wire capture. Positive controls must show read-only protected access, disclosure without writes and synthetic export. Missing/killed observer, truncated events and failed reset must remain unknown/incomplete. A mixed blocked-then-effect trace must retain both facts; gate false negatives must stay in oracle attempt counts.
+3. Probe strict raw/typed boundaries: duplicate JSON keys, nonfinite JSON, malformed protected intent, integer/string/bool distinctions, optional defaults, namespace mismatch, duplicated/extra/late calls and accepted multistep/no-tool alternatives. Ensure labels cannot escape through provider requests, logs or exception text.
+4. Verify actual read/frame/escaping/line/deadline/cursor/concurrency/redaction limits and structured errors. Select a compatible official MCP SDK and exercise real stdio response/schema behavior. No SDK/protocol pin or interoperability claim exists yet.
+5. Verify edition immutability, interrupted reservation/staging recovery, raw evidence outside the repo, safe report projections, CSV formula protection, and HTML escaping of malicious metadata/tool text. Reports must reproduce from the same scored object and retained private raw evidence. These source paths have not been executed.
+6. Reconcile local accounting with actual provider usage/retry/cancellation/restart behavior before allowing real dispatch. Unknown usage stays reserved. Admit exact live family/model identities, prices, cap fit, independent corpus custody and budget receipts before the pilot/matrix.
+7. Author/verify a supported POSIX filesystem implementation and mandatory path/handle/race conformance on disposable authorized storage. Memory success cannot substitute for this. Unsupported Windows filesystem cases remain unsupported.
+8. Obtain independent label/family review, development calibration and independent product acceptance. Never promote development templates or public poison examples to unseen-family evidence. No measured live/effect/utility verdict is available from this construction phase.
+
+Authored but unexecuted integrations now include concrete provider HTTP codecs, an approved live CLI/core-matrix path, ModelAttempt/cost linkage and a disposable POSIX reader/fixture backend. A real compatible SDK/dependency lock, approved model tokenizer module and actual independent held-out custody/corpus remain unavailable inputs, not invented artifacts. No independent label review, calibration, pilot, live matrix or product acceptance has occurred. Runtime checks must cover these source integrations before claiming they work.
