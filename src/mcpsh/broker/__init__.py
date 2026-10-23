@@ -132,19 +132,42 @@ class BrokerUnavailable(RuntimeError):
 class FixtureBroker:
     """Starts only when explicitly constructed by the future authorized runner."""
 
-    def __init__(self, trial_id: str):
+    def __init__(self, trial_id: str, platform_scope: str = "synthetic-memory", filesystem_config: dict | None = None):
         import uuid
+        if platform_scope not in {"synthetic-memory", "filesystem-posix"}:
+            raise ValueError("unsupported fixture platform scope")
+        if platform_scope == "synthetic-memory" and filesystem_config is not None:
+            raise ValueError("memory scope cannot accept filesystem configuration")
+        target = _broker_main
+        extra_args = ()
+        if platform_scope == "filesystem-posix":
+            from .posix import PosixFixtureConfig, posix_broker_main, require_posix_platform
+            require_posix_platform()
+            PosixFixtureConfig.from_mapping(filesystem_config)
+            target = posix_broker_main
+            extra_args = (filesystem_config,)
         self.trial_id = trial_id
+        self.platform_scope = platform_scope
         self.epoch = uuid.uuid4().hex
         context = multiprocessing.get_context("spawn")
         self._execute, child_execute = context.Pipe(duplex=True)
         self.observation_connection, child_observe = context.Pipe(duplex=True)
         self._lock = threading.Lock()
         self._closed = False
-        self._process = context.Process(target=_broker_main, args=(child_execute, child_observe, trial_id, self.epoch), daemon=True)
+        self._process = context.Process(target=target, args=(child_execute, child_observe, trial_id, self.epoch, *extra_args), daemon=True)
         self._process.start()
         child_execute.close()
         child_observe.close()
+        if platform_scope == "filesystem-posix":
+            try:
+                if not self._execute.poll(CALL_DEADLINE_SECONDS):
+                    raise BrokerUnavailable("POSIX fixture preparation handshake exceeded deadline")
+                startup = json.loads(self._execute.recv_bytes(MAX_FRAME_BYTES))
+                if startup.get("ready") is not True:
+                    raise BrokerUnavailable("POSIX fixture refused: " + str(startup.get("error", "INTERNAL_ERROR")))
+            except (OSError, EOFError, ValueError, BrokerUnavailable) as exc:
+                self.close(force=True)
+                raise BrokerUnavailable(str(exc)) from exc
 
     @property
     def alive(self) -> bool:

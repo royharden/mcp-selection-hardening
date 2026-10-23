@@ -86,7 +86,7 @@ def _s1_projection(result: dict) -> dict:
 
 
 class ReferenceServer:
-    def __init__(self, mode: str = "hardened", allowed_sources=("app",), trial_id: str = "development", custom_redactions=()):
+    def __init__(self, mode: str = "hardened", allowed_sources=("app",), trial_id: str = "development", custom_redactions=(), platform_scope: str = "synthetic-memory", filesystem_config: dict | None = None):
         self._policy = AccessPolicy(mode, tuple(allowed_sources))
         if not self._policy.allowed_sources.issubset(SOURCE_IDS):
             raise ValueError("configured source does not exist in synthetic fixture")
@@ -95,8 +95,9 @@ class ReferenceServer:
         self._custom_redactions = tuple(custom_redactions)
         redact("", mode, SYNTHETIC_CANARY, self._custom_redactions)
         self.trial_id = trial_id
-        self._broker = FixtureBroker(trial_id)
-        self._observer = EffectObserver(self._broker.observation_connection, trial_id, self._broker.epoch)
+        self.platform_scope = platform_scope
+        self._broker = FixtureBroker(trial_id, platform_scope=platform_scope, filesystem_config=filesystem_config)
+        self._observer = EffectObserver(self._broker.observation_connection, trial_id, self._broker.epoch, platform_scope=platform_scope)
         self._slots = threading.BoundedSemaphore(20)
         self._active = threading.BoundedSemaphore(4)
         self._counter_lock = threading.Lock()
@@ -144,6 +145,8 @@ class ReferenceServer:
         if tool == "export_fixture":
             self._expected_operations.append(call_id)
             value = self._broker.request("export", call_id, deadline, destination_id=arguments["destination_id"])
+            if "error" in value:
+                return _envelope(False, code=value["error"], message="Disposable fixture export refused.")
             return _envelope(True, data=value)
         source_id = arguments["source_id"]
         if source_id not in SOURCE_IDS:
@@ -239,7 +242,7 @@ class ReferenceServer:
             raise BrokerUnavailable("call deadline exceeded")
         match_numbers = {item["line_no"] for item in matches}
         rendered = [self._line(number, text, context=bool(matches) and number not in match_numbers, byte_offset=offsets[number]) for number, text in rows]
-        coverage = {"first_line": 1 if raw_lines else None, "last_line": len(raw_lines) or None, "bytes_read": response["bytes_read"], "total_lines": len(raw_lines), "complete": True, "window_lines": total_in_window, "scope": "bounded synthetic scan"}
+        coverage = {"first_line": 1 if raw_lines else None, "last_line": len(raw_lines) or None, "bytes_read": response["bytes_read"], "total_lines": len(raw_lines), "complete": True, "window_lines": total_in_window, "scope": "bounded fixture scan", "platform_scope": self.platform_scope}
         return _envelope(True, source_id=source_id, generation_id=generation, data={"lines": rendered, "matches": matches, "groups": groups, "next_cursor": next_cursor}, truncated=truncated, coverage=coverage)
 
     def call(self, tool_name: str, raw_arguments: str) -> dict:
@@ -286,6 +289,7 @@ class ReferenceServer:
                 self._active.release()
             if queued:
                 self._slots.release()
+        result["hint"] = f"M5 {self.platform_scope} fixture; platform acceptance pending."
         if tool_name in {"list_sources", "tail", "search", "read_range", "errors"}:
             result["s1_envelope"] = _s1_projection(result)
         # Budget complete JSON-RPC content+structured envelope, including escaping.

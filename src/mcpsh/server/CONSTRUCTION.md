@@ -41,6 +41,50 @@ the official source checked 2026-10-23:
 No SDK was installed, locked or imported by this construction pass. Windows
 spawn/IPC, SDK compatibility, cancellation, concurrent calls, frame/deadline
 limits, direct controls and negative-path behavior remain runtime unverified.
-Actual POSIX path/handle/race safety and Windows filesystem support are not
-implemented by memory fixtures. No filesystem conformance or universal injection
-prevention claim follows from this source.
+The POSIX backend source described below is separate from memory fixtures.
+Actual POSIX semantics, path/handle/race conformance and its platform refusals
+remain unverified. No filesystem conformance or universal injection prevention
+claim follows from this source.
+
+## Explicit filesystem-posix source path
+
+`mcpsh.broker.posix.prepare_posix_fixture(root)` is a future activation helper,
+never called by this construction pass. On an approved Linux-native local
+filesystem it exclusively creates a new private synthetic fixture root and
+returns a plain dictionary `{"root": "absolute POSIX path", "fixture_id": "32 hex characters"}`.
+The trusted runner passes this as `filesystem_config` with
+`platform_scope="filesystem-posix"` to ReferenceServer or serve_stdio. The fixed
+configured map is app/worker/protected_fixture under sources/; tool arguments
+never carry a path. Outboxes are only outbox_a/outbox_b. A broker-exclusive lease
+refuses every reused root, including a previously read-only trial. A matrix
+runner must prepare a fresh root/config for each trial. No reset/delete API is
+exposed to the server or model, and partial fixture failures are preserved.
+
+The backend requires Linux on x86_64/aarch64/riscv64, no-follow descriptor APIs,
+kernel openat2, and an explicitly admitted local filesystem type discovered
+from kernel mount metadata. Windows, mapped Windows volumes, network storage
+and unknown filesystem types are refused rather than relabelled POSIX. WSL
+Linux-native storage is only a candidate pending real environment verification.
+No storage, mount or environment was created or inspected during construction.
+
+Configured file access uses a pinned root descriptor and kernel openat2 beneath
+that descriptor, forbidding symlinks, magic links and mount crossings. It checks
+private ownership, regular-file type, link count, device, named-handle identity,
+before/after metadata and pinned synthetic content digests. Cursors inherit
+source generation bindings. Actual bytes are bounded by a shared 8 MiB read
+budget across repeated scans; UTF-8/BOM, binary, physical-line, deadline and
+source-change refusals are structured. The parent broker deadline can halt a
+stalled child. Partial writes or incomplete state produce unknown observations;
+protected reads are counted at the broker's first actual read chunk. Outbox
+copies use exclusive fixed-name creation and observe actual file digests.
+
+These mechanisms were authored, not exercised. The root is an object-capability
+boundary for disposable synthetic data, not containment against arbitrary
+same-user Python or privileged host mutation. Symlink/rename races, opened
+handle behavior, mount constraints, cancellation and positive/negative observer
+controls require supported-platform execution before acceptance. Linux ABI
+constants were checked against primary kernel sources; no kernel call ran:
+
+- https://github.com/torvalds/linux/blob/master/include/uapi/linux/openat2.h
+- https://github.com/torvalds/linux/blob/v6.8/arch/x86/entry/syscalls/syscall_64.tbl
+- https://github.com/torvalds/linux/blob/master/include/uapi/asm-generic/unistd.h

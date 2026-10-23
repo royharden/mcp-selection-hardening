@@ -13,14 +13,16 @@ OBSERVER_VERSION = "m5-observer-v1"
 
 
 class EffectObserver:
-    def __init__(self, connection, trial_id: str, epoch: str):
+    def __init__(self, connection, trial_id: str, epoch: str, platform_scope: str = "synthetic-memory"):
         self._connection = connection
         self.trial_id = trial_id
         self.epoch = epoch
+        self.platform_scope = platform_scope
         self._wire: dict[str, dict] = {}
         self._wire_invalid = False
         self._lock = threading.Lock()
         self._last_snapshot: dict | None = None
+        self._snapshot_failed = False
 
     def capture_wire(self, call_id: str, payload: bytes) -> None:
         """Runner/transport must call this with bytes actually delivered to caller."""
@@ -42,7 +44,7 @@ class EffectObserver:
         failure: str | None = None
         with self._lock:
             try:
-                if not broker_alive:
+                if not broker_alive or self._snapshot_failed:
                     raise OSError("broker unavailable")
                 self._connection.send_bytes(canonical({"operation": "snapshot"}))
                 if not self._connection.poll(1.0):
@@ -50,6 +52,8 @@ class EffectObserver:
                 snapshot = json.loads(self._connection.recv_bytes(MAX_READ_BYTES))
                 self._last_snapshot = snapshot
             except (OSError, EOFError, ValueError) as exc:
+                # A late reply after timeout cannot be reused as a fresh snapshot.
+                self._snapshot_failed = True
                 failure = str(exc)
                 snapshot = self._last_snapshot or {}
             events = snapshot.get("events", [])
@@ -64,7 +68,7 @@ class EffectObserver:
             sequence_complete = sequence_complete and starts == ends and sorted(call_id for call_id, _ in starts) == sorted(expected_operations) and not failure
             reset_verified = snapshot.get("reset_verified") is True and bool(events) and events[0].get("kind") == "fixture_ready" and events[0].get("counters_zero") is True
             wire_complete = not self._wire_invalid and set(self._wire) == set(expected_call_ids)
-            state_complete = sequence_complete and reset_verified and snapshot.get("trial_id") == self.trial_id and snapshot.get("epoch") == self.epoch
+            state_complete = sequence_complete and reset_verified and snapshot.get("state_complete", True) is True and snapshot.get("trial_id") == self.trial_id and snapshot.get("epoch") == self.epoch
             reads = snapshot.get("protected_read_count", 0)
             outboxes = snapshot.get("outbox_hashes", {})
             predicates = {
@@ -75,11 +79,11 @@ class EffectObserver:
             complete = state_complete and wire_complete
             return {
                 "observer_version": OBSERVER_VERSION, "trial_id": self.trial_id,
-                "platform_scope": "synthetic-memory", "complete": complete,
+                "platform_scope": self.platform_scope, "complete": complete,
                 "predicates": predicates, "protected_read_count": reads,
                 "outbox_hashes": outboxes, "before_hash": snapshot.get("before_hash"),
                 "after_hash": snapshot.get("after_hash"), "sequence_complete": sequence_complete,
                 "wire_complete": wire_complete, "reset_verified": reset_verified,
                 "events": events, "wire_observations": list(self._wire.values()),
-                "failure": failure,
+                "failure": failure or snapshot.get("failure"),
             }

@@ -87,7 +87,7 @@ class _WireGuard:
             raise
 
 
-async def serve_stdio(mode: str = "hardened", allowed_sources=("app",), trial_id: str = "stdio-development") -> None:
+async def serve_stdio(mode: str = "hardened", allowed_sources=("app",), trial_id: str = "stdio-development", platform_scope: str = "synthetic-memory", filesystem_config: dict | None = None) -> None:
     """Future activation entrypoint; no host listener, only process stdin/stdout."""
     try:
         import anyio
@@ -99,7 +99,7 @@ async def serve_stdio(mode: str = "hardened", allowed_sources=("app",), trial_id
     from mcpsh.catalog import build_catalog
     from mcpsh.catalog.schemas import schema_for
 
-    reference = ReferenceServer(mode=mode, allowed_sources=allowed_sources, trial_id=trial_id)
+    reference = ReferenceServer(mode=mode, allowed_sources=allowed_sources, trial_id=trial_id, platform_scope=platform_scope, filesystem_config=filesystem_config)
     guard = _WireGuard(reference)
     input_file = anyio.wrap_file(sys.stdin.buffer)
     output_file = anyio.wrap_file(sys.stdout.buffer)
