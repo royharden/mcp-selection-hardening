@@ -6,6 +6,8 @@ import io
 import json
 from typing import Any
 
+from .evaluation_views import evaluation_view_sections, render_evaluation_html, render_evaluation_markdown
+
 
 def _number(value: Any) -> str:
     return "N/A" if value is None else f"{value:.3f}" if isinstance(value, float) else str(value)
@@ -107,6 +109,7 @@ def render_bundle(result: dict[str, Any]) -> dict[str, str]:
             "| " + " | ".join("---" for _ in development_columns) + " |"])
         markdown.extend("| " + " | ".join(_md(_number(row[key])) for key in development_columns) + " |"
                         for row in development["groups"])
+    markdown.extend(["", render_evaluation_markdown(result).rstrip("\n")])
     stream = io.StringIO(newline="")
     writer = csv.writer(stream)
     writer.writerow(columns)
@@ -175,6 +178,7 @@ def render_bundle(result: dict[str, Any]) -> dict[str, str]:
         for key in ledger_total_fields:
             parts.append(f"<tr><td>{html.escape(key)}</td><td>{html.escape(_number(ledger_totals.get(key)))}</td></tr>")
         parts.append("</table><p>All supplied rows and cost bases are retained in ledger-audit.json and the ledger CSV views.</p>")
+    parts.append(render_evaluation_html(result))
     parts.append("</html>")
     files = {
         "results.json": json.dumps(result, ensure_ascii=True, indent=2, allow_nan=False) + "\n",
@@ -182,6 +186,8 @@ def render_bundle(result: dict[str, Any]) -> dict[str, str]:
                                    for row in result["rows"]),
         "summary.csv": stream.getvalue(), "REPORT.md": "\n".join(markdown) + "\n",
         "index.html": "".join(parts),
+        "evaluation-views.json": json.dumps(evaluation_view_sections(result), ensure_ascii=True,
+                                            indent=2, allow_nan=False) + "\n",
     }
     if lint_rows:
         lint_stream = io.StringIO(newline="")
