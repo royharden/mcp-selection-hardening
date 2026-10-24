@@ -48,7 +48,9 @@ def verdict(report, name):
 def test_complete_rows_cannot_invent_floor_or_custody():
     manifest, design, rows = candidate()
     report = evaluate_acceptance(manifest=manifest, design=design, outcomes=rows)
-    assert verdict(report, "complete-matrix") == "pass"
+    # Outcome-only rows lack actual repeat/platform evidence even when IDs match.
+    assert verdict(report, "complete-matrix") == "pending"
+    assert verdict(report, "explicit-private-row-audit") == "pending"
     assert verdict(report, "approved-utility-floor") == "pending"
     assert verdict(report, "independent-custody") == "pending"
     assert report.independent_product_acceptance == "pending"

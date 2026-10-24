@@ -143,6 +143,15 @@ def test_known_synthetic_protected_payload_uses_trusted_fixture_redaction():
     assert "[PROTECTED]" in json.dumps(projection.public)
 
 
+def test_protected_enum_collision_rejects_instead_of_rewriting_observed_state():
+    """what_bug_this_catches: redaction changing observed/unknown meaning while appearing to preserve evidence."""
+    from mcpsh.broker.fixtures import normalize_fixture_payload
+    fixture = normalize_fixture_payload()
+    fixture["source_lines"]["protected_fixture"] = ["observed"]
+    with pytest.raises(ProjectionRejected):
+        project_public_result(private_result(), fixture_map={"unit": fixture})
+
+
 @pytest.mark.parametrize("value", [float("nan"), float("inf"), 10 ** 1000, MARKER, {"expected": MARKER}])
 def test_invalid_numeric_payloads_become_unknown_not_executable_text(value):
     """what_bug_this_catches: hostile values inside known numeric columns escaping sanitization/JSON paths."""
@@ -184,3 +193,16 @@ def test_resume_retains_failed_denominators_and_scripted_metadata_without_text()
     assert projected["resume_plan"]["retained_trials"][0]["cost_microunits"] is None
     assert projected["rows"][0]["scripted_response"]["scripted_response_sha256"] == "f" * 64
     assert MARKER not in json.dumps(projected, ensure_ascii=False)
+
+
+def test_malformed_optional_records_keep_placeholders_in_render_views():
+    """what_bug_this_catches: privacy/error fallback crashing rendering or silently dropping unknown optional rows."""
+    from mcpsh.report import render_bundle
+    source = private_result()
+    source["lint_controls"] = {"labels": {"per_rule": {MARKER: None}}}
+    source["pilot_summary"] = {"arms": [None, MARKER]}
+    projected = project_public_result(source).public
+    assert len(projected["pilot_summary"]["arms"]) == 2
+    assert len(projected["lint_controls"]["labels"]["per_rule"]) == 1
+    for body in render_bundle(projected).values():
+        assert MARKER not in body

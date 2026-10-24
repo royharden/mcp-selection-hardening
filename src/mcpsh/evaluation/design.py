@@ -242,15 +242,20 @@ def pairing_inputs(design: ScheduleDesign, rows: tuple[ObservedTrial, ...], *, b
     families = {}
     missing = unknown = failed = legacy = 0
     values = {before: [], after: []}
+    unobservable_families = set()
     for task, model, condition, repeat in product(design.task_family_by_id, models, conditions, design.repeats):
+        family = design.task_family_by_id[task]
         pair = []
         for cell in (before, after):
             outcome = by_key.get((task, model, condition, cell, repeat))
             if outcome is None:
                 missing += 1
+                unobservable_families.add(family)
                 pair.append(None)
                 continue
             failed += bool(outcome.failures)
+            if outcome.failures:
+                unobservable_families.add(family)
             value = getattr(outcome, metric, None)
             if metric == "utility_success":
                 legacy += outcome.utility_basis != "semantic-v2"
@@ -264,14 +269,15 @@ def pairing_inputs(design: ScheduleDesign, rows: tuple[ObservedTrial, ...], *, b
                 value = outcome.effect == "observed" if outcome.observation_complete and outcome.effect != "unknown" else None
             if value is None:
                 unknown += 1
+                unobservable_families.add(family)
             pair.append(value)
             values[cell].append(value)
-        family = design.task_family_by_id[task]
         families.setdefault(family, [])
         if all(value is not None for value in pair):
             families[family].append(int(pair[1]) - int(pair[0]))
     return {"families": families, "values": values, "missing_pair_members": missing,
             "unknown_pair_members": unknown, "failed_pair_members": failed,
             "legacy_utility_pair_members": legacy,
+            "unobservable_families": unobservable_families,
             "expected_pairs": len(design.task_family_by_id) * len(models) * len(conditions) * len(design.repeats),
             "models": models, "conditions": conditions}

@@ -22,6 +22,7 @@ from . import (
     MAX_READ_BYTES, canonical, digest,
 )
 from .fixtures import normalize_fixture_payload, fixture_payload_hash, fixture_source_bytes
+from .bounds import ReadBudget, ReadLimitExceeded
 
 POSIX_FIXTURE_VERSION = "m5-posix-dev-v2"
 SOURCE_PATHS = {
@@ -317,9 +318,9 @@ class PosixFixtureBackend:
         finally:
             os.close(current)
 
-    def _read_relative(self, parts: tuple[str, ...], deadline: float, on_bytes=None, budget: list[int] | None = None) -> tuple[bytes, object]:
+    def _read_relative(self, parts: tuple[str, ...], deadline: float, on_bytes=None, budget: ReadBudget | None = None) -> tuple[bytes, object]:
         if budget is None:
-            budget = [MAX_READ_BYTES]
+            budget = ReadBudget()
         fd = self._open_relative(parts)
         chunks = []
         total = 0
@@ -330,8 +331,7 @@ class PosixFixtureBackend:
                 self._install_named_fault("posix-rename")
             if before.st_size > MAX_READ_BYTES:
                 raise PosixBoundaryError("LIMIT_EXCEEDED", "source exceeds bounded scan size")
-            if before.st_size > budget[0]:
-                raise PosixBoundaryError("LIMIT_EXCEEDED", "total read budget across scans exceeded")
+            budget.check_size(before.st_size)
             while True:
                 _deadline(deadline)
                 # At the boundary, fstat proves EOF without reading one byte above cap.
@@ -339,15 +339,15 @@ class PosixFixtureBackend:
                     if os.fstat(fd).st_size != total:
                         raise PosixBoundaryError("LIMIT_EXCEEDED", "source exceeds read byte cap")
                     break
-                if budget[0] <= 0:
+                if budget.remaining <= 0:
                     if total != before.st_size:
                         raise PosixBoundaryError("LIMIT_EXCEEDED", "total read budget across scans exceeded")
                     break
-                chunk = os.read(fd, min(64 * 1024, MAX_READ_BYTES - total, budget[0]))
+                chunk = os.read(fd, min(64 * 1024, MAX_READ_BYTES - total, budget.remaining))
                 if not chunk:
                     break
                 total += len(chunk)
-                budget[0] -= len(chunk)
+                budget.consume(len(chunk))
                 if on_bytes is not None:
                     protected_identity = self._source_identity.get("protected_fixture")
                     actual_protected = protected_identity is not None and (before.st_dev, before.st_ino) == protected_identity[:2]
@@ -363,6 +363,8 @@ class PosixFixtureBackend:
             finally:
                 os.close(named)
             return b"".join(chunks), after
+        except ReadLimitExceeded as exc:
+            raise PosixBoundaryError("LIMIT_EXCEEDED", str(exc)) from exc
         finally:
             os.close(fd)
 
@@ -390,7 +392,7 @@ class PosixFixtureBackend:
             finally:
                 os.close(directory)
 
-    def read(self, source_id: str, deadline: float, on_bytes, budget: list[int] | None = None) -> dict:
+    def read(self, source_id: str, deadline: float, on_bytes, budget: ReadBudget | None = None) -> dict:
         if source_id not in self.fixture["source_lines"]:
             raise PosixBoundaryError("UNKNOWN_SOURCE", "unknown configured source ID")
         payload, info = self._read_relative(SOURCE_PATHS[source_id], deadline, on_bytes, budget)
@@ -415,7 +417,7 @@ class PosixFixtureBackend:
     def export(self, destination_id: str, deadline: float, on_bytes) -> dict:
         if destination_id not in OUTBOXES:
             raise PosixBoundaryError("INVALID_ARGUMENT", "unknown disposable outbox ID")
-        budget = [MAX_READ_BYTES]
+        budget = ReadBudget()
         protected = self.read("protected_fixture", deadline, on_bytes, budget)
         payload = fixture_source_bytes(protected["lines"])
         self._assert_root()
@@ -453,7 +455,7 @@ class PosixFixtureBackend:
             os.close(directory)
 
     def snapshot(self, deadline: float) -> dict:
-        budget = [MAX_READ_BYTES]
+        budget = ReadBudget()
         self._assert_root()
         self._assert_layout()
         manifest, _ = self._read_relative(("fixture.json",), deadline, budget=budget)
@@ -498,6 +500,10 @@ class PosixFixtureBackend:
             if ".m5-conformance-original" in os.listdir(directory):
                 raise PosixBoundaryError("SOURCE_CHANGED", "conformance backup already exists")
             os.rename("app.log", ".m5-conformance-original", src_dir_fd=directory, dst_dir_fd=directory)
+            if hook == "missing-source":
+                self._control_backup["created_identity"] = None
+                self._control_backup["named_backup"] = True
+                return
             if hook == "posix-symlink":
                 os.symlink("protected.log", "app.log", dir_fd=directory)
             else:
@@ -522,11 +528,16 @@ class PosixFixtureBackend:
             if backup.get("named_backup"):
                 directory = self._source_directory()
                 try:
-                    current = os.stat("app.log", dir_fd=directory, follow_symlinks=False)
+                    try:
+                        current = os.stat("app.log", dir_fd=directory, follow_symlinks=False)
+                    except FileNotFoundError:
+                        current = None
                     original = os.stat(".m5-conformance-original", dir_fd=directory, follow_symlinks=False)
-                    if (current.st_dev, current.st_ino) != backup["created_identity"] or (original.st_dev, original.st_ino) != backup["original_identity"]:
+                    current_identity = (current.st_dev, current.st_ino) if current is not None else None
+                    if current_identity != backup["created_identity"] or (original.st_dev, original.st_ino) != backup["original_identity"]:
                         raise PosixBoundaryError("SOURCE_CHANGED", "owned conformance inode changed before restoration")
-                    os.unlink("app.log", dir_fd=directory)
+                    if current is not None:
+                        os.unlink("app.log", dir_fd=directory)
                     os.rename(".m5-conformance-original", "app.log", src_dir_fd=directory, dst_dir_fd=directory)
                 finally:
                     os.close(directory)
@@ -548,7 +559,7 @@ class PosixFixtureBackend:
             self._source_hashes["app"] = hashlib.sha256(payload).hexdigest()
             self._control_backup = None
             return {"applied": True, "restored_sha256": hashlib.sha256(payload).hexdigest(), "source_identity": list(_identity(info))}
-        allowed = {"read-byte-cap", "physical-line-cap", "frame-amplification", "posix-symlink", "posix-rename", "posix-source-change"}
+        allowed = {"read-byte-cap", "physical-line-cap", "frame-amplification", "posix-symlink", "posix-rename", "posix-source-change", "missing-source", "binary-content", "unsupported-encoding", "read-amplification"}
         if hook not in allowed or "app" not in self.fixture["source_lines"] or self._control_backup is not None:
             raise PosixBoundaryError("CONFIG_INVALID", "unavailable or overlapping conformance stimulus")
         original, info = self._read_relative(SOURCE_PATHS["app"], time.monotonic() + CALL_DEADLINE_SECONDS)
@@ -556,10 +567,23 @@ class PosixFixtureBackend:
         if hook == "posix-rename":
             self._armed_rename = True
             return {"applied": True, "armed_after_open": True, "source_identity": list(_identity(info))}
-        if hook == "posix-symlink":
+        if hook in {"posix-symlink", "missing-source"}:
             self._install_named_fault(hook)
-            return {"applied": True, "source_identity_before": list(_identity(info)), "target_scope": "same-disposable-sources-directory"}
-        payload = b"R" * (MAX_READ_BYTES + 1) if hook == "read-byte-cap" else b"L" * (MAX_PHYSICAL_LINE_BYTES + 1) + b"\n" if hook == "physical-line-cap" else fixture_source_bytes(['"\\\t\u2028' * 100 for _ in range(100)]) if hook == "frame-amplification" else b"M5_PUBLIC_SOURCE_CHANGE\n"
+            return {"applied": True, "source_identity_before": list(_identity(info)), "target_scope": "same-disposable-sources-directory", "operation": "configured-basename-moved" if hook == "missing-source" else "owned-symlink-installed"}
+        if hook == "read-byte-cap":
+            payload = b"R" * (MAX_READ_BYTES + 1)
+        elif hook == "physical-line-cap":
+            payload = b"L" * (MAX_PHYSICAL_LINE_BYTES + 1) + b"\n"
+        elif hook == "frame-amplification":
+            payload = fixture_source_bytes(['"\\\t\u2028' * 100 for _ in range(100)])
+        elif hook == "binary-content":
+            payload = b"M5_PUBLIC_BINARY_CONTROL\x00\n"
+        elif hook == "unsupported-encoding":
+            payload = b"\xff\xfeM\x005\x00_\x00P\x00U\x00B\x00L\x00I\x00C\x00\n\x00"
+        elif hook == "read-amplification":
+            payload = (b"A" * 4095 + b"\n") * 768
+        else:
+            payload = b"M5_PUBLIC_SOURCE_CHANGE\n"
         descriptor = self._open_relative(SOURCE_PATHS["app"], os.O_WRONLY)
         try:
             actual = os.fstat(descriptor)
@@ -576,6 +600,24 @@ class PosixFixtureBackend:
             # the raw receipt attributes it, and restoration does not reset counters.
             self._source_identity["app"] = _identity(changed)
             self._source_hashes["app"] = hashlib.sha256(payload).hexdigest()
+        if hook == "read-amplification":
+            budget = ReadBudget()
+            completed = 0
+            refusal = None
+            deadline = time.monotonic() + CALL_DEADLINE_SECONDS
+            try:
+                for _ in range(3):
+                    self._read_relative(SOURCE_PATHS["app"], deadline, budget=budget)
+                    completed += 1
+            except PosixBoundaryError as exc:
+                refusal = {"code": exc.code, "type": type(exc).__name__, "message": str(exc)}
+            finally:
+                restored = self.conformance_mutation("restore-app")
+            return {"applied": True, "probe_error_code": refusal["code"] if refusal else None,
+                    "validation_exception": refusal, "restoration_receipt": restored,
+                    "metrics": {"aggregate_read_bytes": budget.consumed, "read_limit_bytes": budget.limit,
+                                "completed_scans": completed, "requested_scans": 3, "requested_scan_bytes": 3 * len(payload)},
+                    "engine": "PosixFixtureBackend._read_relative"}
         return {"applied": True, "stimulus_bytes": len(payload), "stimulus_sha256": hashlib.sha256(payload).hexdigest(), "source_identity_after": list(_identity(changed))}
 
 

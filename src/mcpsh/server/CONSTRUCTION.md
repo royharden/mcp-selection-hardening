@@ -183,3 +183,41 @@ Memory cap controls use custody-time size metadata and distinguish declared
 oversize bytes from actual returned bytes, rather than claiming an over-cap scan
 was successfully read. POSIX protected-read attribution uses the actual opened
 inode, so a broken path check cannot hide a protected alias read under app's ID.
+
+## Additional required producers
+
+The approved same-reference hook whitelist additionally includes missing-source,
+binary-content, unsupported-encoding, read-amplification, source-count-cap and
+custom-rule-count-cap. Hook arguments, factory approval and empty-payload rules
+are unchanged. Missing configured sources are distinguished from unknown IDs.
+POSIX missing-source preserves the original app inode under a fixed owned backup
+name, exercises the absent configured basename, then restores that same inode.
+Binary/encoding controls write only fixed public NUL/UTF-16-BOM stimuli into the
+owned app file and exercise the actual reader; they are unavailable for validated
+Unicode memory fixtures, which cannot prove byte-encoding refusal.
+
+Read amplification uses the same broker.bounds.ReadBudget as production scans,
+including normal memory reads and POSIX shared export/verification scans. The
+control traverses a generated three-MiB app source three times under one eight-MiB
+budget. Returned metrics are the actual target-scan budget counter, completed
+scans, requested scans and requested scan bytes. Save/restore and independent
+custody snapshot reads are separate instrumentation, not presented as model
+scans. A refusal code exists only when the real budget/reader raises one; no
+expected-code result is injected. The owned source is restored without resetting
+protected-read or outbox observation counters. These are actual broker-budget
+controls, not a claim that a model made the reads or that memory proves disk I/O.
+
+Configuration-count controls invoke actual production AccessPolicy and fixture
+normalization validators for source counts and the actual redact configuration
+validator for custom rules, with accepted-boundary and over-limit inputs. They
+return actual exceptions and before/after observer records. Current configured
+counts are distinct from offered overflow counts. The policy cap is 100, while
+the closed synthetic fixture supports only its three fixed IDs; this stricter
+domain is disclosed. CONFIG_INVALID in this packet is explicitly a component
+validation mapping, not a fabricated server tool-error response. Scope is
+component-diagnostic and cannot earn actual-platform conformance credit.
+
+Public regression source is authored in tests/server/test_configuration_and_aggregate_bounds.py
+and tests/server/test_trusted_boundary_hooks.py. These tests, validators and
+hooks were not imported or run during Dirty Mode. Actual POSIX/IPC/budget/cap
+behavior and supported-platform acceptance remain pending authorized execution.

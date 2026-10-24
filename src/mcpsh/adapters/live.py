@@ -145,6 +145,10 @@ class BudgetedLiveTransport:
         if payload.get("max_output_tokens") != max_output:
             raise LiveTransportError("output token bound mismatch")
         wire = self.wire_transport.prepare(payload)
+        bind = getattr(self.token_counter, "bind_dispatch_context", None)
+        if bind is not None:
+            bind(phase="preflight" if prepared_attempt_id is None else "pre-send",
+                 attempt_id=prepared_attempt_id, operation_id=operation_id)
         counted = _integer(self.token_counter(encode_wire(wire)), "full encoded wire token count")
         if counted > max_input:
             raise LiveTransportError("complete tool/history request exceeds input token cap")

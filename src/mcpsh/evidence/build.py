@@ -14,6 +14,9 @@ ROW_FIELDS = {
     "selected_calls", "selection_journal_complete",
     "repeat",
     "reuse",
+    "replay_role", "replay_episode_id", "scripted_responses", "scripted_fixture_sha256",
+    "observer_fault_request", "observer_fault_status",
+    "platform_scope", "model_family_id",
 }
 
 
@@ -24,7 +27,8 @@ def encode(value) -> bytes:
 
 def build_edition_payloads(result: dict, *, candidate_commit: str, revision: int,
                            reserved_by_operation: dict[str, int] | None = None,
-                           oracle_package_bytes: bytes | None = None) -> dict[str, bytes]:
+                           oracle_package_bytes: bytes | None = None,
+                           token_fit_bundle: dict | None = None) -> dict[str, bytes]:
     """Return proposed PRIVATE artifacts; externally pin EDITION.json before reading.
 
     Optional oracle bytes must be explicitly supplied by an authorized custodian.
@@ -45,9 +49,15 @@ def build_edition_payloads(result: dict, *, candidate_commit: str, revision: int
                           "cost_microunits": item.get("cost_microunits"),
                           "cost_basis": item.get("cost_kind", "unknown"),
                           "settlement_reference": item.get("settlement_reference"),
+                          "raw_request_sha256": item.get("raw_request_hash"),
+                          "price_snapshot_hash": item.get("price_snapshot_hash"),
                           "reserved_microunits": reserved.get(item["operation_id"])})
         record = {"outcome": outcome, "trace": row.get("trace"), "results": row.get("results"),
                   "repeat": row.get("repeat"),
+                  **{key: row.get(key) for key in ("replay_role", "replay_episode_id",
+                     "scripted_fixture_sha256", "observer_fault_request", "observer_fault_status",
+                     "platform_scope", "model_family_id")},
+                  "scripted_responses": row.get("scripted_responses", []),
                   "reuse": row.get("reuse"),
                   "selected_calls": row.get("selected_calls"),
                   "selection_journal_complete": row.get("selection_journal_complete"),
@@ -69,6 +79,13 @@ def build_edition_payloads(result: dict, *, candidate_commit: str, revision: int
         strict_json(oracle_package_bytes)
         payloads["oracles.json"] = oracle_package_bytes
 
+    if token_fit_bundle is not None:
+        from .token_fit import TokenFitBundle
+        model(TokenFitBundle, token_fit_bundle)
+        # Wire dictionary insertion order is part of actual encode_wire bytes.
+        payloads["token-fit.json"] = (json.dumps(token_fit_bundle, ensure_ascii=True,
+            allow_nan=False, separators=(",", ":")) + "\n").encode()
+
     def pin(name):
         raw = payloads[name]
         return {"path": name, "sha256": hashlib.sha256(raw).hexdigest(), "bytes": len(raw)}
@@ -82,6 +99,7 @@ def build_edition_payloads(result: dict, *, candidate_commit: str, revision: int
              "manifest": pin("MANIFEST.json"), "trials": pin("trials.jsonl"),
              "observers": pin("observers.jsonl") if observations else None,
              "oracles": pin("oracles.json") if oracle_package_bytes is not None else None,
+             "token_fit": pin("token-fit.json") if token_fit_bundle is not None else None,
              "scheduled_trial_ids": [row["outcome"]["trial_id"] for row in result["rows"]],
              "empirical_verdict": "pending", "product_verdict": "pending"}
     model(EditionIndex, index)

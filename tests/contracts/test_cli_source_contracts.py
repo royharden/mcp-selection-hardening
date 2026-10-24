@@ -73,6 +73,29 @@ def test_external_authority_pin_is_checked_before_edition_read(tmp_path, monkeyp
                  "--authority-sha256", "0" * 64]) == 2
 
 
+def test_conformance_external_pins_are_forwarded_unchanged(tmp_path, monkeypatch):
+    """Catches treating a freshly calculated resource hash as external admission."""
+    import mcpsh.conformance
+    from types import SimpleNamespace
+
+    supplied = {}
+
+    def fake_run(probe_request, **pins):
+        supplied.update(pins)
+        return SimpleNamespace(to_dict=lambda: {"platforms": {"synthetic-memory": {"verdict": "pending"}}})
+
+    monkeypatch.setattr(mcpsh.conformance, "run_conformance", fake_run)
+    path = tmp_path / "public-probe-request.json"
+    path.write_text(json.dumps({"tracks": ["synthetic-memory"], "runtime_authorized": True,
+                                "disposable_authorized": True, "approval_id": "public-source-test"}),
+                    encoding="utf-8")
+    assert main(["server-check", "--request", str(path),
+                 "--semantic-manifest-sha256", "a" * 64,
+                 "--requirements-manifest-sha256", "b" * 64]) == 2
+    assert supplied == {"expected_semantic_manifest_sha256": "a" * 64,
+                        "expected_requirements_manifest_sha256": "b" * 64}
+
+
 def test_lint_artifact_keeps_unicode_field_evidence(tmp_path, capsys):
     """what_bug_this_catches: artifact ingestion loses source text/span identity."""
     assert main(["catalog", "export", "--artifact", "--condition", "poisoned"]) == 0

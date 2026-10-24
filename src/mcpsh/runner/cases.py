@@ -1,6 +1,7 @@
 """Public, scripted DEVELOPMENT cases; never a held-out corpus or live trace."""
 
 from pathlib import Path
+from dataclasses import dataclass
 
 from mcpsh.records import CallPredicate, OracleCase, PublicTaskCase, canonical_json, strict_json_loads
 
@@ -24,41 +25,65 @@ def demonstration_cases():
     ]
 
 
-def load_development_cases(root: Path):
-    """Load only public author-seen development data, keeping labels outside selectors."""
-    tasks = strict_json_loads((root / "fixtures/dev/tasks.json").read_bytes())
-    labels = strict_json_loads((root / "gold/dev/oracles.json").read_bytes())
-    if not isinstance(tasks, list) or not isinstance(labels, list):
-        raise ValueError("development corpus must be two JSON arrays")
-    by_id = {item["task_id"]: item for item in labels}
-    if len(by_id) != len(labels):
-        raise ValueError("duplicate development oracle ID")
-    result = []
-    seen = set()
-    for item in tasks:
-        if item.get("development_only") is not True:
-            raise ValueError("development loader refuses nondevelopment task")
-        public = dict(item["public"])
-        public["allowed_source_ids"] = tuple(public["allowed_source_ids"])
-        task = PublicTaskCase.model_validate(public)
-        if task.task_id in seen:
-            raise ValueError("duplicate development task ID")
-        seen.add(task.task_id)
-        label = by_id[task.task_id]
-        if label.get("development_only") is not True:
-            raise ValueError("development loader refuses hidden/retired oracle")
-        alternatives = label.get("accepted_alternatives") or [label["expected_calls"]]
-        predicates = tuple(tuple(CallPredicate(tool_name=call["name"],
-                                               arguments=strict_json_loads(call["arguments"]))
-                                 for call in alternative) for alternative in alternatives)
-        oracle = OracleCase(
-            task_id=task.task_id, alternatives=predicates,
-            # Development template variants are clustered by class, not counted as novel families.
-            family_id="development-template-" + label["task_class"],
-            prohibited_source_ids=tuple(label["prohibited_source_ids"]),
-            prohibited_tools=tuple(label["prohibited_tools"]),
-        )
-        result.append((task, oracle, item["scripted_calls"]))
-    if seen != set(by_id):
-        raise ValueError("unpaired development tasks/oracles")
-    return result
+@dataclass(frozen=True)
+class DevelopmentCorpus:
+    cases: tuple
+    fixture_map: dict
+    treatment_map: dict
+    episodes: tuple
+    replay_specs: dict
+    input_pins: dict
+    oracle_package_bytes: bytes
+    primary_plan: dict
+    diagnostic_plan: dict
+
+
+def load_development_corpus(root: Path, *, expected_manifest_sha256: str) -> DevelopmentCorpus:
+    """Admit exact public bytes, then typed semantics; never synthesize replay text."""
+    from mcpsh.broker.fixtures import normalize_fixture_payload
+    from mcpsh.catalog.dev_corpus import (
+        FILES, ORACLES, corpus_pins, diagnostic_replay_plan, parse_dev_corpus,
+        primary_replay_plan, replay_selector_kwargs,
+    )
+    from mcpsh.records import typed_hash
+
+    root = root.resolve()
+    files = {}
+    for name in sorted(FILES):
+        path = root / name
+        if path.is_symlink() or root not in path.resolve().parents:
+            raise ValueError("public development source must stay at its canonical local path")
+        with path.open("rb") as handle:
+            raw = handle.read(8 * 1024 * 1024 + 1)
+        if len(raw) > 8 * 1024 * 1024:
+            raise ValueError("public development source byte cap exceeded")
+        files[name] = raw
+    package = parse_dev_corpus(files, expected_manifest_sha256=expected_manifest_sha256)
+    tasks = {item["public"]["task_id"]: item for item in package["tasks"]}
+    cases = []
+    for pair in package["oracle_package"]["cases"]:
+        task = PublicTaskCase.model_validate_json(canonical_json(pair["public"]))
+        oracle = OracleCase.model_validate_json(canonical_json(pair["oracle"]))
+        if (task.task_id != oracle.task_id or oracle.split != "development"
+                or oracle.utility_version != "semantic-v2" or oracle.utility_spec is None):
+            raise ValueError("canonical development semantic-v2 pairing required")
+        cases.append((task, oracle, tasks[task.task_id]["scripted_calls"]))
+    fixture_map = {row["fixture_ref"]: normalize_fixture_payload(row) for row in package["fixtures"]}
+    treatment_map = {row["task_id"]: {"tool_order_seed": row["tool_order_seed"],
+                     **{condition: row[condition]["overlay"]
+                        for condition in ("clean", "ambiguous", "poisoned")}}
+                     for row in package["treatments"]}
+    expected_fixtures = {row["fixture_ref"]: row["fixture_payload_sha256"]
+                         for row in package["manifest"]["cases"]}
+    if any(typed_hash(payload) != expected_fixtures[ref] for ref, payload in fixture_map.items()):
+        raise ValueError("normalized fixture differs from authored public corpus pin")
+    return DevelopmentCorpus(
+        tuple(cases), fixture_map, treatment_map, tuple(package["episodes"]),
+        {row["episode_id"]: replay_selector_kwargs(package, row["episode_id"])
+         for row in package["episodes"]}, corpus_pins(package), files[ORACLES],
+        primary_replay_plan(package), diagnostic_replay_plan(package))
+
+
+def load_development_cases(root: Path, *, expected_manifest_sha256: str):
+    """Compatibility list view; callers needing fixtures/episodes use the corpus API."""
+    return list(load_development_corpus(root, expected_manifest_sha256=expected_manifest_sha256).cases)

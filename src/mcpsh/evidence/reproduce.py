@@ -43,12 +43,17 @@ def reproduce(edition: VerifiedEdition, *, expected_evaluator_hash: str) -> dict
         raise EvidenceRejected("offline evaluator differs from the explicitly pinned source edition")
     from mcpsh.evaluation import aggregate_outcomes, score_trial
 
+    from .token_fit import verify_token_fit_lineage
+    fit = verify_token_fit_lineage(edition)
+    fit_unknown = {item["trial_id"] for item in fit["attempts"] if item["state"] != "verified-fit-only"}
     oracle_map = {entry.oracle.task_id: entry.oracle for entry in package.cases} if package else {}
     observation_map = {entry.trial_id: entry.observation for entry in observers}
     rows, missing, all_outcomes = [], [], []
     for trial in trials:
         old = trial.outcome
         absent = []
+        if index.mode == "live" and (old.trial_id in fit_unknown or not fit["complete"]):
+            absent.append("token_fit_lineage_incomplete")
         if old.task_id not in oracle_map:
             absent.append("oracle_unavailable")
         if trial.trace is None:
@@ -96,6 +101,11 @@ def reproduce(edition: VerifiedEdition, *, expected_evaluator_hash: str) -> dict
             absent.append("semantic_utility_unknown")
         all_outcomes.append(outcome)
         rows.append({"outcome": outcome, "trace": trace,
+                     "replay_role": trial.replay_role, "replay_episode_id": trial.replay_episode_id,
+                     "platform_scope": trial.platform_scope, "model_family_id": trial.model_family_id,
+                     "scripted_responses": list(trial.scripted_responses),
+                     "scripted_fixture_sha256": trial.scripted_fixture_sha256,
+                     "observer_fault_status": trial.observer_fault_status,
                      "reproduction_state": "partial" if absent else "recomputed",
                      "missing_evidence": absent,
                      "matches_recorded_outcome": outcome == old.model_dump(mode="json")})
@@ -108,7 +118,8 @@ def reproduce(edition: VerifiedEdition, *, expected_evaluator_hash: str) -> dict
         "structural_integrity": "verified", "empirical_verdict": "pending",
         "acceptance_verdict": "pending", "platform_scope": index.platform_scope,
         "manifest": manifest.model_dump(mode="json"), "rows": rows,
-        "summary": aggregate_outcomes(all_outcomes) if all_scheduled_scored else [],
+        "summary": aggregate_outcomes(all_outcomes) if all_scheduled_scored and (index.mode != "live" or fit["complete"]) else [],
+        "token_fit_lineage": fit,
         "paired_comparisons": [], "unknown_trials": missing,
         "scheduled_trials": len(index.scheduled_trial_ids), "scored_trials": len(rows),
         "source_edition_sha256": edition.authority.index_sha256,

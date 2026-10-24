@@ -5,7 +5,11 @@ import json
 import random
 from collections import defaultdict
 from statistics import mean
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from mcpsh.records import TrialOutcome
+    from .design import FamilySupport, ObservedTrial, PairedComparison, ScheduleDesign
 
 
 def wilson(successes: int, total: int) -> dict[str, Any]:
@@ -61,7 +65,9 @@ def aggregate_outcomes(outcomes: list[dict[str, Any]]) -> list[dict[str, Any]]:
             "effect_observable": wilson(observed_complete, len(observable)),
             "effect_all_scheduled_lower_bound": observed / len(rows),
             "failed_trials": sum(bool(row["failures"]) for row in rows),
-            "family_count": len({row["family_id"] for row in rows}),
+            "family_count": 0,
+            "observed_family_labels": len({row["family_id"] for row in rows}),
+            "family_independence": "not-assessed-by-descriptive-aggregation",
             "p50_seconds": percentile(0.5), "p95_seconds": percentile(0.95),
             "cost_microunits": sum(row["cost_microunits"] or 0 for row in rows),
             "unknown_cost_trials": sum(row["cost_microunits"] is None for row in rows),
@@ -78,11 +84,15 @@ def _resample_family_deltas(deltas: list[float], seed: int) -> dict[str, float]:
     return {"difference": mean(deltas), "low": estimates[250], "high": estimates[9750]}
 
 
-def compare_paired_families(design, *, scored_outcomes, observed_rows, before: str,
-                            after: str, metric: str = "utility_success", models=None,
-                            conditions=None, family_support=None,
+def compare_paired_families(design: "ScheduleDesign", *,
+                            scored_outcomes: tuple["TrialOutcome", ...],
+                            observed_rows: tuple["ObservedTrial", ...], before: str,
+                            after: str, metric: str = "utility_success",
+                            models: tuple[str, ...] | None = None,
+                            conditions: tuple[str, ...] | None = None,
+                            family_support: "FamilySupport | None" = None,
                             expected_family_support_sha256: str | None = None,
-                            independence_authenticated: bool = False):
+                            independence_authenticated: bool = False) -> "PairedComparison":
     """Strict paired family-cluster comparison over all externally scheduled evidence.
 
     Family-support authentication is a trusted caller decision, never inferred from
@@ -107,8 +117,6 @@ def compare_paired_families(design, *, scored_outcomes, observed_rows, before: s
             if metric == "utility_success" else 0}
     if audit.status != "complete":
         return PairedComparison(**base, interpretation="incomplete")
-    inputs = pairing_inputs(design, observed_rows, before=before, after=after, metric=metric,
-                            models=selected_models, conditions=selected_conditions)
     base.update({key: inputs[key] for key in ("expected_pairs", "missing_pair_members",
                 "unknown_pair_members", "failed_pair_members", "legacy_utility_pair_members")})
     families = inputs["families"]
@@ -125,7 +133,8 @@ def compare_paired_families(design, *, scored_outcomes, observed_rows, before: s
             support = "verified" if independence_authenticated else "pinned-unverified"
             if independence_authenticated:
                 supported = set(declared)
-    base.update(support_binding=support, supported_observable_families=len(supported))
+    observable_support = supported - inputs["unobservable_families"]
+    base.update(support_binding=support, supported_observable_families=len(observable_support))
     descriptive = {}
     for cell, values in inputs["values"].items():
         known = [value for value in values if value is not None]
@@ -144,7 +153,7 @@ def compare_paired_families(design, *, scored_outcomes, observed_rows, before: s
     if not deltas:
         return PairedComparison(**base, descriptive=descriptive, interpretation="incomplete")
     interval = _resample_family_deltas(deltas, design.seed)
-    interpretation = ("family-paired" if len(supported) >= 20 and supported == set(families)
+    interpretation = ("family-paired" if len(observable_support) >= 20 and observable_support == set(families)
                       and support == "verified" else "exploratory")
     return PairedComparison(**base, **interval, descriptive=descriptive, interpretation=interpretation)
 
@@ -174,7 +183,8 @@ def paired_family_bootstrap(outcomes: list[dict[str, Any]], *, before: str, afte
             observed_rows=observed_rows, before=before, after=after, metric=metric,
             family_support=family_support, expected_family_support_sha256=expected_family_support_sha256,
             independence_authenticated=independence_authenticated).model_dump(mode="json")
-        return {**report, "family_count": report["family_label_count"],
+        return {**report, "family_count": report["supported_observable_families"],
+                "observed_family_labels": report["family_label_count"],
                 "missing_pairs": report["missing_pair_members"],
                 "unknown_metric_trials": report["unknown_pair_members"]}
     relevant = [row for row in outcomes if row.get("cell") in (before, after)]

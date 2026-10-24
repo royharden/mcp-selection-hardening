@@ -11,7 +11,7 @@ from pathlib import Path
 
 
 def _api():
-    exports = importlib.import_module("mcpsh.conformance.export")
+    exports = importlib.import_module("mcpsh.conformance.export_v2")
     consumer = importlib.import_module("mcpsh.conformance.consumer")
     return exports, consumer
 
@@ -22,6 +22,7 @@ def main(argv=None, *, load_api=None):
     parser.add_argument("--bundle-sha256", required=True)
     parser.add_argument("--manifest-sha256", required=True)
     parser.add_argument("--runtime-schema-sha256", required=True)
+    parser.add_argument("--requirements-sha256", help="separate externally approved normative inventory pin")
     parser.add_argument("--evidence", type=Path, help="optional explicit public per-probe evidence")
     parser.add_argument("--selection", type=Path, help="externally approved evidence selection/pins JSON")
     args = parser.parse_args(argv)
@@ -34,12 +35,14 @@ def main(argv=None, *, load_api=None):
                           "runtime_acceptance": "pending", "installed_or_repaired": False}))
         return 2
     try:
-        files = exports.read_contract_bundle(args.bundle, expected_bundle_sha256=args.bundle_sha256)
+        reader = getattr(exports, "read_portable_bundle", exports.read_contract_bundle)
+        files = reader(args.bundle, expected_bundle_sha256=args.bundle_sha256)
         evidence_raw, selection = consumer.read_public_evidence_files(args.evidence, args.selection) if args.evidence else (None, None)
         result = consumer.inspect_bundle(files, expected_bundle_sha256=args.bundle_sha256,
             expected_manifest_sha256=args.manifest_sha256,
             expected_runtime_schema_sha256=args.runtime_schema_sha256,
-            evidence_raw=evidence_raw, evidence_selection=selection)
+            evidence_raw=evidence_raw, evidence_selection=selection,
+            expected_requirements_manifest_sha256=args.requirements_sha256)
     except (ImportError, FileNotFoundError):
         print(json.dumps({"status": "unavailable", "phase": "consumer-resource-or-dependency",
                           "runtime_acceptance": "pending", "installed_or_repaired": False}))

@@ -98,17 +98,20 @@ scope. Never pass the combined package/episode to a live selector.
 ## Scripted episode schema v1
 
 `fixtures/dev/replay-episodes.json` has version, corpus_version, public-development-
-replay-only scope and episodes. Each of 46 episode specifications contains:
+replay-only scope and episodes. Each of 51 episode specifications contains:
 
 * episode_id, task_id, condition, fixture_ref and fixture_payload_sha256;
-* ordered calls as `{name, arguments: raw_string}` and ordered raw_argument_sha256;
+* ordered selected wrappers (valid calls use `{name, arguments: raw_string}`) and
+  positional raw_argument_sha256, null where no original argument string exists;
 * scripted_final: null, or explicit `{text, refusal_text, stop_reason}`;
 * observer_fault_request, observer_expectation and fixed source-only replay provenance.
 
-The 36 clean episodes cover every task; ten additional controls retain known
+The 36 clean episodes cover every task; fifteen additional controls retain known
 poison prerequisite/late actions, wrong extra/duplicate calls, duplicate JSON
 keys, malformed intent, wrong typed arguments, missing/wrong final text and an
-unknown-observer request. Raw malformed strings are intentionally not parsed or
+unknown-observer request. Added consumer controls include a post-call terminal
+answer, truncated/missing stop markers, a seven-selection pre-cap journal and
+malformed wrappers/scalars. Raw malformed strings are intentionally not parsed or
 repaired by episode preflight. A null scripted_final means unavailable; the
 helper never invents refusal or clarification. Non-null text is authored replay
 content, not a model response or prior observation.
@@ -119,15 +122,26 @@ source_file_sha256=None)` with keyword-only episode/pins. D1 can use
 `replay_selector_kwargs(package, episode_id)` to produce the exact keyword map:
 episode `{schema_version:1, episode_id, provenance:authored-development-script,
 turns:[{calls, final_text, stop_reason}]}`, fixture_sha256 and source_file_sha256.
-These author one scripted turn while preserving raw strings and null text.
+These author one turn, or a call turn followed by a terminal answer turn, while
+preserving raw strings and null text. Call results must reach D7's ordered-history
+guard before the terminal turn becomes reachable; text is never silently marked
+complete while its calls are still selected.
 D7's misleadingly named fixture_sha256 pins the **script episode typed hash**,
 not the physical D2 fixture payload; the latter remains fixture_payload_sha256
 on the source episode. source_file_sha256 pins the raw public episode package.
 Separate non-null refusal_text is rejected as unsupported by this turn schema,
 not silently folded into another field. The current dataset uses null there.
 
-D7's implementation and D1's runner integration remain their responsibility;
-the projection matches the declared source contract and has not been executed.
+D7's implementation now exists in `adapters/replay.py`; D1 owns runner integration.
+The projection and strict preflight match that implemented source contract but
+have not been executed. `validate_selector_episode` checks D7's exact v1 header,
+turn fields/reachability, 4 MiB ASCII-JSON snapshot bound, 65,536 selected-wrapper
+journal cap, Unicode text byte limits and supported stop reasons. Malformed and
+over-six wrappers remain authored selections for the runner's rejection/journal;
+they are not normalized into valid calls or claimed server-policy blocks.
+Reasons are stop/end_turn/stop_sequence/refusal/length/max_tokens/content_filter
+or null. Terminal completion requires actual explicit text, a no-call turn and
+a terminal stop/refusal marker; missing or truncated markers stay incomplete.
 Scripted/non-model provenance and absent fabricated provider IDs are mandatory.
 The observer fault request is a driver control request only: a real consumer
 must exercise the actual hook or report unsupported. It must not convert an
@@ -135,8 +149,8 @@ authored expectation into an observed unknown/safe/effect result. No observation
 captures, token usage, cost totals or scored results are supplied by episodes.
 
 NEXT D5 static receipt, 2026-10-23: helper and regression source parsed with
-`ast.parse`; ten meaningful regression functions authored, zero executed.
-Standard JSON/hash inspection checked five exact data-file pins, 46 unique
+`ast.parse`; eighteen meaningful regression functions authored, zero executed.
+Standard JSON/hash inspection checked five exact data-file pins, 51 unique
 episode IDs and every ordered raw-argument digest. Source inspection verified
 all36 original scripted calls, typed selection alternatives, multiplicity and
 source policies are preserved; typed request bounds and all36 fixture reference/
@@ -147,6 +161,77 @@ The final source manifest raw SHA256 is
 `ce2fee58a1bd0dcbc0cd180e2433004cf1a3032686fb2c67f3587bd997e4c495`.
 It pins source/data, not outcomes. D1's canonical v2 loader/demo consumption and
 D7's explicit scripted-final adapter remain their integration responsibilities;
-this package supplies the declared adapter's exact keyword projection without
+this package supplies the implemented adapter's exact keyword projection without
 modifying either owner's source. Actual observation
 fault injection and all semantic/replay behavior remain runtime-unverified.
+
+Implemented-consumer follow-up: focused source inspection found and removed the
+provisional unsupported `scripted-development-stop` marker, moved final text after
+call-bearing turns into reachable terminal turns, and stopped filtering malformed/
+over-cap wrappers before D7's journal. Static AST inspection matched all seven
+producer stop reasons and its selected-journal limit. The new integration/failure
+regression source covers actual constructor pins, canonical no-model final records,
+ordered-history rejection, incomplete/missing/truncated text, raw duplicate-key
+arguments, malformed/extra/seven-call selections, unsupported reasons, unreachable
+turns, boolean schema versions and invalid/oversized UTF-8. No constructor, select,
+model import, test, fixture, codec or provider was invoked as validation.
+
+## Source successor v6: primary design and diagnostics
+
+The episode package is now `m5-dev-replay-episodes-2` and the manifest is
+`m5-dev-corpus-manifest-3` at the existing manifest filename. Exact prior v5
+episode/manifest bytes are archived in `fixtures/dev/source-v5/` with raw pins;
+all 51 prior episode IDs, raw calls and authored final text are retained. This
+includes the original 46 plus five genuine implemented-consumer boundary controls.
+No executed result edition was changed.
+
+The episode root has exactly version, corpus_version, scope, **design**, episodes.
+Each source episode retains its previous fields and adds **role**, **conditions**,
+**cells**. Role is primary or diagnostic. Design has exactly primary_id_suffix
+(`--clean`), primary_conditions (clean/ambiguous/poisoned), primary_cells (C0/C1/C2),
+diagnostics_are_paired=false and diagnostics_are_live_samples=false.
+
+There is exactly one `task_id + '--clean'` primary per task. Its raw calls match
+the task baseline and its conditions/cells are all three in canonical order.
+The legacy singular condition is the script's clean source anchor; it must NOT
+filter the primary dispatch matrix. Reuse that same authored script across all
+nine slots. The fifteen diagnostics declare their own condition/cells and never
+add core tasks, paired denominators, independent families or live samples.
+
+`primary_replay_episode_id(package, task_id)` resolves one exact primary.
+`primary_replay_plan(package)` returns version, scope, task_count=36,
+design_slots=324, manifest_sha256 and 36 entries of task_id, episode_id,
+conditions, cells, paired_design=true, live_eligible=false. These are source-plan
+counts, not executed samples. `diagnostic_replay_plan(package)` returns a separate
+diagnostic-replay-only plan with entries, manifest pin and paired_design/live_eligible
+false. `replay_selector_kwargs` remains compatible with D7. D1 owns actual sampling,
+runner/CLI integration and publication.
+
+`catalog.dev_semantics.semantic_corpus_preflight(package)` returns a finite
+source-contract diagnostic: version, status, scope, diagnostics, unverified_source_facts
+and runtime_facts. It checks inspected success-envelope fields/types and per-tool
+caps, typed canonical argument-schema data, selection/call-sequence and fixture-policy
+joins, and positive final/no-call gates. Unknown paths, impossible indexes and
+operator/expectation type mismatches are unsupported. Ordinary nonempty literal
+patterns are grounded in the inspected grammar; nontrivial syntax remains unverified
+pending canonical-parser activation. No second parser, handler, scorer or runner is
+implemented. Primary-plan construction requires structurally-supported source.
+
+Every preflight result retains runtime_verified=false, executes_handlers=false and
+evaluates_utility=false. Matching a field/type cannot establish that expected content
+is correct, returned, complete or observed. D4 owns actual semantic scoring; D1 owns
+canonical model/fixture admission. Expected result truth and observer completeness
+remain unverified even when source structure is supported.
+
+CURRENT v6 static receipt: role/count/primary-baseline and prior-source preservation
+checks used only stdlib JSON/hashes; changed Python passed AST parsing. Six new
+regression functions cover missing/duplicate/promoted primaries, direct role drift,
+unsupported result paths/types/caps/empty branches, schema/call joins, fixture-policy
+and content-gate faults. They were authored only. No preflight, schemas, parser,
+selector, model, fixture, scorer, test or provider was executed.
+
+V6 final source pins/consumer completion receipt are in `docs/DEV-CONTROLS.md`.
+The version-3 manifest supersedes the earlier v5 source pin above; its exact
+prior bytes remain archived. The optional control sidecar is deliberately outside
+the unchanged main six-file input map. Consume it only for declared diagnostic
+plans; no expected/control values become primary observations or scored outcomes.

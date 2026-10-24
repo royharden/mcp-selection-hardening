@@ -113,15 +113,19 @@ def prepare_live_run(*, manifest_path: Path, approval_path: Path, oracle_path: P
         raise ValueError("approved arm identities differ from experiment")
     if len({arm["family"] for arm in arms}) != 2:
         raise ValueError("two distinct approved model families are required")
+    fit_pins = manifest.settings.get("token_fit_approval_sha256_by_model")
+    if not isinstance(fit_pins, dict) or set(fit_pins) != set(manifest.model_ids):
+        raise ValueError("immutable full-wire fit approval pins required for both model arms")
     budget = approval.get("budget_microunits")
     if type(budget) is not int or budget <= 0:
         raise ValueError("positive bounded live budget required")
     private_directory.mkdir(parents=True, exist_ok=False)
 
     from mcpsh.accounting import CostLedger
-    from mcpsh.adapters import LiveArm, LiveSelector
+    from mcpsh.adapters import LiveArm
     from mcpsh.adapters.live import BudgetedLiveTransport, DatedTokenPrices
-    from mcpsh.adapters.transports import AnthropicMessagesTransport, OpenAIChatTransport
+    from mcpsh.adapters.transports import ADAPTER_REVISION, AnthropicMessagesTransport, OpenAIChatTransport
+    from .wire_fit import FitBoundSelector, TrialWireCounter
 
     ledger = CostLedger(private_directory / "cost-ledger.sqlite", budget)
 
@@ -184,8 +188,16 @@ def prepare_live_run(*, manifest_path: Path, approval_path: Path, oracle_path: P
                 raise ValueError("tokenizer requires exact encoded HTTP body bytes")
             return token_counter(body)
 
-        controller = BudgetedLiveTransport(wire, ledger, grant, prices, count_approved_wire, journal)
+        wire_counter = TrialWireCounter(
+            provider=provider, model=model, adapter_revision=ADAPTER_REVISION,
+            adapter_sha256=adapter_sha256, approvals=row.get("token_fit_approvals"),
+            expected_pins=fit_pins[model], tokenizer=count_approved_wire,
+            journal=journal, expires_at=expires)
+        controller = BudgetedLiveTransport(wire, ledger, grant, prices, wire_counter, journal)
         arm = LiveArm(provider, row["family"], model, environment_name)
-        return LiveSelector(arm, transport=controller, approval=grant)
+        return FitBoundSelector(arm, transport=controller, approval=grant,
+                                wire_counter=wire_counter,
+                                seed_by_task={key: value["tool_order_seed"]
+                                              for key, value in treatment_map.items()})
 
     return manifest, cases, selector_factory, fixture_map, treatment_map

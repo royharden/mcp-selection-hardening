@@ -103,6 +103,13 @@ class StdioSession:
         try:
             self.reader.start()
             self.control.bind(self.process)
+            from .receipt_guard import ReceiptGuard
+
+            identity = self.control.identity
+            self.hook_guard = ReceiptGuard({"server_instance_id": identity["server_instance_id"],
+                "trial_id": identity["trial_id"], "fixture_id": identity["fixture_id"],
+                "fixture_payload_sha256": identity["fixture_payload_sha256"],
+                "approval_id": request.approval_id, "child_pid": self.process.pid})
             if self.control.identity.get("stdio_reference_injected") is not True:
                 raise BackendUnavailable("D2 stdio same-reference injection unavailable")
             response = self.rpc("initialize", {"protocolVersion": PROTOCOL_VERSION,
@@ -213,6 +220,17 @@ class StdioSession:
         return self.receive(request_id)
 
     def exercise(self, hook):
+        if hook.startswith("control-stdio:"):
+            from .receipt_guard import TRUSTED_HOOKS
+
+            actual_hook = hook.removeprefix("control-stdio:")
+            if actual_hook not in TRUSTED_HOOKS:
+                raise BackendUnavailable("unknown fixed same-child hook")
+            evidence = self.control.exercise(actual_hook, payload=None)
+            self.hook_guard.accept(actual_hook, evidence)
+            # Keep the core receipt intact; it is not a tools/call exchange.
+            return {**evidence, "consumer_transport_scope": "component-diagnostic",
+                    "owned_child_pid": self.process.pid}
         if hook.startswith("semantic-stdio:"):
             from .semantics import get_case
 
@@ -303,6 +321,7 @@ class StdioSession:
             return
         self.closed = True
         # Operate solely on the exact Popen child owned by this probe.
+        errors = []
         try:
             if self.process.poll() is None:
                 self.process.terminate()
@@ -311,11 +330,13 @@ class StdioSession:
                 except subprocess.TimeoutExpired:
                     self.process.kill()
                     self.process.wait(timeout=self.timeout)
-        finally:
-            try:
-                for handle in (self.process.stdin, self.process.stdout):
-                    if handle is not None:
-                        handle.close()
-            finally:
-                if self.control is not None:
-                    self.control.close()
+        except Exception as exc:
+            errors.append(exc)
+        for handle in (self.process.stdin, self.process.stdout, self.control):
+            if handle is not None:
+                try:
+                    handle.close()
+                except Exception as exc:
+                    errors.append(exc)
+        if errors:
+            raise OSError("owned stdio child teardown incomplete") from errors[0]

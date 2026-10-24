@@ -19,6 +19,7 @@ TOOLS = frozenset({"list_sources", "tail", "search", "read_range", "errors",
                    "recent_lines", "find_literal", "error_counts", "export_fixture"})
 CONTROL_SELECTORS = frozenset({"scripted-replay", "scripted-development-replay", "keyword", "abstain", "deny-all"})
 FAILURE_CODES = frozenset({"task_deadline_exceeded", "selector_invalid_call_batch", "selector_invalid_call",
+    "observer_fault_unsupported", "token_fit_lineage_incomplete",
     "selector_invalid_call_types", "call_limit_exceeded", "turn_limit_reached", "observation_incomplete",
     "selected_response_unavailable", "selected_response_incomplete", "selected_batch_not_list",
     "selected_journal_count_cap", "selected_journal_byte_cap", "selected_batch_not_json",
@@ -148,6 +149,9 @@ SCRIPTED = {"provenance": E("scripted-development-replay"), "episode_id": A("epi
     "source_pin_basis": E("caller-declared-public-package-pin", "embedded-script-only"),
     "scripted_response_sha256": HASH, "episode_exhausted": BOOLEAN, "final_response": FINAL}
 ROW.update(scripted_response=SCRIPTED, scripted_provenance=SCRIPTED)
+ROW.update(scripted_responses=L(SCRIPTED), replay_role=E("baseline", "diagnostic", "control"),
+    replay_episode_id=A("episode"), observer_fault_status=E("unsupported", "not-requested"),
+    platform_scope=E("synthetic-memory", "filesystem-posix"), model_family_id=A("model-family"))
 SUMMARY = {key: COUNT for key in ("scheduled_trials", "raw_calls", "selected_calls_recorded",
     "unknown_selected_count_trials", "incomplete_selection_journals", "utility_unknown_trials",
     "validated_prohibited_calls", "blocked_prohibited_calls", "gate_false_negative_calls", "effects_observed",
@@ -200,6 +204,61 @@ PILOT = {"schema_version": COUNT, "evidence_state": E("no-evidence", "incomplete
 THRESHOLD = {"schema_version": COUNT, "status": E("approval-needed"), "absolute_utility_floor": NUMBER,
     "paired_retention_margin": NUMBER, "full_development_cases_required": COUNT,
     "proposed_repeats_for_both_arms": COUNT, "pilot_summary_sha256": HASH, "dispatch_authorized": BOOLEAN}
+DEVELOPMENT_GROUP = {key: COUNT for key in ("scheduled", "supplied", "missing", "semantic_known",
+    "semantic_successes", "semantic_unknown_or_proxy", "legacy_proxy_trials", "legacy_proxy_successes",
+    "failed_trials", "scheduled_failure_records", "unknown_cost_trials", "incomplete_observations",
+    "unknown_selection_trials")}
+DEVELOPMENT_GROUP.update(arm_slot=A("arm"), selector="selector", condition=OUTCOME["condition"],
+    cell=OUTCOME["cell"], task_class=E("all", "discovery", "tail", "search", "range", "error_inspection", "no_tool"),
+    all_scheduled_utility_lower_bound=NUMBER, known_semantic_utility=METRIC)
+DEVELOPMENT = {key: COUNT for key in ("schema_version", "scheduled_slots", "supplied_slots", "missing_slots",
+    "failed_slots", "unknown_cost_slots", "incomplete_observation_slots", "proposed_repeats_for_both_arms")}
+DEVELOPMENT.update(evidence_state=PILOT["evidence_state"], plan_sha256=HASH, settings_sha256=HASH,
+    outcomes_sha256=HASH, groups=L(DEVELOPMENT_GROUP),
+    repeat_diagnostics=M("arm", {key: PILOT_ARM[key] for key in ("semantic_invalid_rate", "transport_failure_rate",
+        "bernoulli_utility_variance", "proposes_five_repeats", "requires_transport_repair")}),
+    paired_retention=L({"arm_slot": A("arm"), "interval": PAIRED,
+        "decision": E("pending", "inconclusive", "fail", "pass"),
+        "family_independence": E("not-established-public-development")}),
+    next_action=E("collect-development-evidence", "repair-and-repilot", "request-repeat-approval", "request-independent-floor-review"),
+    absolute_utility_floor=NUMBER, independent_approval=E(), dispatch_authorized="false-only")
+DEVELOPMENT["repeat_diagnostics"][2]["missing_attempt_counter_rows"] = COUNT
+DEVELOPMENT_THRESHOLD = {"status": E("approval-needed"), "plan_sha256": HASH,
+    "settings_sha256": HASH, "full36_summary_sha256": HASH, "outcomes_sha256": HASH,
+    "absolute_utility_floor": NUMBER, "proposed_repeats_for_both_arms": COUNT,
+    "independent_approval": E(), "retention_decision": E("pending", "inconclusive", "fail", "pass"),
+    "uncertainty_rule": E("pending-independent-approval")}
+LEDGER_AUDIT = {"schema_version": COUNT, "scope": E("read-only-authoritative-ledger-snapshot"),
+    "complete": BOOLEAN, "experiment_id": A("experiment"), "source_sha256": HASH,
+    "edition_index_sha256": HASH, "logical_snapshot_sha256": HASH, "snapshot_pin_matches": BOOLEAN,
+    "snapshot_kind": E("read-transaction", "immutable-file"), "concurrent_change_observed": BOOLEAN,
+    "freshness_claim": "false-only", "database_mutated": "false-only", "publication_performed": "false-only",
+    "scheduled_trials": COUNT, "diagnostics": L("failure"), "missing_attempt_ids": L(A("attempt")),
+    "unallocated_dispatch_attempt_ids": L(A("attempt")),
+    "totals": {**{key: COUNT for key in ("budget_microunits", "recorded_known_microunits", "committed_microunits",
+        "available_microunits", "unknown_attempts")}, "cost_basis": E("recorded-ledger-amounts-not-provider-billing")},
+    "operations": L({"id": A("operation"), "reserved": COUNT,
+        "status": E("reserved", "inflight", "finished", "overrun", "cancelled"),
+        "known_recorded_microunits": COUNT, "unknown_attempts": COUNT, "reservation_retained": BOOLEAN,
+        "reasons": L("failure")}),
+    "attempts": L({"attempt_id": A("attempt"), "operation_id": A("operation"),
+        "provider": E("openai", "anthropic"), "model_id": A("model"),
+        "ledger_status": E("prepared", "sent", "unknown", "settled", "retryable"),
+        "dispatch_recorded": BOOLEAN, "dispatch_scope": A("dispatch-scope"),
+        "trial_id": A("trial"), "task_id": A("task"), "turn_id": COUNT,
+        "recorded_microunits": COUNT, "recorded_cost_basis": BASIS, "price_snapshot_hash": HASH,
+        "unknown_liability": BOOLEAN, "billed_microunits": COUNT, "billing_receipt_sha256": HASH,
+        "billing_basis": BASIS, "state": E("verified-snapshot-row", "unknown"), "reasons": L("failure")}),
+    "reuse": L({"trial_id": A("trial"), "task_id": A("task"), "source_index_sha256": HASH,
+        "source_trial_id": A("trial"), "original_cost_microunits": COUNT, "original_cost_basis": BASIS,
+        "new_charge_microunits": COUNT, "independent_new_sample": "false-only"}),
+    "trial_audit": L({"trial_id": A("trial"), "task_id": A("task"), "model_id": A("model"),
+        "attempt_ids": L(A("attempt")), "recorded_outcome_cost_microunits": COUNT,
+        "recorded_outcome_cost_basis": BASIS, "reused_evidence": BOOLEAN,
+        "independent_new_sample": "false-only", "ledger_missing_attempt_ids": L(A("attempt"))}),
+    "non_model": L({"id": A("non-model-event"), "category": E("replay", "keyword", "abstain")}),
+    "dispatches": L({"attempt_id": A("attempt"), "scope": A("dispatch-scope")}),
+    "dispatch_stops": L({"reason": "failure"})}
 ACCEPTANCE = {"schema_version": COUNT, "manifest_sha256": HASH, "outcomes_sha256": HASH,
     "recommendation": E("do-not-accept", "collect-required-evidence", "exploratory-only", "eligible-for-independent-review"),
     "independent_product_acceptance": E("pending"), "criteria": L({"criterion_id": A("criterion"),
@@ -287,7 +346,8 @@ class _Projector:
                     return None
                 if type(value) not in (list, tuple) or len(value) > MAX_ITEMS:
                     raise ProjectionRejected("public list is malformed or exceeds cap")
-                return [self.field(item, spec[1], path + f"[{number}]") for number, item in enumerate(value)]
+                return [self.field(item if not isinstance(spec[1], dict) or type(item) is dict else {},
+                                   spec[1], path + f"[{number}]") for number, item in enumerate(value)]
             if kind == "map":
                 if value is None:
                     return None
@@ -295,11 +355,14 @@ class _Projector:
                     raise ProjectionRejected("public map is malformed or exceeds cap")
                 if any(type(key) is not str for key in value):
                     raise ProjectionRejected("public identity map requires string keys")
-                return {self.alias(key, spec[1]): self.field(item, spec[2], path + ".private-key")
+                return {self.alias(key, spec[1]): self.field(item if not isinstance(spec[2], dict) or type(item) is dict else {},
+                                                            spec[2], path + ".private-key")
                         for key, item in value.items()}
         if value is None:
             return None
-        if spec == BOOLEAN:
+        if spec == "false-only":
+            valid = value is False
+        elif spec == BOOLEAN:
             valid = type(value) is bool
         elif spec == COUNT:
             valid = type(value) is int and 0 <= value <= 2**63 - 1
@@ -370,7 +433,8 @@ def project_public_result(result: dict, *, policy: ProjectionPolicy | None = Non
             projected["outcome"]["trial_id"] = projector.alias(f"missing-row-{position}", "trial")
         public_rows.append(projected)
     root = {"schema_version": COUNT, "execution_state": E("replay-only", "partial", "live-complete",
-        "reproduction-partial", "recomputed-offline", "pilot-summary-draft"),
+        "reproduction-partial", "recomputed-offline", "pilot-summary-draft", "development-summary-draft",
+        "acceptance-dossier-draft", "ledger-audit-draft"),
         "platform_scope": E("synthetic-memory", "filesystem-posix", "not-evaluated"),
         "development_only": BOOLEAN, "seed": COUNT, "live_model_runs": COUNT, "heldout_families": COUNT,
         "manifest": MANIFEST, "paired_comparisons": L(PAIRED), "raw_evidence_hash": HASH,
@@ -380,6 +444,57 @@ def project_public_result(result: dict, *, policy: ProjectionPolicy | None = Non
         "lint_controls": {"labels": LINT_LABELS, "normalization": {key: NORMALIZATION for key in ("clean", "ambiguous", "poisoned")},
             "inputs": {key: HASH for key in ("labels_sha256", "bypasses_sha256", "review_sha256")}},
         "pilot_summary": PILOT, "threshold_proposal": THRESHOLD, "acceptance_recommendation": ACCEPTANCE,
+        "development_summary": DEVELOPMENT, "development_threshold_proposal": DEVELOPMENT_THRESHOLD,
+        "threshold_approval_status": {"version": E("threshold-binding-v1"),
+            "disposition": E("pending", "invalid", "eligible-for-separate-runtime-admission"),
+            "metadata_binding": E("missing", "invalid", "bound"),
+            "external_authorization": E("not-confirmed", "mismatched", "trusted-caller-confirmed"),
+            "context_sha256": HASH, "reviewer_metadata_sha256": HASH, "integrator_metadata_sha256": HASH,
+            "issue_codes": L("failure"), "approved_floor": NUMBER, "fresh_corpus_required": BOOLEAN,
+            "runtime_authorized": "false-only", "independent_product_acceptance": E("pending")},
+        "ledger_audit": LEDGER_AUDIT,
+        "ledger_audit_status": {"version": E("m5-ledger-audit-status-1"),
+            "status": E("verified-snapshot-only", "unknown"), "complete": BOOLEAN,
+            **{key: HASH for key in ("edition_index_sha256", "source_sha256", "logical_snapshot_sha256")},
+            "snapshot_pin_matches": BOOLEAN, "snapshot_kind": E("read-transaction", "immutable-file"),
+            "concurrent_change_observed": BOOLEAN,
+            **{key: COUNT for key in ("scheduled_trials", "attempts_total", "unknown_liabilities",
+                "unallocated_attempts", "missing_attempts", "operations_total", "retained_reservations",
+                "reuse_references", "non_model_events", "billed_attempts")},
+            "cost_basis": E("recorded-ledger-amounts-not-provider-billing"), "cost_bases": L(BASIS),
+            "freshness_claim": "false-only", "database_mutated": "false-only", "runtime_authorized": "false-only",
+            "independent_product_acceptance": E("pending")},
+        "acceptance_dossier_status": {"version": E("verified-edition-acceptance-v1"),
+            "source_index_sha256": HASH, "authority_binding": E("missing", "mismatched", "pinned"),
+            "authentication": E("unconfirmed", "trusted-caller-confirmed"), "inspection_complete": BOOLEAN,
+            "recommendation": E("do-not-accept", "collect-required-evidence", "eligible-for-independent-review"),
+            **{key: COUNT for key in ("scheduled_trials", "supplied_outcomes", "missing_trials")},
+            "utility_basis_counts": {"semantic-v2": COUNT, "legacy-call-proxy-v1": COUNT},
+            "runtime_authorized": "false-only", "independent_product_acceptance": E("pending")},
+        "token_fit_status": {"version": E("m5-token-fit-status-1"),
+            "status": E("verified-fit-only", "unknown"), "complete": BOOLEAN,
+            **{key: COUNT for key in ("attempts_total", "attempts_verified", "attempts_unknown", "trials_without_attempts")},
+            **{key: HASH for key in ("journal_sha256", "bundle_typed_sha256", "expectations_sha256")},
+            "live_admission": "false-only", "billing_verified": "false-only"},
+        "input_pins": {key: HASH for key in ("plan_sha256", "outcomes_sha256", "failures_sha256")},
+        "development_input_pins": {"version": E("m5-dev-semantic-v2"), "manifest_sha256": HASH,
+            "cases": COUNT, "episodes": COUNT, "scope": E("source-data-only; runtime-unverified"),
+            "raw_sha256": {key: HASH for key in ("fixtures/dev/tasks.json", "gold/dev/oracles.json",
+                "fixtures/dev/fixtures.json", "fixtures/dev/treatments.json", "fixtures/dev/replay-episodes.json",
+                "fixtures/dev/corpus-manifest-v2.json")}},
+        "replay_design": {key: COUNT for key in ("baseline_tasks", "baseline_rows", "control_rows",
+            "diagnostic_episodes", "diagnostic_rows")},
+        "token_fit_lineage": {"schema_version": COUNT, "scope": E("per-send-fit-lineage-only", "retrospective-fit-only"),
+            "retrospective": BOOLEAN, "pre_send_admission_claim": "false-only", "complete": BOOLEAN,
+            "live_admission": "false-only", "billing_verified": "false-only", "expectations_sha256": HASH,
+            "attempts": L({"trial_id": A("trial"), "turn_id": COUNT, "attempt_id": A("attempt"),
+                "state": E("unknown", "invalid", "verified-fit-only"), "reasons": L("failure"),
+                "proof_sha256": HASH, "raw_request_sha256": HASH}),
+            "unbound_events": L({"event_index": COUNT,
+                "state": E("preflight-diagnostic", "unattributed-unknown"), "proof_sha256": HASH,
+                "recorded_proof_status": E("fits", "exceeds", "unknown", "invalid"),
+                "independently_verified": "false-only"}),
+            "unallocated_attempt_ids": L(A("attempt")), "trials_without_attempts": L(A("trial"))},
         "resume_plan": RESUME}
     public = projector.field({key: value for key, value in result.items() if key not in {"rows", "summary"}}, root, "result")
     public.update(rows=public_rows, summary=[projector.field(row if type(row) is dict else {}, SUMMARY, f"summary[{i}]") for i, row in enumerate(summaries)],
@@ -389,6 +504,8 @@ def project_public_result(result: dict, *, policy: ProjectionPolicy | None = Non
                      "Replay/live and memory/filesystem provenance remain distinct."],
         projection={"version": VERSION, "policy": applied, "rows_in": len(rows), "rows_out": len(public_rows),
                     "summary_in": len(summaries), "summary_out": len(summaries)})
+    if public.get("development_threshold_proposal") is not None:
+        public["development_threshold_proposal"]["proposal_authority"] = "unauthenticated-proposal"
     # Required render columns remain present; missing input metrics stay None, never zero.
     for row in public["summary"]:
         for key in ("selection", "utility", "intent"):
@@ -426,9 +543,27 @@ def project_public_result(result: dict, *, policy: ProjectionPolicy | None = Non
         except (ValueError, TypeError, UnicodeError):
             raise ProjectionRejected("trusted fixture semantics could not be verified") from None
 
+    fixed_words = set(TOOLS | CONTROL_SELECTORS)
+    def register_fixed_words(spec):
+        if isinstance(spec, dict):
+            for child in spec.values():
+                register_fixed_words(child)
+        elif type(spec) is tuple:
+            if spec[0] == "enum":
+                fixed_words.update(spec[1])
+            elif spec[0] == "list":
+                register_fixed_words(spec[1])
+            elif spec[0] == "map":
+                register_fixed_words(spec[2])
+    for schema in (root, ROW, SUMMARY):
+        register_fixed_words(schema)
+
     def redact_values(value):
         if type(value) is str:
-            return redact(value, "hardened", tuple(sentinels))
+            redacted = redact(value, "hardened", tuple(sentinels))
+            if redacted != value and value in fixed_words:
+                raise ProjectionRejected("protected fixture text conflicts with a public enum")
+            return redacted
         if type(value) is list:
             return [redact_values(item) for item in value]
         if type(value) is dict:

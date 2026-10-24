@@ -68,3 +68,12 @@ run_conformance and optional required_case_manifest report data. Missing externa
 authority stays pending. Source checkout fixtures need no packaging action now;
 later wheel source configuration must include that canonical directory as
 mcpsh/conformance/data. No generated result or measured conformance is bundled.
+
+v6 normative authority is requirements-v1.json, independently authored from frozen
+M5-04 boundaries/caps. It is never generated from the implemented probe registry.
+Its external raw-byte SHA256 is separate from semantic-manifest authority. The
+requirements audit retains omissions/unimplemented probes in the denominator and
+re-verifies v3 attribution instead of trusting cached pass flags. New closed schemas
+are requirements-v1.schema.json and evidence-v3.schema.json; older schemas remain
+unchanged. Portable v2 adds the normative bytes/schemas with explicit versioning.
+No source/file-integrity verdict can stand in for actual platform proof.

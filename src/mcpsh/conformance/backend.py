@@ -5,6 +5,7 @@ import hashlib
 import os
 import sys
 import uuid
+import threading
 from pathlib import Path
 
 
@@ -35,8 +36,12 @@ class LocalSession:
         self.fixture_root = None
         self.closed = False
         self.receipts = []
+        self.receipt_lock = threading.Lock()
         self.boundary_driver = boundary_driver
         fixture = development_fixture()
+        if probe.probe_id == "cursor-binding":
+            fixture["source_lines"]["app"] = [
+                "2026-10-20T12:00:00+00:00 INFO PUBLIC_CURSOR " + str(index) for index in range(3)]
         if probe.semantic_case_id:
             from .semantics import semantic_fixture
 
@@ -62,6 +67,12 @@ class LocalSession:
                                       trial_id="conformance-" + uuid.uuid4().hex,
                                       platform_scope=track, filesystem_config=config,
                                       fixture_payload=fixture, custom_redactions=("custom-public-marker",))
+        from .receipt_guard import ReceiptGuard
+
+        self.hook_guard = ReceiptGuard({"server_instance_id": self.server.instance_id,
+            "trial_id": self.server.trial_id, "fixture_id": self.server.fixture_id,
+            "fixture_payload_sha256": self.server.fixture_payload_sha256,
+            "approval_id": request.approval_id, "child_pid": os.getpid()})
         from .core_bridge import open_core_control
 
         try:
@@ -78,10 +89,11 @@ class LocalSession:
                           separators=(",", ":")).encode("utf-8")
         self.server.capture_wire(wire, packet["event"]["call_id"])
         key = packet["event"]["call_id"]
-        for direction, payload in (("request", raw.encode("utf-8", "surrogatepass")), ("response", wire)):
-            self.receipts.append({"direction": direction, "sequence": len(self.receipts) + 1,
-                                  "request_key": key, "sha256": hashlib.sha256(payload).hexdigest(),
-                                  "bytes": len(payload), "response_expected": direction == "request"})
+        with self.receipt_lock:
+            for direction, payload in (("request", raw.encode("utf-8", "surrogatepass")), ("response", wire)):
+                self.receipts.append({"direction": direction, "sequence": len(self.receipts) + 1,
+                                      "request_key": key, "sha256": hashlib.sha256(payload).hexdigest(),
+                                      "bytes": len(payload), "response_expected": direction == "request"})
         return {**packet, "wire_bytes": len(wire)}
 
     def observe(self):
@@ -93,14 +105,22 @@ class LocalSession:
         return {"scope": "actual-posix" if self.server.platform_scope == "filesystem-posix" else "actual-memory",
                 "session": {"server_instance_id": self.server.instance_id,
                     "trial_id": self.server.trial_id, "child_pid": None,
-                    "fixture_id": (self.fixture_root.name if self.fixture_root else "public-conformance-v1"),
+                    "fixture_id": self.server.fixture_id,
                     "fixture_payload_sha256": self.server.fixture_payload_sha256,
                     "platform_scope": self.server.platform_scope},
                 "frames": list(self.receipts), "source_pins": source_pins()}
 
     def exercise(self, hook):
+        if hook in {"cursor-binding", "concurrency-cap"}:
+            from .ordinary import exercise_ordinary
+
+            return exercise_ordinary(self, hook)
         if self.core_control is not None:
             evidence = self.core_control.exercise(hook)
+            from .receipt_guard import TRUSTED_HOOKS
+
+            if hook in TRUSTED_HOOKS:
+                self.hook_guard.accept(hook, evidence)
             packet = evidence.get("call")
             if isinstance(packet, dict) and isinstance(packet.get("event"), dict):
                 event = packet["event"]

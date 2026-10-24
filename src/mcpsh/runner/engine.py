@@ -81,7 +81,8 @@ def run_trial(*, task: PublicTaskCase, oracle: OracleCase, selector: Any,
               max_calls: int = 6, execution_mode: str = "replay",
               manifest: ExperimentManifest | None = None,
               platform_scope: str = "synthetic-memory", filesystem_config=None,
-              fixture_payload=None, repeat: int = 1) -> dict[str, Any]:
+              fixture_payload=None, repeat: int = 1,
+              observer_fault_request: str | None = None) -> dict[str, Any]:
     from mcpsh.server import ReferenceServer
 
     if task.task_id != oracle.task_id:
@@ -105,6 +106,7 @@ def run_trial(*, task: PublicTaskCase, oracle: OracleCase, selector: Any,
     results: list[dict[str, Any]] = []
     history: list[dict[str, Any]] = []
     final_response = FinalAssistantResponse(available=False)
+    scripted_responses = []
     attempt_turns: dict[str, int] = {}
     selected_calls = []
     selection_journal_complete = True
@@ -114,6 +116,13 @@ def run_trial(*, task: PublicTaskCase, oracle: OracleCase, selector: Any,
     transport = getattr(selector, "transport", None)
     attempt_start = len(getattr(transport, "attempts", []))
     try:
+        if observer_fault_request is not None:
+            # A declarative fixture request is never an observed fault/effect.
+            failures.append("observer_fault_unsupported")
+            raise ValueError("no admitted runner observer fault hook")
+        bind_context = getattr(selector, "bind_trial_context", None)
+        if execution_mode == "live" and callable(bind_context):
+            bind_context(trial_id=trial_id, condition=condition, cell=cell)
         server = ReferenceServer(mode=mode, allowed_sources=task.allowed_source_ids,
                                  trial_id=trial_id, platform_scope=platform_scope,
                                  filesystem_config=filesystem_config, fixture_payload=fixture_payload)
@@ -188,6 +197,15 @@ def run_trial(*, task: PublicTaskCase, oracle: OracleCase, selector: Any,
                         complete=not response.get("tool_calls") and stop_reason in
                         ("stop", "end_turn", "stop_sequence", "refusal"),
                     )
+                elif execution_mode == "replay" and getattr(selector, "provenance", None) == "scripted-development-replay":
+                    scripted = getattr(selector, "scripted_final_response", None)
+                    if isinstance(scripted, FinalAssistantResponse):
+                        if scripted.model_attempt_id is not None or scripted.raw_response_hash is not None:
+                            raise ValueError("scripted text cannot acquire a provider attempt parent")
+                        final_response = scripted.model_copy(deep=True)
+                    capture = getattr(selector, "last_scripted_response", None)
+                    if isinstance(capture, dict):
+                        scripted_responses.append(capture)
             dispatch_stop = (_unsettled_attempt_reason(transport, attempt_start)
                              if execution_mode == "live" else None)
             if deadline is not None and time.monotonic() - started >= deadline:
@@ -303,6 +321,12 @@ def run_trial(*, task: PublicTaskCase, oracle: OracleCase, selector: Any,
             "selected_calls": [entry.model_dump(mode="json") for entry in selected_calls],
             "selection_journal_complete": selection_journal_complete,
             "repeat": repeat,
+            "platform_scope": platform_scope,
+            "model_family_id": getattr(arm, "family", None),
+            "scripted_responses": scripted_responses,
+            "scripted_fixture_sha256": getattr(selector, "scripted_fixture_sha256", None),
+            "observer_fault_request": observer_fault_request,
+            "observer_fault_status": "unsupported" if observer_fault_request is not None else "not-requested",
             "model_attempts": normalized_attempts, "accounting_attempts": attempts}
 
 
@@ -425,7 +449,8 @@ def run_live_matrix(*, manifest: ExperimentManifest, cases, selector_factory,
                             "Live and replay editions are never pooled."]}
 
 
-def run_matrix(*, seed: int = 1729, cases=None) -> dict[str, Any]:
+def run_matrix(*, seed: int = 1729, cases=None, fixture_map=None, treatment_map=None,
+               episodes=None, replay_specs=None, primary_plan=None, diagnostic_plan=None) -> dict[str, Any]:
     """A development diagnostic matrix, never a live-model or held-out experiment."""
     import random
 
@@ -434,28 +459,89 @@ def run_matrix(*, seed: int = 1729, cases=None) -> dict[str, Any]:
     from mcpsh.lint import normalize_catalog
 
     from .cases import demonstration_cases
+    from .sealed import treatment_catalog
 
     rows = []
     schedule = []
-    for task, oracle, calls in demonstration_cases() if cases is None else cases:
+    cases = list(demonstration_cases() if cases is None else cases)
+    baseline_ids = set()
+    by_task = {task.task_id: (task, oracle, calls) for task, oracle, calls in cases}
+    if len(by_task) != len(cases):
+        raise ValueError("duplicate replay task IDs")
+    if (episodes is None) != (replay_specs is None):
+        raise ValueError("explicit episodes and their pinned selector projections must be paired")
+    episode_map = {row["episode_id"]: row for row in episodes or ()}
+    if episodes is not None and (len(episode_map) != len(episodes) or set(episode_map) != set(replay_specs)):
+        raise ValueError("duplicate or unmatched authored replay episode IDs")
+    primary_entries, diagnostic_entries = {}, []
+    if episodes is not None:
+        if (not isinstance(primary_plan, dict) or primary_plan.get("version") != "m5-primary-replay-plan-1"
+                or not isinstance(diagnostic_plan, dict) or diagnostic_plan.get("version") != "m5-diagnostic-replay-plan-1"
+                or primary_plan.get("manifest_sha256") != diagnostic_plan.get("manifest_sha256")):
+            raise ValueError("matched explicit primary/diagnostic replay plans required")
+        primary_entries = {entry["task_id"]: entry for entry in primary_plan["entries"]}
+        diagnostic_entries = diagnostic_plan["entries"]
+        if len(primary_entries) != len(primary_plan["entries"]) or set(primary_entries) != set(by_task):
+            raise ValueError("primary replay plan does not join task inventory exactly")
+        planned_ids = [entry["episode_id"] for entry in (*primary_plan["entries"], *diagnostic_entries)]
+        if len(planned_ids) != len(set(planned_ids)) or set(planned_ids) != set(episode_map):
+            raise ValueError("every authored episode requires exactly one explicit replay role")
+    elif primary_plan is not None or diagnostic_plan is not None:
+        raise ValueError("replay plans require their explicit pinned episodes")
+    for task, oracle, calls in cases:
+        baseline = None
+        if episodes is not None:
+            baseline_id = task.task_id + "--clean"
+            baseline = episode_map.get(baseline_id)
+            planned = primary_entries[task.task_id]
+            if (baseline is None or baseline["task_id"] != task.task_id
+                    or baseline["condition"] != "clean" or baseline["calls"] != calls
+                    or baseline.get("observer_fault_request") is not None
+                    or baseline.get("role") != "primary" or planned["episode_id"] != baseline_id
+                    or planned["conditions"] != ["clean", "ambiguous", "poisoned"]
+                    or planned["cells"] != ["C0", "C1", "C2"]
+                    or planned.get("paired_design") is not True or planned.get("live_eligible") is not False):
+                raise ValueError("exact clean authored baseline episode required per task")
+            baseline_ids.add(baseline_id)
         for condition in ("clean", "ambiguous", "poisoned"):
             for cell, mode in (("C0", "permissive"), ("C1", "hardened"), ("C2", "hardened")):
-                schedule.append((task, oracle, calls, condition, cell, mode, "scripted-replay"))
+                schedule.append((task, oracle, calls, condition, cell, mode, "scripted-replay", baseline, "baseline"))
         # Controls have their own labelled arm and are never live samples.
         for control in ("keyword", "abstain", "deny-all"):
             schedule.append((task, oracle, calls, "clean", "control", "deny-all"
-                             if control == "deny-all" else "hardened", control))
+                             if control == "deny-all" else "hardened", control, baseline, "control"))
+    for planned in diagnostic_entries:
+        identifier = planned["episode_id"]
+        episode = episode_map[identifier]
+        if (episode.get("role") != "diagnostic" or planned["task_id"] != episode["task_id"]
+                or planned["conditions"] != [episode["condition"]]
+                or planned.get("paired_design") is not False or planned.get("live_eligible") is not False
+                or not isinstance(planned["cells"], list) or not planned["cells"]
+                or len(planned["cells"]) != len(set(planned["cells"]))
+                or set(planned["cells"]) - {"C0", "C1", "C2"}):
+            raise ValueError("diagnostic replay plan cannot claim a primary or live design")
+        task, oracle, _ = by_task[episode["task_id"]]
+        for cell in planned["cells"]:
+            mode = "permissive" if cell == "C0" else "hardened"
+            schedule.append((task, oracle, episode["calls"], episode["condition"], cell, mode,
+                             "scripted-development-replay", episode, "diagnostic"))
     random.Random(seed).shuffle(schedule)
-    for index, (task, oracle, calls, condition, cell, mode, arm) in enumerate(schedule):
-        catalog = build_catalog_artifact(condition, ordering_seed=seed)["catalog"]
+    for index, (task, oracle, calls, condition, cell, mode, arm, episode, role) in enumerate(schedule):
+        catalog = (treatment_catalog(treatment_map[task.task_id], condition) if treatment_map is not None
+                   else build_catalog_artifact(condition, ordering_seed=seed)["catalog"])
         if cell == "C2":
             catalog, _ = normalize_catalog(catalog)
-        selected = KeywordSelector() if arm == "keyword" else ReplaySelector(
-            [] if arm == "abstain" else calls
-        )
-        rows.append(run_trial(task=task, oracle=oracle, selector=selected, catalog=catalog,
+        selected = (KeywordSelector() if arm == "keyword" else ReplaySelector([]) if arm == "abstain"
+                    else ReplaySelector(**replay_specs[episode["episode_id"]]) if episode is not None
+                    else ReplaySelector(calls))
+        row = run_trial(task=task, oracle=oracle, selector=selected, catalog=catalog,
                               trial_id=f"replay-{index:04d}-{task.task_id}", condition=condition,
-                              cell=cell, mode=mode, selector_name=arm))
+                              cell=cell, mode=mode, selector_name=arm,
+                              fixture_payload=fixture_map[task.fixture_ref] if fixture_map is not None else None,
+                              observer_fault_request=episode.get("observer_fault_request") if episode else None)
+        row["replay_role"] = role
+        row["replay_episode_id"] = episode["episode_id"] if episode is not None and arm not in ("keyword", "abstain") else None
+        rows.append(row)
     outcomes = [row["outcome"] for row in rows]
     comparisons = []
     for condition in ("clean", "ambiguous", "poisoned"):
@@ -469,6 +555,13 @@ def run_matrix(*, seed: int = 1729, cases=None) -> dict[str, Any]:
             "acceptance_verdict": "pending", "platform_scope": "synthetic-memory",
             "seed": seed, "live_model_runs": 0, "heldout_families": 0,
             "development_only": True, "rows": rows,
+            "replay_design": {"baseline_tasks": len(cases),
+                              "baseline_rows": sum(row["replay_role"] == "baseline" for row in rows),
+                              "control_rows": sum(row["replay_role"] == "control" for row in rows),
+                              "diagnostic_episodes": len(diagnostic_entries),
+                              "diagnostic_rows": sum(row["replay_role"] == "diagnostic" for row in rows)},
+            "replay_plan_versions": {"primary": primary_plan["version"] if primary_plan else None,
+                                     "diagnostic": diagnostic_plan["version"] if diagnostic_plan else None},
             "summary": aggregate_outcomes(outcomes), "paired_comparisons": comparisons,
             "limitations": ["Source constructed under Dirty Mode; runtime unverified.",
                             "Calls are scripted, not model-generated.",

@@ -220,3 +220,28 @@ def test_counter_receives_same_encoded_body_as_send(tmp_path):
     controller.token_counter = counter
     controller(payload)
     assert counted and all(body == encode_wire(wire.sent[0]) for body in counted)
+
+
+def test_counter_context_is_consumed_before_every_preflight_send_and_retry(tmp_path):
+    # what_bug_this_catches: retry reuses first attempt context or presend omits IDs.
+    controller, wire, payload = make_controller(tmp_path, [explicit_transient_usage(), response()])
+    class BoundCounter:
+        def __init__(self):
+            self.pending, self.seen = None, []
+        def bind_dispatch_context(self, *, phase, attempt_id, operation_id):
+            assert self.pending is None
+            assert (phase == "preflight" and attempt_id is operation_id is None) or (
+                phase == "pre-send" and attempt_id and operation_id)
+            self.pending = (phase, attempt_id, operation_id)
+        def __call__(self, body):
+            assert isinstance(body, bytes) and self.pending is not None
+            self.seen.append(self.pending)
+            self.pending = None
+            return 5
+    counter = BoundCounter()
+    controller.token_counter = counter
+    controller(payload)
+    assert len(wire.sent) == 2
+    assert [row[0] for row in counter.seen] == ["preflight", "pre-send", "pre-send"]
+    assert counter.seen[1][1] != counter.seen[2][1]
+    assert counter.seen[1][2] == counter.seen[2][2]

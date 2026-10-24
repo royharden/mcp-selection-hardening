@@ -289,8 +289,8 @@ def packaged_bundle_inputs() -> BundleInputs:
         {name: _read_bounded(schema_dir / name) for name in SCHEMAS}, sources, capability_report())
 
 
-def read_contract_bundle(directory: Path, *, expected_bundle_sha256):
-    """Read only the eight fixed public artifacts after pinning the index bytes."""
+def _read_known_bundle(directory: Path, *, expected_bundle_sha256, payloads, index_fields):
+    """Read only a version's fixed public artifacts after pinning its index."""
     if not _pin(expected_bundle_sha256) or directory.is_symlink() or not directory.is_dir():
         raise ValueError("explicit nonsymlink public bundle directory and pin required")
     root = directory.resolve(strict=True)
@@ -301,17 +301,17 @@ def read_contract_bundle(directory: Path, *, expected_bundle_sha256):
     if _sha(index_raw) != expected_bundle_sha256:
         raise ValueError("bundle index differs from external pin")
     index = _json(index_raw)
-    if type(index) is not dict or set(index) != INDEX_FIELDS or type(index.get("files")) is not list or len(index["files"]) != len(PAYLOADS):
+    if type(index) is not dict or set(index) != index_fields or type(index.get("files")) is not list or len(index["files"]) != len(payloads):
         raise ValueError("bundle index shape differs")
     names = []
     for row in index["files"]:
         if type(row) is not dict or set(row) != {"path", "sha256", "bytes"}:
             raise ValueError("bundle file reference shape differs")
         name = safe_name(row["path"])
-        if name not in PAYLOADS:
+        if name not in payloads:
             raise ValueError("unrecognized public bundle resource")
         names.append(name)
-    if len(set(names)) != len(names) or set(names) != PAYLOADS:
+    if len(set(names)) != len(names) or set(names) != payloads:
         raise ValueError("required public bundle resource missing or duplicated")
     files = {"bundle.json": index_raw}
     for name in names:
@@ -330,6 +330,12 @@ def read_contract_bundle(directory: Path, *, expected_bundle_sha256):
     return files
 
 
+def read_contract_bundle(directory: Path, *, expected_bundle_sha256):
+    """Legacy v1 integrity-only reader; normative v2 has an explicit adapter."""
+    return _read_known_bundle(directory, expected_bundle_sha256=expected_bundle_sha256,
+                              payloads=PAYLOADS, index_fields=INDEX_FIELDS)
+
+
 def write_contract_bundle(bundle: ContractBundle, directory: Path):
     """Explicit future export only; creates a fresh directory and never overwrites."""
     files = bundle.to_files()
@@ -338,6 +344,12 @@ def write_contract_bundle(bundle: ContractBundle, directory: Path):
         expected_runtime_schema_sha256=bundle.runtime_schema_sha256)
     if not verified["valid"]:
         raise ValueError("cannot write invalid source-contract bundle")
+    _write_new_files(files, directory)
+    return {"bundle_sha256": bundle.bundle_sha256, "manifest_sha256": bundle.manifest_sha256,
+            "runtime_schema_sha256": bundle.runtime_schema_sha256, "claim": "source-integrity-only"}
+
+
+def _write_new_files(files, directory):
     directory.mkdir(exist_ok=False)
     for name, raw in sorted(files.items()):
         safe_name(name)
@@ -346,5 +358,3 @@ def write_contract_bundle(bundle: ContractBundle, directory: Path):
         with destination.open("xb") as handle:
             handle.write(raw)
     # A partial export is preserved for explicit caller disposition, never deleted.
-    return {"bundle_sha256": bundle.bundle_sha256, "manifest_sha256": bundle.manifest_sha256,
-            "runtime_schema_sha256": bundle.runtime_schema_sha256, "claim": "source-integrity-only"}

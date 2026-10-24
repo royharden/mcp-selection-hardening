@@ -147,6 +147,8 @@ class ReplaySelector:
 
     def select(self, task, catalog, history):
         del catalog
+        self._last_scripted_response = None
+        self._scripted_final = FinalAssistantResponse(available=False)
         if type(history) is not list:
             raise ReplayProtocolError("ordered captured tool history must be a list")
         task_id = task.get("task_id") if type(task) is dict else None

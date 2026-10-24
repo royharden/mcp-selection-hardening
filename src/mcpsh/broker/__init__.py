@@ -11,8 +11,8 @@ import multiprocessing
 from multiprocessing.connection import wait
 import threading
 import time
+from .bounds import MAX_READ_BYTES, ReadBudget, ReadLimitExceeded, read_memory_lines
 
-MAX_READ_BYTES = 8 * 1024 * 1024
 MAX_PHYSICAL_LINE_BYTES = 64 * 1024
 MAX_FRAME_BYTES = 32 * 1024
 CALL_DEADLINE_SECONDS = 5.0
@@ -121,13 +121,46 @@ def _broker_main(execute, observe, trial_id: str, epoch: str, fixture_payload: d
                         reset_intact = False
                     elif command == "observer-fixture-mismatch":
                         fixture_attestation = "0" * 64
-                    elif command in {"read-byte-cap", "physical-line-cap", "frame-amplification"}:
+                    elif command == "read-amplification":
+                        if "app" not in sources or saved_app is not None:
+                            connection.send_bytes(canonical({"error": "CONTROL_STATE_INVALID"}))
+                            continue
+                        original = sources["app"]
+                        original_metadata = metadata["app"]
+                        sources["app"] = ["A" * 4095 for _ in range(768)]
+                        metadata["app"] = source_metadata(sources["app"])
+                        budget = ReadBudget()
+                        completed = 0
+                        refusal = None
+                        try:
+                            for scan in range(3):
+                                value = read_memory_lines(sources["app"], metadata["app"], budget)
+                                completed += 1
+                                emit("conformance_scan", session_id=session_id, source_id="app", scan=scan + 1, bytes_read=value["bytes_read"], aggregate_read_bytes=budget.consumed)
+                        except ReadLimitExceeded as exc:
+                            refusal = {"type": type(exc).__name__, "message": str(exc)}
+                        finally:
+                            sources["app"] = original
+                            metadata["app"] = original_metadata
+                        receipt = {"applied": True, "command": command, "trial_id": trial_id, "epoch": epoch,
+                            "probe_error_code": "LIMIT_EXCEEDED" if refusal is not None else None,
+                            "validation_exception": refusal, "metrics": {"aggregate_read_bytes": budget.consumed,
+                            "read_limit_bytes": budget.limit, "completed_scans": completed, "requested_scans": 3,
+                            "requested_scan_bytes": 3 * 768 * 4096}, "restored": sources["app"] is original}
+                        emit("conformance_probe", session_id=session_id, command=command, receipt_hash=digest(receipt))
+                        connection.send_bytes(canonical(receipt))
+                        continue
+                    elif command in {"read-byte-cap", "physical-line-cap", "frame-amplification", "missing-source"}:
                         if "app" not in sources or saved_app is not None:
                             connection.send_bytes(canonical({"error": "CONTROL_STATE_INVALID"}))
                             continue
                         saved_app = sources["app"]
-                        sources["app"] = ["R" * MAX_READ_BYTES] if command == "read-byte-cap" else ["L" * (MAX_PHYSICAL_LINE_BYTES + 1)] if command == "physical-line-cap" else ['"\\\t\u2028' * 100 for _ in range(100)]
-                        metadata["app"] = source_metadata(sources["app"])
+                        if command == "missing-source":
+                            sources.pop("app")
+                            metadata.pop("app")
+                        else:
+                            sources["app"] = ["R" * MAX_READ_BYTES] if command == "read-byte-cap" else ["L" * (MAX_PHYSICAL_LINE_BYTES + 1)] if command == "physical-line-cap" else ['"\\\t\u2028' * 100 for _ in range(100)]
+                            metadata["app"] = source_metadata(sources["app"])
                     elif command == "restore-app":
                         if saved_app is None:
                             connection.send_bytes(canonical({"error": "CONTROL_STATE_INVALID"}))
@@ -148,17 +181,19 @@ def _broker_main(execute, observe, trial_id: str, epoch: str, fixture_payload: d
                 if operation == "read":
                     source_id = request.get("source_id")
                     if source_id not in sources:
-                        response = {"error": "UNKNOWN_SOURCE"}
+                        response = {"error": "SOURCE_MISSING" if source_id in fixture["source_lines"] else "UNKNOWN_SOURCE"}
                     else:
                         lines = sources[source_id]
                         raw_bytes = metadata[source_id]["bytes"]
-                        if raw_bytes > MAX_READ_BYTES or metadata[source_id]["oversize_line"]:
+                        try:
+                            response = read_memory_lines(lines, metadata[source_id], ReadBudget())
+                        except ReadLimitExceeded:
                             response = {"error": "LIMIT_EXCEEDED"}
                             emit("source_refusal", call_id=call_id, source_id=source_id, declared_bytes=raw_bytes, actual_bytes_returned=0)
                         else:
                             if source_id == "protected_fixture":
                                 reads += 1
-                            response = {"lines": lines, "bytes_read": raw_bytes, "generation_id": digest(lines)}
+                            response["generation_id"] = digest(lines)
                             emit("source_read", call_id=call_id, source_id=source_id, protected=source_id == "protected_fixture", bytes_read=raw_bytes)
                 elif operation == "export":
                     destination = request.get("destination_id")
@@ -261,7 +296,7 @@ class FixtureBroker:
 
     def _conformance_command(self, command: str, session_id: str) -> dict:
         """Private owned-child capability, reached only by approved test session."""
-        allowed = {"authorize", "deactivate", "observer-truncated", "observer-reset-corrupt", "observer-fixture-mismatch", "read-byte-cap", "physical-line-cap", "frame-amplification", "restore-app", "posix-symlink", "posix-rename", "posix-source-change"}
+        allowed = {"authorize", "deactivate", "observer-truncated", "observer-reset-corrupt", "observer-fixture-mismatch", "read-byte-cap", "physical-line-cap", "frame-amplification", "restore-app", "posix-symlink", "posix-rename", "posix-source-change", "missing-source", "binary-content", "unsupported-encoding", "read-amplification"}
         if command not in allowed or (command != "authorize" and self._conformance_session_id != session_id):
             raise ValueError("unbound conformance command")
         if not self._lock.acquire(timeout=CALL_DEADLINE_SECONDS):

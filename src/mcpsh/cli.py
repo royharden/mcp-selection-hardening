@@ -44,6 +44,8 @@ def main(argv: list[str] | None = None) -> int:
     check = commands.add_parser("server-check", help="explicitly authorized disposable conformance probes")
     check.add_argument("--request", type=Path, required=True,
                        help="JSON ConformanceRequest with explicit runtime/disposable approval")
+    check.add_argument("--semantic-manifest-sha256", help="externally admitted exact public semantic source pin")
+    check.add_argument("--requirements-manifest-sha256", help="externally admitted normative requirements pin")
     evidence = commands.add_parser("evidence-check", help="offline structural integrity, never product acceptance")
     evidence.add_argument("--root", type=Path, required=True)
     evidence.add_argument("--authority", type=Path, required=True)
@@ -193,7 +195,14 @@ def main(argv: list[str] | None = None) -> int:
                 request_data[key] = tuple(request_data[key])
         request = ConformanceRequest(**request_data)
         request.require_activation()
-        report = run_conformance(request).to_dict()
+        import re
+
+        for pin in (args.semantic_manifest_sha256, args.requirements_manifest_sha256):
+            if pin is not None and not re.fullmatch(r"[0-9a-f]{64}", pin):
+                raise ValueError("external conformance pins must be exact lowercase SHA256")
+        report = run_conformance(
+            request, expected_semantic_manifest_sha256=args.semantic_manifest_sha256,
+            expected_requirements_manifest_sha256=args.requirements_manifest_sha256).to_dict()
         _dump(report)
         verdicts = [platform["verdict"] for platform in report["platforms"].values()]
         return 1 if "blocked" in verdicts else 0 if verdicts and all(

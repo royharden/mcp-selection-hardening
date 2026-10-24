@@ -124,6 +124,17 @@ def test_exhaustion_does_not_repeat_a_previous_authored_final():
     assert selector.last_scripted_response["episode_exhausted"]
 
 
+def test_rejected_history_cannot_reuse_a_stale_scripted_final():
+    """what_bug_this_catches: engine error recovery reading a previous turn's successful authored final."""
+    selector = ReplaySelector(episode=episode(turn(text="Authored once.", stop="stop")))
+    selector.select({}, [], [])
+    assert selector.scripted_final_response.available
+    with pytest.raises(ReplayProtocolError):
+        selector.select({}, [], [{"role": "tool", "call": {"name": "unexpected"}}])
+    assert not selector.scripted_final_response.available
+    assert selector.last_scripted_response is None
+
+
 def test_oracle_fields_cannot_enter_episode_or_scripted_response():
     """what_bug_this_catches: a selector consuming expected/hidden labels as scripted answer data."""
     bad = episode(turn(text="Authored.", stop="stop"))

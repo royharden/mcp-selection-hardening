@@ -225,7 +225,8 @@ alone does not prove publication authority. Missing/mismatched qualification or 
 held-out phase falls back to strict aliases. It never authorizes freeform response or
 oracle text. Trusted fixture payloads use the same `protected_sentinels` and hardened
 `policy.redact` semantics as the server. Missing/invalid supplied fixture semantics or
-public-schema-key conflicts fail closed, retaining the private edition.
+public-schema-key/enum conflicts fail closed, retaining the private edition rather
+than rewriting observed/unknown categories into redaction markers.
 
 Adversarial regression source is in `tests/evidence/test_public_projection.py`. AST and
 direct whitespace inspection passed; no projection, renderer or regression was executed
@@ -244,3 +245,102 @@ labelled scripted-response digest and fixture provenance. Missing text is unavai
 never an invented refusal. Implementation is in `adapters/replay.py`; see
 `docs/LIVE-BOUNDARIES.md` for history and raw-call semantics. The canonical public
 projection retains only scripted availability/provenance metadata and hashes.
+
+v5 token-fit lineage consumes D1's actual private request/proof events. The pure
+`capture_token_fit_bundle(journal_events, *, expectations)` adapter adds source
+sequence positions, retains every proof event (including legacy/unattributed), and
+never opens or writes a journal. `build_edition_payloads(..., token_fit_bundle=...)`
+adds optional private `token-fit.json`. Its serialization preserves wire dictionary
+order: actual request bytes are reproduced with the transport's sole `encode_wire`.
+The sidecar participates in the edition's external byte pin, bounded reader and
+closed schema; it is never a public artifact.
+
+`EditionAuthority.token_fit_expectations_sha256` is an independently selected
+`typed_hash` of the ordered expectations array, not a submitted proof's own hash.
+Each expectation selects trial, turn, attempt, operation, checked-at, exact request
+and proof hashes plus D5 verifier arguments (catalog artifact, exact closed approval
+and its independent hash, provider/model/adapter source revision and hash). The
+approval binds counter identity/source, settings, catalog, caps, expiry and maximum
+proof age. Callers must authenticate those pins through authorized custody; merely
+copying submitted values into an authority does not provide independent evidence.
+
+`verify_token_fit_lineage(edition)` reuses D5's verifier without counting or building
+proofs. Pre-send events must uniquely follow their prepared request and match the
+actual attempt/operation/trial/turn. Missing/duplicate/legacy/unbound/retry evidence
+stays unknown or invalid. Preflight entries remain diagnostic and cannot cover a
+send. All reports retain `live_admission=False`, `billing_verified=False`: fit is
+neither paid dispatch approval nor financial settlement. Inspection exposes missing
+lineage; reproduction suppresses live numeric summaries for incomplete lineage.
+The canonical public projection permits only safe status/hash/aliased parent data;
+raw approval, catalog body, request/history and proof receipt remain private.
+Authored regressions cover mutated/stale/expired/wrong-parent/missing/retry evidence;
+none was executed in Dirty Mode.
+
+Producer reconciliation v5 also retains `development-summary-draft`, closed
+`development_summary` scheduled/supplied/missing/class groups, repeat and retention
+diagnostics, and raw input SHA pins. `development_threshold_proposal` omits rationale
+text and is explicitly labelled `unauthenticated-proposal`; it cannot carry an
+independent approval. Replay rows retain `replay_role`, aliased episode ID and bounded
+`scripted_responses` provenance/hash/availability only. Raw scripted final text stays
+in the private edition. `replay_design` preserves baseline/control/diagnostic counts;
+`observer_fault_status` and `observer_fault_unsupported` remain explicit.
+
+Final v5 producer reconciliation: safe `token_fit_status` exactly follows D1's
+`m5-token-fit-status-1` counters/hashes; no raw expectations or proof body. Root
+`threshold_approval_status` follows D4 `project_threshold_status` status/hash/floor
+fields while discarding reviewer/approval/rationale plaintext. Runtime authority
+flags accept false only. Per-row platform scope is bound to edition scope and
+model family is always aliased, never disclosed. Both fields survive rescore.
+Development corpus pins follow actual public `corpus_pins` source, retaining fixed
+public file hash slots and full case/episode counts. No corpus contents are read.
+
+## Retrospective fit successor (v6)
+
+`plan_fit_reverification(parent, *, authority, expected_authority_sha256,
+expectations, parent_journal_bytes, receipt=None, expected_receipt_sha256=None)`
+prepares in-memory candidate bytes. `FitReverificationAuthority` pins original
+index/manifest/capture/journal/candidate/input/source/settings/prices, the complete
+external expectation set, verifier source/candidate, new edition ID/revision and
+independent retrospective selection provenance. Authentication defaults false.
+It never changes the original edition or self-selects expectations from events.
+Missing original capture/journal/authority or incomplete attempt selection stays
+pending. Changed original bytes, source, candidate, settings or prices are rejected.
+The caller supplies exact original journal bytes explicitly; no new reader or
+journal writer is introduced.
+
+The successor's `fit_parent` byte archive contains exact original index/artifact/
+journal bytes in bounded base64 chunks. Active trial rows remain byte-identical;
+observers/oracles remain byte-identical; only successor identity/revision and the
+new externally selected expectation set change. Original manifest bytes remain
+archived, with original execution source/cost/settings preserved in the active
+manifest. Orphan requests, failed attempts, unknown costs and duplicate reuse rows
+survive. New expectations must cover every original model/request attempt, never
+just successes. Archive and index participate in existing edition bounds and pins.
+Nested retrospective successors require separately granted scope.
+
+A separate `FitReverificationReceipt` must externally pin plan ID, selected
+authority, proposed successor index and verifier source, with authentication and
+independent-selection confirmation false by default. Receipt metadata does not
+itself authenticate custody; independently trusted callers must confirm it and
+select the expected pin. The receipt resides in externally supplied successor
+`EditionAuthority.fit_reverification_receipt` plus its independent typed SHA,
+outside the indexed artifacts, avoiding circular index/receipt hashes. Supplying
+this receipt on an original index is rejected. D1 separately authorizes the writer
+and destination; `build_fit_reverification_payloads(plan)` only returns bytes after
+receipt checks and full existing-reader validation. It never writes anything.
+
+This is `RETROSPECTIVE-FIT-EVIDENCE-ONLY`, not a new experiment or pre-send approval.
+It reuses D5's verifier through the existing fit lineage consumer, never a counter
+or proof builder. Reports use `retrospective-fit-only`, no pre-send admission claim,
+zero new attempts/charges, no dispatch authority and no billing/usage/product
+acceptance claim. Existing costs and unresolved reservations stay unchanged. Actual
+verifier execution source and external custody must be established by the caller;
+metadata/source hashes alone cannot establish truthful execution. No helper,
+parser, counter, proof, reader or test was executed during Dirty construction.
+
+Safe canonical views additionally cover `acceptance-dossier-draft` /
+`acceptance_dossier_status`, and `ledger-audit-draft` / `ledger_audit_status`.
+The latter follows `accounting.report.project_ledger_audit_status(audit)`, a pure
+status/count/hash/basis projection of the existing private audit. It performs no
+financial arithmetic, publication or database calls. Original scheduled and unknown
+counts remain; raw dossiers, authorities, DB metadata and corpus text stay private.

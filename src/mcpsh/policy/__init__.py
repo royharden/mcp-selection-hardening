@@ -4,6 +4,8 @@ from dataclasses import dataclass
 import re
 
 POLICY_VERSION = "m5-policy-v1"
+MAX_CONFIGURED_SOURCES = 100
+MAX_CUSTOM_REDACTION_RULES = 32
 SOURCE_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
 
@@ -18,7 +20,7 @@ class AccessPolicy:
     def __init__(self, mode: str, allowed_sources: tuple[str, ...]):
         if mode not in {"hardened", "permissive", "deny-all"}:
             raise ValueError("unsupported enforcement mode")
-        if len(allowed_sources) > 100 or any(
+        if len(allowed_sources) > MAX_CONFIGURED_SOURCES or any(
             not isinstance(source, str) or not SOURCE_ID.fullmatch(source)
             for source in allowed_sources
         ):
@@ -47,7 +49,7 @@ class AccessPolicy:
 
 def redact(text: str, mode: str, canary: str | tuple[str, ...], custom_rules: tuple[str, ...] = ()) -> str:
     """Only fixed bounded patterns and literal custom rules; never execute user regex."""
-    if len(custom_rules) > 32 or any(len(rule.encode("utf-8")) > 512 for rule in custom_rules):
+    if len(custom_rules) > MAX_CUSTOM_REDACTION_RULES or any(len(rule.encode("utf-8")) > 512 for rule in custom_rules):
         raise ValueError("custom redaction limit exceeded")
     sentinels = (canary,) if isinstance(canary, str) else canary
     if mode == "permissive" and text in sentinels:

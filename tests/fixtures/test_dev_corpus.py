@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from mcpsh.catalog.dev_corpus import (
-    EPISODES, FILES, FIXTURES, MANIFEST, ORACLES, TASKS,
+    EPISODES, EPISODE_VERSION, FILES, FIXTURES, MANIFEST, ORACLES, TASKS,
     corpus_pins, parse_dev_corpus, public_task_projection, replay_episode_projection,
     replay_selector_kwargs,
 )
@@ -37,7 +37,7 @@ def test_complete_public_package_has_all36_and_replay_only_provenance():
     # what_bug_this_catches: a class/case silently disappearing in development evaluation.
     package = parse(source_bytes())
     assert corpus_pins(package)["cases"] == 36
-    assert corpus_pins(package)["episodes"] == 46
+    assert corpus_pins(package)["episodes"] == 51
     assert {row["oracle"]["utility_version"] for row in package["oracle_package"]["cases"]} == {"semantic-v2"}
     assert all(episode["provenance"]["model_generated"] is False for episode in package["episodes"])
 
@@ -126,7 +126,7 @@ def test_exact_d7_projection_separates_script_hash_from_physical_fixture():
 def test_duplicate_json_keys_and_forged_live_provenance_are_rejected():
     # what_bug_this_catches: permissive decoding or flag coercion relabeling scripts live.
     files = source_bytes()
-    token = b'"version": "m5-dev-replay-episodes-1"'
+    token = ('"version": "' + EPISODE_VERSION + '"').encode()
     duplicate = files[EPISODES].replace(token, token + b", " + token, 1)
     with pytest.raises(ValueError):
         parse(repin(files, EPISODES, duplicate))

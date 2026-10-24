@@ -51,6 +51,26 @@ def definitions():
         ProbeDefinition("input-frame-cap", "Oversized raw arguments rejected before I/O", LOCAL,
                         "invalid", (CallSpec("tail", " " * (32 * 1024 + 1)),)),
     ]
+    probes.extend((
+        ProbeDefinition("device-path", "Device spelling rejected as an opaque source ID (namespace only)", LOCAL,
+                        "invalid", (call("tail", {"source_id": "\\\\.\\NUL"}),)),
+        ProbeDefinition("cursor-length-cap", "4097-character cursor refused by the actual handler", LOCAL,
+                        "invalid", (call("errors", {"source_id": "app", "cursor": "x" * 4097}),)),
+        ProbeDefinition("cursor-binding", "Actual issued cursor cannot change query binding", LOCAL,
+                        "ordinary-control", hook="cursor-binding"),
+        ProbeDefinition("concurrency-cap", "Actual same-reference four active/sixteen queued and BUSY", LOCAL,
+                        "ordinary-control", hook="concurrency-cap"),
+        ProbeDefinition("broker-death", "Owned broker loss cannot produce complete observation", LOCAL,
+                        "observation-unknown", hook="broker-death"),
+    ))
+    for hook in ("missing-source", "binary-content", "unsupported-encoding", "read-amplification",
+                 "source-count-cap", "custom-rule-count-cap"):
+        tracks = ("filesystem-posix",) if hook in {"missing-source", "binary-content", "unsupported-encoding"} else LOCAL
+        probes.append(ProbeDefinition(hook, "Trusted production boundary with raw receipts", tracks,
+                                      "trusted-refusal", hook=hook))
+        probes.append(ProbeDefinition("control-stdio-" + hook,
+            "Same-owned-child control diagnostic; does not claim MCP transport proof", ("stdio",),
+            "trusted-refusal", required=False, hook="control-stdio:" + hook))
     for index, source in enumerate(("../outside", "/etc/passwd", "C:\\outside", "\\\\host\\share", "app:stream", "x" * 65)):
         probes.append(ProbeDefinition(f"opaque-source-{index}", "Tool arguments never select host paths", LOCAL,
                                       "invalid", (call("tail", {"source_id": source}),)))

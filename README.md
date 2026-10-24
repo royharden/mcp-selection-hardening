@@ -31,7 +31,7 @@ uv run mcpsh catalog export --condition poisoned --artifact --ordering-seed 17
 uv run mcpsh lint --condition poisoned
 uv run mcpsh lint --condition poisoned --normalize
 uv run python scripts/demo.py
-uv run python scripts/eval.py --mode replay --corpus development --edition dev-001
+uv run python scripts/eval.py --mode replay --corpus development --development-manifest-sha256 <reviewed-raw-manifest-pin> --edition dev-001
 uv run python scripts/eval.py --mode replay --corpus demo --lint-controls --edition lint-dev-001
 ```
 
@@ -45,19 +45,82 @@ The real conformance source entrypoint is `uv run mcpsh server-check --request <
 
 `python scripts/pilot.py plan` creates a draft-only development design; it cannot authorize dispatch or fill in prices or a utility floor. To summarize later supplied evidence through the sole numeric publisher, use `scripts/eval.py --mode pilot-summary --pilot-plan <draft.json> --pilot-plan-sha256 <raw-pin> --pilot-observations <observations.json> --pilot-observations-sha256 <raw-pin>`. Its repeat/repair and threshold outputs stay approval-needed, with unknown observations retained. See [CALIBRATION.md](docs/CALIBRATION.md).
 
-Full-36 supplied evidence has a separate `--mode development-summary` route with raw-pinned `--development-plan`, `--calibration-outcomes` and optional `--calibration-failures` files. It preserves all planned slots, control provenance and unknown/proxy/counter evidence. The admitted-runner bridge accepts explicit closed-mode/runtime grants and already-admitted selectors; it has no default callback/provider or guessed attempt counters. See [CALIBRATION-INTEGRATION.md](docs/CALIBRATION-INTEGRATION.md). These source paths have not been run and need semantic-v2 public development labels before actual calibration.
+Full-36 supplied evidence has a separate `--mode development-summary` route with raw-pinned `--development-plan`, `--calibration-outcomes` and optional `--calibration-failures` files. It preserves all planned slots, control provenance and unknown/proxy/counter evidence. The admitted-runner bridge accepts explicit closed-mode/runtime grants and already-admitted selectors; it has no default callback/provider or guessed attempt counters. See [CALIBRATION-INTEGRATION.md](docs/CALIBRATION-INTEGRATION.md). Canonical public semantic-v2 labels and explicitly authored replay episodes are now supplied; their independent review and every execution/calibration gate remain pending.
 
 The demo prints safe call/decision/effect traces without publishing benchmark metrics. The evaluator defaults to all 36 public development cases; `--corpus demo` selects the two scripted walkthrough cases. Clean, ambiguous and poisoned C0/C1/C2 cells use identical scripted calls, so replay cannot measure a model’s response to metadata. Keyword, abstain and deny-all controls are separately labelled. The original calls and raw malformed arguments are retained in private evidence rather than the public reports.
+
+Development replay requires an explicit raw pin for `fixtures/dev/corpus-manifest-v2.json`.
+The bounded loader checks its exact canonical package files and uses typed
+`gold/dev/oracles.json` `{schema_version,cases}` semantics, task-specific synthetic
+fixtures and metadata treatments. Each task's exact `--clean` authored episode is
+the same baseline across matched conditions/cells. Other authored episodes are
+separate replay diagnostics and never enlarge core pairing, family or live samples.
+The version2 episode package declares roles and allowed conditions/cells; the
+loader consumes D5's versioned primary/diagnostic plans and semantic source
+preflight. Diagnostic cells come from that explicit plan, with no fixed episode
+count or extra matched samples inferred. The current manifest format version is
+read from the pinned bytes even though its canonical filename retains `v2`.
+Authored terminal text has scripted provenance, no model attempt or usage record;
+missing text stays unavailable. Unsupported observer-fault requests remain explicit
+unsupported rows with unknown observation rather than invented fault evidence.
+
+After preserving the full private result and optional normalized evidence, the
+sole publisher uses `mcpsh.evidence.project_public_result`. All public formats,
+including the public manifest, render the exact same allowlisted object. Projection
+diagnostics stay private; raw final text, oracle fields and private identifiers
+do not pass through a separate publication path. Scheduled/error rows, supplied
+denominators, unknown utility/effects and distinct cost bases remain represented.
 
 Only `scripts/eval.py` writes numeric editions. Public output defaults to `results/<edition>/`; raw synthetic evidence defaults to `../mcp-selection-hardening-private-evidence/<edition>/`, outside this product repository. `--private-evidence` can choose another explicitly authorized outside-repository directory. Use a fresh edition ID for reruns: existing editions/reservations are not overwritten, and failures preserve staging/reservations. The source has no committed results or claimed pass rates. Report hashes establish identity, not safety or runtime acceptance.
 
 For a new replay/live run, an explicit `--candidate-commit <full-accepted-commit> --revision <positive-int>` also builds normalized evidence sidecars under the private edition's `normalized/` folder. Raw calls, results, observers and explicitly supplied oracle bytes never enter the public report directory. Live candidate metadata must match the approved manifest. Missing reservation evidence stays unknown; no authority file is fabricated from the generated index.
+
+Live collection also preserves all actual proof and prepared-request journal events
+in a private token-fit bundle. Independently selected expectations can be supplied
+with separate external raw and typed pins; absence retains unknown credit. The
+reader's externally supplied authority pins that selection independently. Complete
+private lineage and all failed/unknown attempts remain available; public output
+receives only bounded status, counts and hashes through the canonical projector.
+Fit is separate from spend authorization and billing. See [VALIDATION.md](docs/VALIDATION.md)
+for immutable-edition and retrospective selection limits. These paths remain unrun.
+
+`scripts/eval.py --mode dossier --evidence-root <saved-private-edition>` accepts
+`--dossier-authority` with separate external raw and typed pins, plus an explicitly
+raw-pinned `--acceptance-sources` package. It assembles D4's acceptance dossier from
+D7's verified original bytes, without rescoring, relabeling replay or filling missing
+rows. Private dossier details stay outside the product tree; only safe status,
+identity pins and semantic-basis counts enter canonical public views. All CLI
+authentication/custody/independence confirmations remain false. A recommendation
+does not grant runtime authority or independent product acceptance.
+
+`scripts/eval.py --mode ledger-audit --ledger <explicit-existing-db-or-snapshot>`
+uses an explicitly saved evidence edition plus raw-pinned edition and ledger
+authorities. It calls only the existing accounting owner's read-only audit; no
+ledger constructor, migration or reconciliation is added. Full details stay
+private, while the canonical public ledger report preserves totals, dated-estimate
+bases, unknown liabilities, unallocated rows, retained reserves and reuse. The CLI
+does not authenticate billing witnesses from JSON or turn estimates into billing.
+No DB connection or audit was run during construction.
 
 The offline reader is `mcpsh evidence-check --root <private-normalized-edition> --authority <file> --authority-sha256 <externally-approved-raw-pin>`. It checks structural integrity and reports missing evidence; exit success does not grant product acceptance. `scripts/eval.py --mode rescore --evidence-root <private-edition> --evidence-authority <file> --authority-sha256 <raw-pin> --evaluator-sha256 <approved-source-pin> --edition <fresh-successor-view>` reproduces with the pinned evaluator and publishes a fresh bounded/redacted view. It retains the original input manifest and reports unknown scheduled trials without calculating a reduced-denominator score. Original editions are never overwritten. These reader/rescore paths are source-only and have not been executed.
 
 `evidence-resume` uses the same externally raw-pinned parent authority. An optional `--resume-authority <file> --resume-authority-sha256 <external-canonical-typed-pin>` plus `--receipts <file>` produces a successor proposal only. The successor authority pins exact target manifest bytes, schedule, receipts and reservation cap; missing repeat identity or unknown usage stays pending. It neither frees ledger holds nor dispatches or rewrites results. The successor typed pin and parent raw-file pin intentionally name different identities.
 
 An optional raw-pinned `--acceptance-request <file> --acceptance-request-sha256 <pin>` on replay/live/rescore asks the policy evaluator for a recommendation using the current scored rows plus typed design, threshold, custody, conformance and control records. It never approves its own product: independent product acceptance remains pending, even for an eligible-for-review recommendation.
+
+Exact recommendation inputs now include the actual private row's explicit repeat,
+platform and model family; missing legacy fields remain unknown. Threshold metadata
+uses a separately pinned proposal/summary/context package and current-input record,
+plus externally pinned reviewer/INT decisions when supplied. The CLI leaves actor
+authentication and fresh-custody confirmation false, so it cannot generate an
+approved floor from matching JSON. Direct handmade threshold records are rejected.
+See [VALIDATION.md](docs/VALIDATION.md) for flags and the trusted-caller source seam.
+
+Installed conformance resources are explicitly mapped in the wheel configuration;
+no wheel was built or installed. `server-check` accepts external
+`--semantic-manifest-sha256` and `--requirements-manifest-sha256` pins alongside the
+explicit disposable/runtime request. Missing pins remain unknown, with no
+self-calculated substitute. See [CONSUMER-CONFORMANCE.md](docs/CONSUMER-CONFORMANCE.md).
 
 ## What remains pending
 

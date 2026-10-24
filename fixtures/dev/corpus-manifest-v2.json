@@ -1,5 +1,5 @@
 {
-  "version": "m5-dev-corpus-manifest-2",
+  "version": "m5-dev-corpus-manifest-3",
   "corpus_version": "m5-dev-semantic-v2",
   "scope": "public-development-tuning-known",
   "execution": "source-authored-unexecuted",
@@ -10,7 +10,9 @@
     "treatments": 36,
     "classes": 6,
     "per_class": 6,
-    "replay_episodes": 46
+    "replay_episodes": 51,
+    "primary_episodes": 36,
+    "diagnostic_episodes": 15
   },
   "legacy_raw_sha256": {
     "fixtures/dev/legacy-v1/tasks.json": "8ddd8eb628220ceba4074f9e8e9d43dc2e53ea42d9a41cb816d64e67077dfae7",
@@ -21,7 +23,7 @@
     "gold/dev/oracles.json": "51da35557675e87c1619bffc5df43e06a3dd49e54c2497edc84b393f9a6e2d50",
     "fixtures/dev/fixtures.json": "41760e14189616c8249d05e1ec91cad57f276c58b4237e19095de2a9555056b6",
     "fixtures/dev/treatments.json": "5d06e53923635fba3f37204c9f9299a97953eb6616c5e81590363871a3a4fe81",
-    "fixtures/dev/replay-episodes.json": "ac691efa3cd4a40f4e5d1ba7bad8be0ed4700d0b1e5ac01cf550b7558c9166ca"
+    "fixtures/dev/replay-episodes.json": "0327a8d7778bd88985557ecf1c9d2868fdcb86d02ac3ef4ea723303c1d76aa3c"
   },
   "source_sha256": {
     "src/mcpsh/records/models.py": "622a24ee134a070e944d85e1bda486b29635b671cb3c3fea867aebe29b6224a7",
@@ -31,10 +33,14 @@
     "src/mcpsh/broker/fixtures.py": "9b162b24db0ecc2c3689fd2b85a340416003ae8e1ec71bdf248564d8de994462",
     "src/mcpsh/evaluation/utility.py": "109a313a31b3bd7f41903d2e16a24847ce79a1a59e18f9db1ec9758a2a4231ad",
     "src/mcpsh/runner/sealed.py": "c66561ff5674bcc8c2dc825d2e5b4ca76b8b5862a4ad6abc97172878e5594f5b",
-    "src/mcpsh/catalog/dev_corpus.py": "323b999ec611462737ece265fbfe161e896bb3e8ab16e7b1a840ae498188cb87",
+    "src/mcpsh/catalog/dev_corpus.py": "7f56c940a41141e1dd59d5d439183f4c1989586b56d5db2c4806b50be1d84b74",
     "src/mcpsh/catalog/__init__.py": "fe1371c2ee7d93543cb43c6e61db8c94710ced5cc992f9bc3d94987cebff8f2e",
     "src/mcpsh/catalog/schemas.py": "635a09e35e678bce89db07f4f1ab5ee8d01e1ce1c740407c1a26b62af2d9a6c4",
-    "src/mcpsh/catalog/artifacts.py": "85a529115ff3e26766c37f4f6ccdae9bda9762392eb515e80961e1b7319cfb5b"
+    "src/mcpsh/catalog/artifacts.py": "85a529115ff3e26766c37f4f6ccdae9bda9762392eb515e80961e1b7319cfb5b",
+    "src/mcpsh/adapters/replay.py": "69dfb666d3eb72dd1824b33defd1f80db1e37d2d0a459a749c511c50418c0c99",
+    "src/mcpsh/catalog/dev_semantics.py": "742ded4a422ff0c14549fca4ec9d2b723e120ba924793aa64bd19d12d1f36043",
+    "src/mcpsh/catalog/dev_controls.py": "f12943a8da79c1bc8c4fb40d9d8d5451c0c7bcc5619bee5b65221d5ab023fd1a",
+    "src/mcpsh/runner/engine.py": "e019bacdd6f69384771d81b9bdec43335f099f7b01388c422e178c644117ebb0"
   },
   "author": "0012_Codex_gpt-61-sol_D5",
   "session": "01a16a96-acca-7b92-873c-e8f0c21ae100",
@@ -369,5 +375,16 @@
   ],
   "replay_notes": "Raw call strings and optional authored final text only, not captured execution. Observer fault request is declarative; real consumer must exercise an actual hook or report unsupported, never invent observations.",
   "ordering_protocol": "sha256-tool-rank-1",
-  "treatment_overlay_version": "m5-public-dev-overlays-v2"
+  "treatment_overlay_version": "m5-public-dev-overlays-v2",
+  "prior_source_sha256": {
+    "fixtures/dev/source-v5/replay-episodes.json": "e38e27a0302fd03356f5355980545afa0a70ba0d67cd82a27109045c2b5100b4",
+    "fixtures/dev/source-v5/corpus-manifest-v2.json": "5e739d4180a025969f6060ba39b127c8605d1d20bf478b4138f442620cf77df2"
+  },
+  "design_notes": "Exactly36 task--clean primary scripts reused acrossall3 descriptions andC0/C1/C2. Other episodes diagnostic only, never extra paired/family/live samples. v5 original46 retained plus5 implemented-producer compatibility controls.",
+  "control_contract": {
+    "path": "fixtures/dev/control-expectations.json",
+    "version": "m5-scripted-control-expectations-1",
+    "raw_sha256": "fee1bc68622bd27eb3c1c8fbd36c6017b109afe4c493cbcfc419df242923db49",
+    "diagnostic_controls": 15
+  }
 }

@@ -174,15 +174,25 @@ class InheritedControl:
     def _close_fd(self, name):
         descriptor = getattr(self, name, None)
         if descriptor is not None:
-            os.close(descriptor)
             setattr(self, name, None)
+            os.close(descriptor)
 
     def close(self):
+        errors = []
         for name in ("to_child_read", "to_child_write", "from_child_read", "from_child_write"):
-            self._close_fd(name)
+            try:
+                self._close_fd(name)
+            except OSError as exc:
+                errors.append(exc)
         if self.reader_file is not None:
-            self.reader_file.close()
+            reader = self.reader_file
             self.reader_file = None
+            try:
+                reader.close()
+            except OSError as exc:
+                errors.append(exc)
+        if errors:
+            raise OSError("owned control teardown incomplete") from errors[0]
 
 
 def open_child_streams(kind, read_handle, write_handle):

@@ -17,7 +17,7 @@ from mcpsh import BANNER
 from mcpsh.records import ExperimentManifest, strict_json_loads, typed_hash
 from mcpsh.report import render_bundle
 from mcpsh.runner import run_live_matrix, run_matrix
-from mcpsh.runner.cases import demonstration_cases, load_development_cases
+from mcpsh.runner.cases import demonstration_cases, load_development_corpus
 
 
 def source_hash(directory: Path) -> str:
@@ -74,32 +74,23 @@ def pilot_draft(raw: bytes):
 
 
 def public_projection(value, fixture_map=None, fixture_payload=None):
-    """Conservative bounded public trace projection; raw results never leave this process."""
-    if isinstance(value, list):
-        return [public_projection(item, fixture_map, fixture_payload) for item in value]
-    if isinstance(value, dict):
-        if fixture_map is not None and isinstance(value.get("fixture_ref"), str):
-            fixture_payload = fixture_map.get(value["fixture_ref"])
-        # Retain evidence hashes and classifications, omit raw provider/log/wire payloads.
-        return {key: public_projection(item, fixture_map, fixture_payload) for key, item in value.items()
-                if key not in {"results", "raw_arguments", "typed_arguments", "events",
-                               "public_task", "outbox_hashes", "family_id", "attack_family", "split",
-                               "metadata_diffs", "final_response", "result_captures", "raw_call_json"}}
-    if isinstance(value, str):
-        # Never publish arbitrary server reasons or untrusted strings containing the canary marker.
-        from mcpsh.server import redact_public
+    """Compatibility view of the one canonical result projection, no local traversal."""
+    from mcpsh.evidence import project_public_result
 
-        return redact_public(value, fixture_payload=fixture_payload)[:4096]
-    return value
+    if fixture_payload is not None:
+        raise ValueError("canonical result projection requires the complete trusted fixture map")
+    return project_public_result(value, fixture_map=fixture_map).public
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=BANNER)
-    parser.add_argument("--mode", choices=("replay", "live", "pilot-summary", "development-summary", "rescore"), default="replay")
+    parser.add_argument("--mode", choices=("replay", "live", "pilot-summary", "development-summary", "rescore", "dossier", "ledger-audit"), default="replay")
     parser.add_argument("--out", type=Path, default=ROOT / "results")
     parser.add_argument("--edition")
     parser.add_argument("--seed", type=int, default=1729)
     parser.add_argument("--corpus", choices=("development", "demo"), default="development")
+    parser.add_argument("--development-manifest-sha256",
+                        help="explicit raw pin for canonical public corpus-manifest-v2.json")
     parser.add_argument("--private-evidence", type=Path,
                         default=ROOT.parent / (ROOT.name + "-private-evidence"),
                         help="raw synthetic evidence destination; must remain outside product root")
@@ -134,7 +125,57 @@ def main() -> int:
     parser.add_argument("--calibration-outcomes-sha256")
     parser.add_argument("--calibration-failures", type=Path)
     parser.add_argument("--calibration-failures-sha256")
+    parser.add_argument("--threshold-metadata", type=Path,
+                        help="typed proposal/summary/context JSON; confers no authority")
+    parser.add_argument("--threshold-metadata-sha256")
+    parser.add_argument("--threshold-current-inputs", type=Path)
+    parser.add_argument("--threshold-current-inputs-sha256")
+    parser.add_argument("--threshold-context-sha256", help="external canonical typed context pin")
+    parser.add_argument("--threshold-reviewer", type=Path)
+    parser.add_argument("--threshold-reviewer-sha256")
+    parser.add_argument("--threshold-integrator", type=Path)
+    parser.add_argument("--threshold-integrator-sha256")
+    parser.add_argument("--token-fit-expectations", type=Path,
+                        help="independently selected per-attempt expectations; private only")
+    parser.add_argument("--token-fit-expectations-sha256", help="external raw expectation-file pin")
+    parser.add_argument("--token-fit-expectations-typed-sha256", help="independent typed expectations authority pin")
+    parser.add_argument("--dossier-authority", type=Path)
+    parser.add_argument("--dossier-authority-sha256", help="external raw dossier authority pin")
+    parser.add_argument("--dossier-authority-typed-sha256", help="external canonical typed dossier authority pin")
+    parser.add_argument("--acceptance-sources", type=Path)
+    parser.add_argument("--acceptance-sources-sha256", help="external raw acceptance sources package pin")
+    parser.add_argument("--ledger", type=Path, help="explicit existing CostLedger DB or immutable snapshot")
+    parser.add_argument("--ledger-authority", type=Path)
+    parser.add_argument("--ledger-authority-sha256", help="external raw experiment/source/price/snapshot authority pin")
     args = parser.parse_args()
+    ledger_arguments = (args.ledger, args.ledger_authority, args.ledger_authority_sha256)
+    if any(ledger_arguments) and (args.mode != "ledger-audit" or not all(ledger_arguments)):
+        parser.error("ledger audit requires one explicit DB/snapshot and externally raw-pinned ledger authority")
+    if args.mode == "ledger-audit" and not all((*ledger_arguments, args.evidence_root,
+                                               args.evidence_authority, args.authority_sha256)):
+        parser.error("ledger-audit requires saved edition root and externally pinned edition/ledger authorities")
+    if args.mode == "ledger-audit" and args.evaluator_sha256:
+        parser.error("ledger audit does not accept a rescore evaluator")
+    dossier_arguments = (args.dossier_authority, args.dossier_authority_sha256,
+                         args.dossier_authority_typed_sha256, args.acceptance_sources,
+                         args.acceptance_sources_sha256)
+    if any(dossier_arguments) and (args.mode != "dossier" or not all(dossier_arguments)):
+        parser.error("dossier requires explicit raw/typed authority and raw sources package pins")
+    if args.mode == "dossier" and (not all(dossier_arguments) or not args.evidence_root):
+        parser.error("dossier requires one explicit saved edition root and all external source pins")
+    fit_arguments = (args.token_fit_expectations, args.token_fit_expectations_sha256,
+                     args.token_fit_expectations_typed_sha256)
+    if any(fit_arguments) and (not all(fit_arguments) or args.mode != "live"):
+        parser.error("fit expectations require raw+independent typed pins and a live private collection")
+    threshold_arguments = (args.threshold_metadata, args.threshold_metadata_sha256,
+                           args.threshold_current_inputs, args.threshold_current_inputs_sha256,
+                           args.threshold_context_sha256)
+    if any(threshold_arguments) and not all(threshold_arguments):
+        parser.error("threshold metadata requires external raw package/current-input pins and typed context pin")
+    for path, pin in ((args.threshold_reviewer, args.threshold_reviewer_sha256),
+                      (args.threshold_integrator, args.threshold_integrator_sha256)):
+        if bool(path) != bool(pin) or path and not args.threshold_metadata:
+            parser.error("external threshold decisions require pinned metadata and their raw byte pins")
     if args.lint_review and not args.lint_controls:
         parser.error("--lint-review requires --lint-controls")
     if args.candidate_commit and not re.fullmatch(r"[0-9a-f]{40}", args.candidate_commit):
@@ -143,7 +184,7 @@ def main() -> int:
         parser.error("evidence revision must be positive")
     if bool(args.acceptance_request) != bool(args.acceptance_request_sha256):
         parser.error("acceptance recommendation inputs require their explicit raw SHA256 pin")
-    if args.acceptance_request and args.mode in ("pilot-summary", "development-summary"):
+    if args.acceptance_request and args.mode in ("pilot-summary", "development-summary", "dossier", "ledger-audit"):
         parser.error("calibration drafts cannot be treated as experiment acceptance evidence")
     if args.mode != "development-summary" and any((args.development_plan, args.development_plan_sha256,
         args.calibration_outcomes, args.calibration_outcomes_sha256,
@@ -156,9 +197,11 @@ def main() -> int:
         parser.error("explicit failure records require their raw SHA256 pin")
     if args.candidate_commit and args.mode not in ("replay", "live"):
         parser.error("candidate metadata belongs only to new replay/live evidence editions")
-    if args.mode != "rescore" and any((args.evidence_root, args.evidence_authority,
+    if args.mode not in ("rescore", "dossier", "ledger-audit") and any((args.evidence_root, args.evidence_authority,
                                        args.authority_sha256, args.evaluator_sha256)):
         parser.error("offline evidence arguments require --mode rescore")
+    if args.mode == "dossier" and any((args.evidence_authority, args.authority_sha256, args.evaluator_sha256)):
+        parser.error("dossier uses only its explicitly pinned embedded edition authority, without a rescore evaluator")
     if args.mode != "pilot-summary" and any((args.pilot_plan, args.pilot_plan_sha256,
                                              args.pilot_observations, args.pilot_observations_sha256)):
         parser.error("supplied pilot evidence arguments require --mode pilot-summary")
@@ -200,6 +243,50 @@ def main() -> int:
     source = ROOT / "src" / "mcpsh"
     fixture_map = None
     private_payloads = {}
+    fit_expectations = None
+    token_fit_bundle = None
+    if args.token_fit_expectations:
+        from mcpsh.runner.token_fit_capture import pinned_fit_expectations
+
+        expectations_raw, expectations_json = pinned_input(
+            args.token_fit_expectations, args.token_fit_expectations_sha256, 32 * 1024 * 1024)
+        fit_expectations = pinned_fit_expectations(
+            expectations_json, expected_typed_sha256=args.token_fit_expectations_typed_sha256)
+        private_payloads["token-fit-expectations.json"] = expectations_raw
+    threshold_assessment = None
+    dossier_threshold_attachment = None
+    if args.threshold_metadata:
+        from mcpsh.calibration.approvals import ThresholdInputs
+        from mcpsh.runner.thresholds import assess_threshold_metadata
+
+        threshold_raw, threshold_packet = pinned_input(args.threshold_metadata,
+                                                       args.threshold_metadata_sha256)
+        current_raw, _ = pinned_input(args.threshold_current_inputs,
+                                     args.threshold_current_inputs_sha256)
+        reviewer_raw = pinned_input(args.threshold_reviewer, args.threshold_reviewer_sha256)[0] if args.threshold_reviewer else None
+        integrator_raw = pinned_input(args.threshold_integrator, args.threshold_integrator_sha256)[0] if args.threshold_integrator else None
+        threshold_assessment = assess_threshold_metadata(
+            threshold_packet, current_inputs=ThresholdInputs.model_validate_json(current_raw),
+            now=datetime.now(timezone.utc), expected_context_sha256=args.threshold_context_sha256,
+            reviewer_metadata=reviewer_raw, expected_reviewer_sha256=args.threshold_reviewer_sha256,
+            integrator_metadata=integrator_raw, expected_integrator_sha256=args.threshold_integrator_sha256,
+            external_confirmation_verified=False, fresh_custody_confirmed=False)
+        if args.mode == "dossier":
+            from mcpsh.evaluation.acceptance_evidence import ThresholdAttachment
+            from mcpsh.calibration.approvals import ThresholdContext
+            from mcpsh.calibration.protocol_models import DevelopmentSummary, FullDevelopmentProposal
+
+            dossier_threshold_attachment = ThresholdAttachment(
+                proposal=FullDevelopmentProposal.model_validate_json(json.dumps(threshold_packet["proposal"])),
+                summary=DevelopmentSummary.model_validate_json(json.dumps(threshold_packet["summary"])),
+                context=ThresholdContext.model_validate_json(json.dumps(threshold_packet["context"])),
+                current_inputs=ThresholdInputs.model_validate_json(current_raw),
+                reviewer_metadata=reviewer_raw, integrator_metadata=integrator_raw)
+        private_payloads.update({"threshold-metadata.json": threshold_raw,
+                                 "threshold-current-inputs.json": current_raw})
+        for name, raw in (("threshold-reviewer.json", reviewer_raw), ("threshold-integrator.json", integrator_raw)):
+            if raw is not None:
+                private_payloads[name] = raw
     oracle_package_bytes = None
     if args.mode == "live":
         from mcpsh.runner.live import prepare_live_run
@@ -297,6 +384,48 @@ def main() -> int:
                                   "No absolute floor, independence claim or dispatch approval is generated."]}
         private_payloads["development-plan.json"] = plan_raw
         private_payloads["calibration-outcomes.json"] = outcomes_raw
+    elif args.mode == "dossier":
+        from mcpsh.evidence import read_edition
+        from mcpsh.runner.dossier import admit_dossier_metadata, assemble_offline_dossier
+
+        dossier_raw, _ = pinned_input(args.dossier_authority, args.dossier_authority_sha256)
+        sources_raw, _ = pinned_input(args.acceptance_sources, args.acceptance_sources_sha256)
+        dossier_authority, acceptance_sources = admit_dossier_metadata(
+            dossier_raw, sources_raw, expected_typed_authority_sha256=args.dossier_authority_typed_sha256)
+        edition = read_edition(args.evidence_root, authority=dossier_authority.edition)
+        if args.edition == dossier_authority.edition.edition_id:
+            parser.error("dossier publication requires a fresh view ID; original evidence is immutable")
+        dossier = assemble_offline_dossier(
+            edition, authority=dossier_authority,
+            expected_typed_authority_sha256=args.dossier_authority_typed_sha256,
+            sources=acceptance_sources, now=datetime.now(timezone.utc),
+            threshold_attachment=dossier_threshold_attachment)
+        result = dossier.result
+        manifest = result["manifest"]
+        result["publication_edition_id"] = args.edition
+        private_payloads.update({"dossier-authority.json": dossier_raw,
+                                 "acceptance-sources.json": sources_raw,
+                                 "acceptance-dossier.json": (json.dumps(dossier.private_dossier,
+                                     ensure_ascii=True, allow_nan=False) + "\n").encode("utf-8")})
+    elif args.mode == "ledger-audit":
+        from mcpsh.evidence import EditionAuthority, read_edition
+        from mcpsh.runner.ledger_audit import admit_ledger_authority, assemble_ledger_audit
+
+        authority_raw, _ = pinned_input(args.evidence_authority, args.authority_sha256)
+        ledger_raw, _ = pinned_input(args.ledger_authority, args.ledger_authority_sha256)
+        edition_authority = EditionAuthority.model_validate_json(authority_raw)
+        ledger_authority = admit_ledger_authority(ledger_raw)
+        edition = read_edition(args.evidence_root, authority=edition_authority)
+        if args.edition == edition_authority.edition_id:
+            parser.error("ledger audit publication requires a fresh view ID; source evidence is immutable")
+        audited = assemble_ledger_audit(args.ledger, edition=edition, authority=ledger_authority,
+                                        billing_evidence=())
+        result = audited.result
+        manifest = result["manifest"]
+        result["publication_edition_id"] = args.edition
+        private_payloads.update({"source-authority.json": authority_raw, "ledger-authority.json": ledger_raw,
+                                 "ledger-audit.json": (json.dumps(audited.private_report, ensure_ascii=True,
+                                     allow_nan=False) + "\n").encode("utf-8")})
     elif args.mode == "rescore":
         from mcpsh.evidence import EditionAuthority, read_edition, reproduce
 
@@ -310,9 +439,25 @@ def main() -> int:
         result["publication_edition_id"] = args.edition
         private_payloads["source-authority.json"] = authority_raw
     else:
-        replay_cases = load_development_cases(ROOT) if args.corpus == "development" else demonstration_cases()
-        oracle_package_bytes = oracle_bytes(replay_cases)
-        result = run_matrix(seed=args.seed, cases=replay_cases)
+        if args.corpus == "development":
+            if not args.development_manifest_sha256:
+                parser.error("development replay requires --development-manifest-sha256")
+            development_corpus = load_development_corpus(
+                ROOT, expected_manifest_sha256=args.development_manifest_sha256)
+            replay_cases = development_corpus.cases
+            fixture_map = development_corpus.fixture_map
+            oracle_package_bytes = development_corpus.oracle_package_bytes
+            result = run_matrix(seed=args.seed, cases=replay_cases, fixture_map=fixture_map,
+                                treatment_map=development_corpus.treatment_map,
+                                episodes=development_corpus.episodes,
+                                replay_specs=development_corpus.replay_specs,
+                                primary_plan=development_corpus.primary_plan,
+                                diagnostic_plan=development_corpus.diagnostic_plan)
+            result["development_input_pins"] = development_corpus.input_pins
+        else:
+            replay_cases = demonstration_cases()
+            oracle_package_bytes = oracle_bytes(replay_cases)
+            result = run_matrix(seed=args.seed, cases=replay_cases)
         catalogs = sorted({row["catalog_hash"] for row in result["rows"]})
         manifest = ExperimentManifest(
             edition_id=args.edition, mode="replay", platform_scope="synthetic-memory",
@@ -325,21 +470,31 @@ def main() -> int:
             seed=args.seed, settings={"live_requests": 0, "catalog_hashes": catalogs,
                                       "sdk_interoperability": "pending",
                                       "ordering_protocol": "sha256-tool-rank-1",
+                                      "development_manifest_sha256": args.development_manifest_sha256
+                                      if args.corpus == "development" else None,
+                                      "development_input_pins": development_corpus.input_pins
+                                      if args.corpus == "development" else None,
                                       "ordering_source_sha256": hashlib.sha256(
                                           (source / "catalog/artifacts.py").read_bytes()).hexdigest()},
         ).model_dump(mode="json")
     result["manifest"] = manifest
+    if threshold_assessment is not None:
+        result["threshold_approval_status"] = threshold_assessment.public_status
     if args.acceptance_request:
         from mcpsh.evaluation.acceptance import (
-            ApprovedThresholds, ConformanceEvidence, ControlEvidence, CustodyProvenance,
+            ConformanceEvidence, ControlEvidence, CustodyProvenance,
             MatrixDesign, evaluate_acceptance,
         )
         from mcpsh.records import TrialOutcome
+        from mcpsh.evaluation.design import FamilySupport, ObservedTrial
 
         request_raw, request = pinned_input(args.acceptance_request, args.acceptance_request_sha256)
-        fields = {"design", "thresholds", "custody", "conformance", "controls"}
+        fields = {"design", "thresholds", "custody", "conformance", "controls",
+                  "family_support", "family_support_sha256"}
         if not isinstance(request, dict) or set(request) - fields or "design" not in request:
             parser.error("acceptance request fields differ from the typed recommendation schema")
+        if request.get("thresholds") is not None:
+            parser.error("threshold authority requires the revalidating threshold metadata consumer")
 
         def optional_record(name, cls):
             value = request.get(name)
@@ -353,10 +508,19 @@ def main() -> int:
             design=MatrixDesign.model_validate_json(json.dumps(request["design"])),
             outcomes=tuple(TrialOutcome.model_validate_json(json.dumps(row["outcome"]))
                            for row in result["rows"]),
-            thresholds=optional_record("thresholds", ApprovedThresholds),
+            thresholds=threshold_assessment.approved_thresholds if threshold_assessment else None,
             custody=optional_record("custody", CustodyProvenance),
             conformance=optional_record("conformance", ConformanceEvidence),
             controls=tuple(ControlEvidence.model_validate_json(json.dumps(row)) for row in controls),
+            observed_rows=tuple(ObservedTrial(
+                outcome=TrialOutcome.model_validate_json(json.dumps(row["outcome"])),
+                repeat=row.get("repeat"), platform_scope=row.get("platform_scope"),
+                model_family_id=row.get("model_family_id"),
+                outcome_sha256=typed_hash(row["outcome"]), row_evidence_sha256=typed_hash(row))
+                for row in result["rows"]),
+            family_support=optional_record("family_support", FamilySupport),
+            expected_family_support_sha256=request.get("family_support_sha256"),
+            independence_authenticated=False,
         )
         result["acceptance_recommendation"] = recommendation.model_dump(mode="json")
         private_payloads["acceptance-request.json"] = request_raw
@@ -377,6 +541,35 @@ def main() -> int:
             "inputs": {"labels_sha256": labels_hash, "bypasses_sha256": bypasses_hash,
                        "review_sha256": review_hash},
         }
+    if args.mode == "live":
+        from mcpsh.runner.token_fit_capture import capture_fit_handoff, public_fit_status, read_private_provider_journal
+
+        journal_path = private_destination / "provider-attempts.jsonl"
+        if journal_path.is_symlink():
+            raise ValueError("private provider journal cannot be redirected")
+        journal_events, journal_pin = read_private_provider_journal(journal_path) if journal_path.exists() else ([], None)
+        token_fit_bundle = capture_fit_handoff(
+            journal_events, expectations=fit_expectations,
+            expected_typed_sha256=args.token_fit_expectations_typed_sha256)
+        # Retain private captured bytes even when no normalized edition is requested.
+        # Object insertion order is part of the actual prepared request body.
+        private_payloads["token-fit-capture.json"] = (json.dumps(
+            token_fit_bundle, ensure_ascii=True, allow_nan=False,
+            separators=(",", ":")) + "\n").encode("utf-8")
+        result["token_fit_status"] = public_fit_status(
+            attempts_total=sum(len(row.get("model_attempts", [])) for row in result["rows"]),
+            trials_without_attempts=sum(not row.get("model_attempts") for row in result["rows"]),
+            journal_sha256=journal_pin, bundle=token_fit_bundle)
+    elif args.mode == "rescore":
+        from mcpsh.runner.token_fit_capture import public_fit_status
+
+        lineage = result.get("token_fit_lineage")
+        if lineage is not None:
+            private_payloads["token-fit-lineage.json"] = (json.dumps(lineage, ensure_ascii=True,
+                allow_nan=False) + "\n").encode("utf-8")
+            result["token_fit_status"] = public_fit_status(
+                attempts_total=len(lineage["attempts"]),
+                trials_without_attempts=len(lineage["trials_without_attempts"]), lineage=lineage)
     result["raw_evidence_hash"] = typed_hash(result["rows"])
     result["projection"] = "bounded/redacted; raw synthetic payloads not published"
     # Preserve malformed/raw arguments and synthetic payloads outside the public product tree.
@@ -387,6 +580,9 @@ def main() -> int:
                 for row in result["rows"]), encoding="utf-8", newline="\n")
     (private_destination / "MANIFEST.json").write_text(
         json.dumps(manifest, ensure_ascii=True, indent=2) + "\n", encoding="utf-8")
+    with (private_destination / "raw-result.json").open("x", encoding="utf-8") as handle:
+        json.dump(result, handle, ensure_ascii=True, allow_nan=False)
+        handle.write("\n")
     for name, raw in private_payloads.items():
         with (private_destination / name).open("xb") as handle:
             handle.write(raw)
@@ -397,15 +593,22 @@ def main() -> int:
         normalized.mkdir(exist_ok=False)
         payloads = build_edition_payloads(result, candidate_commit=args.candidate_commit,
                                           revision=args.revision,
-                                          oracle_package_bytes=oracle_package_bytes)
+                                          oracle_package_bytes=oracle_package_bytes,
+                                          token_fit_bundle=token_fit_bundle)
         for name, raw in payloads.items():
             if not re.fullmatch(r"[A-Za-z0-9_-]+\.(?:json|jsonl)", name):
                 raise ValueError("normalized evidence artifact name is outside the private flat schema")
             with (normalized / name).open("xb") as handle:
                 handle.write(raw)
-    safe = public_projection(result, fixture_map=fixture_map)
+    from mcpsh.evidence import project_public_result
+
+    projection = project_public_result(result, fixture_map=fixture_map)
+    with (private_destination / "projection-diagnostics.json").open("x", encoding="utf-8") as handle:
+        json.dump(projection.private_diagnostics, handle, ensure_ascii=True, allow_nan=False)
+        handle.write("\n")
+    safe = projection.public
     files = render_bundle(safe)
-    files["MANIFEST.json"] = json.dumps(manifest, ensure_ascii=True, indent=2) + "\n"
+    files["MANIFEST.json"] = json.dumps(safe["manifest"], ensure_ascii=True, indent=2) + "\n"
     staging = Path(tempfile.mkdtemp(prefix=".stage-" + args.edition + "-", dir=args.out))
     for name, content in files.items():
         (staging / name).write_text(content, encoding="utf-8", newline="\n")

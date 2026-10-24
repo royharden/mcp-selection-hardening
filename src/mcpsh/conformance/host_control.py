@@ -4,7 +4,12 @@ import os
 
 from .backend import BackendUnavailable
 from .channel import COMMANDS, CONTROL_LIMIT, pack, unpack
-from .probes import definitions
+from .receipt_guard import TRUSTED_HOOKS
+
+CORE_HOOKS = TRUSTED_HOOKS | frozenset({"observer-loss", "observer-truncated",
+    "observer-reset-corrupt", "observer-fixture-mismatch", "broker-death", "read-byte-cap",
+    "physical-line-cap", "deadline", "frame-amplification", "posix-symlink", "posix-rename",
+    "posix-nonlocal", "posix-source-change"})
 
 
 def dispatch(control, command, arguments, identity):
@@ -20,8 +25,7 @@ def dispatch(control, command, arguments, identity):
         value = getattr(control, command)()
         return {} if value is None else value
     if command == "exercise":
-        hooks = {probe.hook for probe in definitions() if probe.hook and not probe.hook.startswith("stdio-")}
-        if "hook" not in arguments or set(arguments) - {"hook", "request_id", "payload"} or arguments["hook"] not in hooks:
+        if "hook" not in arguments or set(arguments) - {"hook", "request_id", "payload"} or arguments["hook"] not in CORE_HOOKS:
             raise ValueError("unknown bounded core probe hook")
         request_id = arguments.get("request_id")
         if request_id is not None:

@@ -190,7 +190,7 @@ def validate_index(authority: EditionAuthority, raw: bytes) -> EditionIndex:
     ids = index.scheduled_trial_ids
     if len(set(ids)) != len(ids) or any(not identifier or len(identifier) > 256 for identifier in ids):
         raise EvidenceRejected("duplicate/unbounded scheduled trial identity")
-    pins = [getattr(index, role) for role in ("manifest", "trials", "observers", "oracles")]
+    pins = [getattr(index, role) for role in ("manifest", "trials", "observers", "oracles", "token_fit", "fit_parent", "fit_reverification")]
     paths = [pin.path for pin in pins if pin is not None]
     if len(set(path.casefold() for path in paths)) != len(paths) or "EDITION.json".casefold() in {path.casefold() for path in paths}:
         raise EvidenceRejected("artifact roles alias one another or the index")
@@ -203,7 +203,7 @@ def validate_index(authority: EditionAuthority, raw: bytes) -> EditionIndex:
 
 def validate_bundle(authority: EditionAuthority, raw_index: bytes, artifacts: dict[str, bytes]):
     index = validate_index(authority, raw_index)
-    roles = {role: getattr(index, role) for role in ("manifest", "trials", "observers", "oracles")
+    roles = {role: getattr(index, role) for role in ("manifest", "trials", "observers", "oracles", "token_fit", "fit_parent", "fit_reverification")
              if getattr(index, role) is not None}
     if set(artifacts) != set(roles):
         raise EvidenceRejected("missing or extra bound artifact role")
@@ -211,6 +211,9 @@ def validate_bundle(authority: EditionAuthority, raw_index: bytes, artifacts: di
         raw = artifacts[role]
         if len(raw) != pin.bytes or hashlib.sha256(raw).hexdigest() != pin.sha256:
             raise EvidenceRejected("artifact byte/hash pin mismatch: " + role)
+    if "token_fit" in artifacts:
+        from .token_fit import TokenFitBundle
+        model(TokenFitBundle, strict_json(artifacts["token_fit"]))
     manifest_value = strict_json(artifacts["manifest"])
     if not isinstance(manifest_value, dict) or type(manifest_value.get("schema_version")) is not int:
         raise EvidenceRejected("explicit integer manifest schema version required")
@@ -240,6 +243,8 @@ def validate_bundle(authority: EditionAuthority, raw_index: bytes, artifacts: di
         if typed_hash([entry.public.model_dump(mode="json") for entry in oracles.cases]) != manifest.task_hash:
             raise EvidenceRejected("oracle public-task projection differs from pinned task corpus")
     _validate_links(index, manifest, trials, observers, index_sha256=authority.index_sha256)
+    from .fit_reverification import validate_fit_successor
+    validate_fit_successor(authority, index, artifacts)
     return index, manifest, trials, observers, oracles
 
 
@@ -248,6 +253,8 @@ def _validate_links(index, manifest, trials, observers, *, index_sha256):
     observed = {item.trial_id: item for item in observers}
     for row in trials:
         outcome = row.outcome
+        if row.platform_scope is not None and row.platform_scope != index.platform_scope:
+            raise EvidenceRejected("per-row platform differs from pinned edition")
         for pin in (row.fixture_payload_hash, row.catalog_hash, row.normalization_diff_hash):
             if pin is not None and (len(pin) != 64 or any(character not in "0123456789abcdef" for character in pin)):
                 raise EvidenceRejected("invalid per-trial input digest")
@@ -260,7 +267,7 @@ def _validate_links(index, manifest, trials, observers, *, index_sha256):
         if outcome.cost_status in {"unknown", "reserved"} and (outcome.cost_microunits is not None or outcome.cost_basis != "unknown"):
             raise EvidenceRejected("unknown cost must not fabricate a numeric settlement")
         if row.reuse is not None:
-            if row.trace is not None or row.results is not None or row.selected_calls is not None or row.model_attempts or row.accounting or row.result_captures is not None or row.final_response is not None or outcome.trial_id in observed:
+            if row.trace is not None or row.results is not None or row.selected_calls is not None or row.model_attempts or row.accounting or outcome.model_attempt_ids or row.result_captures is not None or row.final_response is not None or outcome.trial_id in observed:
                 raise EvidenceRejected("reuse must reference parent execution, not duplicate attempts/charges")
             if row.reuse.source_index_sha256 == index_sha256:
                 raise EvidenceRejected("reuse cannot point to itself")
@@ -462,7 +469,7 @@ def read_edition(root: str | Path, *, authority: EditionAuthority) -> VerifiedEd
     raw = read_bounded(Path(root), "EDITION.json", MAX_INDEX_BYTES)
     index = validate_index(authority, raw)
     artifacts = []
-    for role in ("manifest", "trials", "observers", "oracles"):
+    for role in ("manifest", "trials", "observers", "oracles", "token_fit", "fit_parent", "fit_reverification"):
         pin = getattr(index, role)
         if pin is not None:
             artifacts.append((role, read_bounded(Path(root), pin.path, pin.bytes)))
@@ -474,11 +481,16 @@ def read_edition(root: str | Path, *, authority: EditionAuthority) -> VerifiedEd
 def inspect_edition(edition: VerifiedEdition) -> dict:
     """Structural disposition with explicit missing evidence, without invoking a scorer."""
     index, _, trials, observers, oracles = edition.validate()
+    from .token_fit import verify_token_fit_lineage
+    fit = verify_token_fit_lineage(edition)
+    fit_unknown = {item["trial_id"] for item in fit["attempts"] if item["state"] != "verified-fit-only"}
     observed = {item.trial_id: item.observation for item in observers}
     oracle_map = {entry.oracle.task_id: entry.oracle for entry in oracles.cases} if oracles else {}
     missing = []
     for trial in trials:
         reasons = []
+        if index.mode == "live" and (trial.outcome.trial_id in fit_unknown or not fit["complete"]):
+            reasons.append("token_fit_lineage_incomplete")
         if oracles is None:
             reasons.append("oracle_unavailable")
         if trial.trace is None:
@@ -510,4 +522,5 @@ def inspect_edition(edition: VerifiedEdition) -> dict:
     return {"structural_integrity": "verified", "evidence_complete": not missing,
             "empirical_verdict": "pending", "product_verdict": "pending",
             "scheduled_trials": len(index.scheduled_trial_ids), "unknown_trials": missing,
+            "token_fit_lineage": fit,
             "limitation": "Byte identity and structural consistency do not prove truthful execution."}

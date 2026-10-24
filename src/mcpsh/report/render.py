@@ -34,7 +34,7 @@ def render_bundle(result: dict[str, Any]) -> dict[str, str]:
     """Caller must provide a redacted public projection; no raw evidence is written here."""
     summaries = result["summary"]
     heading = result["banner"]
-    execution = result["execution_state"]
+    execution = _number(result.get("execution_state"))
     columns = ["selector", "condition", "cell", "scheduled_trials", "raw_calls",
                "selection", "utility", "utility_basis", "utility_unknown_trials", "intent", "validated_prohibited_calls",
                "blocked_prohibited_calls", "gate_false_negative_calls", "effects_observed",
@@ -87,6 +87,16 @@ def render_bundle(result: dict[str, Any]) -> dict[str, str]:
         markdown.extend(f"| {_md(row['criterion_id'])} | {_md(row['verdict'])} | {_md(row['reason'])} |"
                         for row in acceptance["criteria"])
     development = result.get("development_summary")
+    ledger = result.get("ledger_audit")
+    ledger_totals = (ledger.get("totals") or {}) if ledger else {}
+    ledger_total_fields = ("budget_microunits", "recorded_known_microunits", "committed_microunits",
+                           "available_microunits", "unknown_attempts", "cost_basis")
+    if ledger:
+        markdown.extend(["", "## Read-only ledger snapshot", "",
+                         "Dated ledger estimates, unknown liabilities and provider billing remain separate.", "",
+                         "| field | recorded value |", "| --- | --- |"])
+        markdown.extend(f"| {_md(key)} | {_md(_number(ledger_totals.get(key)))} |" for key in ledger_total_fields)
+        markdown.extend(["", "All supplied operation/attempt/reuse/dispatch rows are retained in ledger-audit.json."])
     development_columns = ("arm_slot", "selector", "condition", "cell", "task_class", "scheduled",
         "supplied", "missing", "semantic_known", "semantic_unknown_or_proxy", "legacy_proxy_trials",
         "unknown_selection_trials", "unknown_cost_trials", "all_scheduled_utility_lower_bound")
@@ -160,6 +170,11 @@ def render_bundle(result: dict[str, Any]) -> dict[str, str]:
             parts.append("<tr>" + "".join(f"<td>{html.escape(_number(row[key]))}</td>"
                                          for key in development_columns) + "</tr>")
         parts.append("</table>")
+    if ledger:
+        parts.append("<h2>Read-only ledger snapshot</h2><p>Recorded ledger estimates are separate from provider billing. Unknown liabilities remain retained.</p><table><tr><th>Field</th><th>Recorded value</th></tr>")
+        for key in ledger_total_fields:
+            parts.append(f"<tr><td>{html.escape(key)}</td><td>{html.escape(_number(ledger_totals.get(key)))}</td></tr>")
+        parts.append("</table><p>All supplied rows and cost bases are retained in ledger-audit.json and the ledger CSV views.</p>")
     parts.append("</html>")
     files = {
         "results.json": json.dumps(result, ensure_ascii=True, indent=2, allow_nan=False) + "\n",
@@ -196,4 +211,22 @@ def render_bundle(result: dict[str, Any]) -> dict[str, str]:
             writer.writerow("'" + str(row[key]) if isinstance(row[key], str) and row[key].startswith(
                 ("=", "+", "-", "@")) else row[key] for key in development_columns)
         files["development-groups.csv"] = stream.getvalue()
+    if ledger:
+        files["ledger-audit.json"] = json.dumps(ledger, ensure_ascii=True, indent=2, allow_nan=False) + "\n"
+        for name, records, fields in (
+            ("ledger-attempts.csv", ledger.get("attempts"), ("attempt_id", "operation_id", "provider", "model_id",
+                "trial_id", "turn_id", "recorded_microunits", "recorded_cost_basis", "unknown_liability",
+                "billed_microunits", "billing_basis", "state")),
+            ("ledger-operations.csv", ledger.get("operations"), ("id", "reserved", "status",
+                "known_recorded_microunits", "unknown_attempts", "reservation_retained")),
+        ):
+            if records is None:
+                continue  # Unavailable rows are not an empty/zero-row assertion.
+            stream = io.StringIO(newline="")
+            writer = csv.writer(stream)
+            writer.writerow(fields)
+            for row in records:
+                cells = [_number(row.get(key)) for key in fields]
+                writer.writerow("'" + cell if cell.startswith(("=", "+", "-", "@")) else cell for cell in cells)
+            files[name] = stream.getvalue()
     return files

@@ -1,0 +1,222 @@
+"""Private exact-wire lineage consumer. No counter, proof builder, I/O or spending.
+
+Expectations are externally selected, separately pinned by EditionAuthority. A
+proof's self hash and its producer's duplicate hash never establish authority.
+"""
+
+from collections import Counter, defaultdict
+import hashlib
+from typing import Literal
+
+from pydantic import Field
+
+from mcpsh.adapters.transports import encode_wire
+from mcpsh.catalog.token_fit import APPROVAL_FIELDS, PROOF_FIELDS, verify_token_fit_proof
+from mcpsh.records import typed_hash
+from mcpsh.records.models import Record
+
+from .reader import EvidenceRejected, model, strict_json
+
+
+class FitProof(Record):
+    version: str
+    status: Literal["fits", "exceeds", "unknown", "invalid"]
+    reasons: tuple[str, ...] = Field(max_length=100)
+    live_admission: Literal[False]
+    provider_billing_tokens: Literal["unverified"]
+    created_at: str
+    bindings: dict
+    counter_receipt: dict | None
+    input_tokens: int | None = Field(ge=0)
+    proof_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    scope: str
+
+
+class FitEvent(Record):
+    event: Literal["token_fit_proof"]
+    trial_id: str = Field(min_length=1, max_length=256)
+    turn_id: int = Field(ge=1, le=3)
+    proof_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    proof: FitProof
+    # Legacy records stay present but cannot acquire guessed attempt attribution.
+    phase: Literal["preflight", "pre-send"] | None = None
+    attempt_id: str | None = Field(default=None, min_length=1, max_length=256)
+    operation_id: str | None = Field(default=None, min_length=1, max_length=256)
+    raw_request_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    checked_at: str | None = None
+    journal_sequence: int | None = Field(default=None, ge=1)
+
+
+class PreparedRequest(Record):
+    attempt_id: str = Field(min_length=1, max_length=256)
+    operation_id: str = Field(min_length=1, max_length=256)
+    raw_request_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    wire_body: dict
+    journal_sequence: int | None = Field(default=None, ge=1)
+
+
+class FitExpectation(Record):
+    """Independently selected pins, not copied from the submitted proof/events."""
+    trial_id: str = Field(min_length=1, max_length=256)
+    turn_id: int = Field(ge=1, le=3)
+    attempt_id: str = Field(min_length=1, max_length=256)
+    operation_id: str = Field(min_length=1, max_length=256)
+    proof_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    raw_request_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    checked_at: str
+    provider: Literal["openai", "anthropic"]
+    model_id: str
+    adapter_revision: str
+    adapter_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    artifact: dict
+    approval: dict
+    expected_approval_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class TokenFitBundle(Record):
+    schema_version: Literal[1]
+    events: tuple[FitEvent, ...] = Field(max_length=60000)
+    requests: tuple[PreparedRequest, ...] = Field(max_length=30000)
+    expectations: tuple[FitExpectation, ...] = Field(max_length=30000)
+
+
+def capture_token_fit_bundle(journal_events, *, expectations) -> dict:
+    """Adapt explicitly supplied D1 journal records, preserving every fit event.
+
+No journal is opened or written. Request body order is retained for encode_wire;
+do not canonical-sort this sidecar before serialization. Unknown fit fields fail
+closed instead of being silently discarded. Other journal event kinds stay with D1.
+"""
+    events, requests = [], []
+    for sequence, item in enumerate(journal_events, 1):
+        if item.get("event") == "token_fit_proof":
+            if "journal_sequence" in item:
+                raise EvidenceRejected("producer sequence conflicts with capture position")
+            events.append(dict(item, journal_sequence=sequence))
+        elif item.get("event") == "request":
+            attempt = item["attempt"]
+            requests.append({"attempt_id": attempt["attempt_id"],
+                "operation_id": attempt["operation_id"],
+                "raw_request_sha256": attempt["raw_request_hash"],
+                "wire_body": item["wire_body"], "journal_sequence": sequence})
+    value = {"schema_version": 1, "events": events, "requests": requests,
+             "expectations": expectations}
+    model(TokenFitBundle, value)
+    return value
+
+
+def verify_token_fit_lineage(edition) -> dict:
+    """Private diagnostic only; each live attempt stays in the denominator.
+
+Reuses D5's full-wire verifier, which does not invoke a counter. No proof can
+authorize paid dispatch, release a reservation, or establish provider billing.
+"""
+    index, _, trials, _, _ = edition.validate()
+    raw = dict(edition.artifacts).get("token_fit")
+    bundle = model(TokenFitBundle, strict_json(raw)) if raw is not None else None
+    expected_pin = edition.authority.token_fit_expectations_sha256
+    result = _verify_token_fit_records(index, trials, bundle, expected_pin)
+    retrospective = index.fit_reverification is not None
+    result.update(retrospective=retrospective, pre_send_admission_claim=False)
+    if retrospective:
+        result["scope"] = "retrospective-fit-only"
+    return result
+
+
+def _verify_token_fit_records(index, trials, bundle, expected_pin):
+    """Shared private pure verifier; retrospective planning diagnostics grant no credit."""
+    pinned = bool(bundle is not None and expected_pin is not None and typed_hash(
+        [item.model_dump(mode="json") for item in bundle.expectations]) == expected_pin)
+    events = bundle.events if bundle else ()
+    requests = bundle.requests if bundle else ()
+    expectations = bundle.expectations if bundle else ()
+    request_counts = Counter(item.attempt_id for item in requests)
+    expected_counts = Counter(item.attempt_id for item in expectations)
+    by_request = {item.attempt_id: item for item in requests}
+    by_expected = {item.attempt_id: item for item in expectations}
+    by_event = defaultdict(list)
+    for number, event in enumerate(events):
+        if event.phase == "pre-send":
+            by_event[event.attempt_id].append((number, event))
+    rows, used = [], set()
+    for trial in trials:
+        costs = {item.attempt_id: item for item in trial.accounting}
+        for attempt in trial.model_attempts:
+            reasons, state = [], "unknown"
+            request = by_request.get(attempt.attempt_id)
+            expected = by_expected.get(attempt.attempt_id)
+            matches = by_event[attempt.attempt_id]
+            if not pinned:
+                reasons.append("token_fit_external_expectations_unavailable")
+            if request_counts[attempt.attempt_id] != 1 or expected_counts[attempt.attempt_id] != 1 or len(matches) != 1:
+                reasons.append("token_fit_missing_or_ambiguous_attempt_binding")
+            if not reasons:
+                number, event = matches[0]
+                used.add(number)
+                cost = costs[attempt.attempt_id]
+                body = encode_wire(request.wire_body)
+                digest = hashlib.sha256(body).hexdigest()
+                if request.journal_sequence is None or event.journal_sequence is None:
+                    reasons.append("token_fit_journal_order_unavailable")
+                elif event.journal_sequence <= request.journal_sequence:
+                    state = "invalid"
+                    reasons.append("token_fit_pre_send_precedes_prepared_request")
+                elif ((event.trial_id, event.turn_id, event.operation_id) !=
+                        (attempt.trial_id, attempt.turn_id, cost.operation_id)
+                        or (expected.trial_id, expected.turn_id, expected.operation_id) !=
+                        (attempt.trial_id, attempt.turn_id, cost.operation_id)
+                        or request.operation_id != cost.operation_id
+                        or (cost.raw_request_sha256 is not None and cost.raw_request_sha256 != digest)
+                        or (expected.provider, expected.model_id) !=
+                        (attempt.provider_id, attempt.requested_model_id)
+                        or not digest == request.raw_request_sha256 == event.raw_request_sha256 == expected.raw_request_sha256
+                        or event.checked_at != expected.checked_at
+                        or event.proof_sha256 != expected.proof_sha256):
+                    reasons.append("token_fit_request_parent_or_external_pin_mismatch")
+                    state = "invalid"
+                elif set(expected.approval) != APPROVAL_FIELDS or set(event.proof.model_dump()) != PROOF_FIELDS:
+                    reasons.append("token_fit_closed_producer_contract_mismatch")
+                    state = "invalid"
+                else:
+                    verification = verify_token_fit_proof(event.proof.model_dump(mode="json"), body,
+                        artifact=expected.artifact, provider=expected.provider, model_id=expected.model_id,
+                        adapter_revision=expected.adapter_revision, adapter_sha256=expected.adapter_sha256,
+                        approval=expected.approval, expected_approval_sha256=expected.expected_approval_sha256,
+                        expected_proof_sha256=expected.proof_sha256, trial_id=expected.trial_id,
+                        turn_id=expected.turn_id, at_time=expected.checked_at)
+                    if verification.get("valid") is not True:
+                        state = "invalid"
+                        reasons.append("token_fit_stale_mutated_or_unverified")
+                    elif verification.get("fits") is not True:
+                        state = "unknown" if event.proof.status == "unknown" else "invalid"
+                        reasons.append("token_fit_not_proven_to_fit")
+                    else:
+                        state = "verified-fit-only"
+            rows.append({"trial_id": trial.outcome.trial_id, "turn_id": attempt.turn_id,
+                "attempt_id": attempt.attempt_id, "state": state, "reasons": reasons,
+                "proof_sha256": expected.proof_sha256 if expected else None,
+                "raw_request_sha256": request.raw_request_sha256 if request else None})
+    actual_ids = {row["attempt_id"] for row in rows}
+    unbound = []
+    for number, event in enumerate(events):
+        if number in used:
+            continue
+        # Preflight is diagnostic, never a substitute for an attempt's pre-send proof.
+        state = "preflight-diagnostic" if (event.phase == "preflight" and
+            event.attempt_id is None and event.operation_id is None and
+            event.trial_id in index.scheduled_trial_ids) else "unattributed-unknown"
+        if state == "preflight-diagnostic" and event.proof.status != "fits":
+            state = "unattributed-unknown"
+        unbound.append({"event_index": number, "state": state, "proof_sha256": event.proof_sha256,
+            "recorded_proof_status": event.proof.status, "independently_verified": False})
+    extra_ids = sorted((set(by_request) | set(by_expected)) - actual_ids)
+    no_attempt_trials = [trial.outcome.trial_id for trial in trials
+                         if index.mode == "live" and trial.reuse is None and not trial.model_attempts]
+    complete = (not no_attempt_trials and all(row["state"] == "verified-fit-only" for row in rows)
+                and not extra_ids and all(item["state"] == "preflight-diagnostic" for item in unbound)
+                and (index.mode != "live" or pinned))
+    return {"schema_version": 1, "scope": "per-send-fit-lineage-only", "complete": complete, "attempts": rows,
+        "unbound_events": unbound, "unallocated_attempt_ids": extra_ids,
+        "trials_without_attempts": no_attempt_trials,
+        "live_admission": False, "billing_verified": False,
+        "expectations_sha256": expected_pin if pinned else None}

@@ -16,7 +16,8 @@ def read_public_evidence_files(evidence_path, selection_path):
     return _read_bounded(evidence_path), _json(_read_bounded(selection_path))
 
 
-def inspect_consumer_evidence(raw, selection, *, manifest, expected_manifest_sha256):
+def inspect_consumer_evidence(raw, selection, *, manifest, expected_manifest_sha256,
+                              requirements_raw=None, expected_requirements_manifest_sha256=None):
     """Use externally supplied pins; no paths, process handles or credentials."""
     if type(selection) is not dict or set(selection) != SELECTION_FIELDS or type(raw) is not bytes or len(raw) > MAX_FILE_BYTES:
         return {"valid": False, "creditable": False, "compatibility": "rejected",
@@ -37,8 +38,19 @@ def inspect_consumer_evidence(raw, selection, *, manifest, expected_manifest_sha
         if document["schema_version"] == 2:
             result = verify_evidence_v2(document, semantic_manifest=manifest,
                 expected_manifest_sha256=expected_manifest_sha256, **pins)
-            return {**result, "compatibility": "evidence-v2",
+            return {**result, "compatibility": "evidence-v2", "normative_creditable": False,
                     "limitations": ["A per-probe structural check is not full platform or product acceptance."]}
+        if document["schema_version"] == 3:
+            from .evidence_v3 import verify_evidence_v3
+
+            if requirements_raw is None:
+                return {"valid": False, "creditable": False, "normative_creditable": False,
+                        "compatibility": "requirements-unavailable", "violations": ["consumer.normative-resource-missing"], "predicates": {}}
+            result = verify_evidence_v3(document, requirements_raw=requirements_raw,
+                expected_requirements_manifest_sha256=expected_requirements_manifest_sha256,
+                semantic_manifest=manifest, expected_manifest_sha256=expected_manifest_sha256, **pins)
+            return {**result, "normative_creditable": result["creditable"], "compatibility": "evidence-v3",
+                    "limitations": ["One verified normative probe does not complete a full suite."]}
         return {"valid": False, "creditable": False, "compatibility": "unsupported",
                 "violations": ["consumer.unsupported-evidence-version"], "predicates": {}}
     except (ValueError, TypeError, KeyError, UnicodeError, RecursionError):
@@ -47,11 +59,27 @@ def inspect_consumer_evidence(raw, selection, *, manifest, expected_manifest_sha
 
 
 def inspect_bundle(files, *, expected_bundle_sha256, expected_manifest_sha256,
-                    expected_runtime_schema_sha256, evidence_raw=None, evidence_selection=None):
+                    expected_runtime_schema_sha256, evidence_raw=None, evidence_selection=None,
+                    expected_requirements_manifest_sha256=None):
     """Default integrity-only consumer. No activation option or backend factory."""
-    bundle = validate_contract_bundle(files, expected_bundle_sha256=expected_bundle_sha256,
-        expected_manifest_sha256=expected_manifest_sha256,
-        expected_runtime_schema_sha256=expected_runtime_schema_sha256)
+    try:
+        version = _json(files["bundle.json"]).get("schema_version")
+    except (ValueError, TypeError, KeyError, AttributeError):
+        version = None
+    if type(version) is int and version == 2:
+        from .export_v2 import validate_normative_bundle
+
+        bundle = validate_normative_bundle(files, expected_bundle_sha256=expected_bundle_sha256,
+            expected_manifest_sha256=expected_manifest_sha256,
+            expected_runtime_schema_sha256=expected_runtime_schema_sha256,
+            expected_requirements_manifest_sha256=expected_requirements_manifest_sha256)
+    else:
+        bundle = validate_contract_bundle(files, expected_bundle_sha256=expected_bundle_sha256,
+            expected_manifest_sha256=expected_manifest_sha256,
+            expected_runtime_schema_sha256=expected_runtime_schema_sha256)
+        bundle["requirements_authority_valid"] = False
+        if expected_requirements_manifest_sha256 is not None:
+            bundle.update(valid=False, verdict="rejected", violations=sorted(set(bundle["violations"] + ["consumer.legacy-missing-inventory"])))
     result = {"schema_version": 1, "mode": "integrity-only", "status": "integrity-only" if bundle["valid"] else "rejected",
         "bundle": bundle, "evidence": None, "runtime_acceptance": "pending",
         "conformance_acceptance": "pending", "providers_used": False,
@@ -68,7 +96,9 @@ def inspect_bundle(files, *, expected_bundle_sha256, expected_manifest_sha256,
             "violations": ["consumer.evidence-and-selection-required"]})
         return result
     result["evidence"] = inspect_consumer_evidence(evidence_raw, evidence_selection,
-        manifest=manifest, expected_manifest_sha256=expected_manifest_sha256)
+        manifest=manifest, expected_manifest_sha256=expected_manifest_sha256,
+        requirements_raw=files.get("contracts/requirements-v1.json"),
+        expected_requirements_manifest_sha256=expected_requirements_manifest_sha256)
     if not result["evidence"]["valid"]:
         result["status"] = "rejected"
     return result

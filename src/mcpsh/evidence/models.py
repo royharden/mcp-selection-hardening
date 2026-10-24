@@ -43,6 +43,9 @@ class EditionIndex(Record):
     trials: FilePin
     observers: FilePin | None
     oracles: FilePin | None
+    token_fit: FilePin | None = None
+    fit_parent: FilePin | None = None
+    fit_reverification: FilePin | None = None
     scheduled_trial_ids: tuple[str, ...] = Field(min_length=1, max_length=5000)
     empirical_verdict: Literal["pending"]
     product_verdict: Literal["pending"]
@@ -58,6 +61,9 @@ class EditionAuthority(Record):
     mode: Literal["replay", "live"]
     platform_scope: Literal["synthetic-memory", "filesystem-posix"]
     input_pins: InputPins
+    token_fit_expectations_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    fit_reverification_receipt: dict | None = None
+    fit_reverification_receipt_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
 
 
 class AttemptCost(Record):
@@ -69,6 +75,8 @@ class AttemptCost(Record):
     cost_basis: Literal["dated-price-estimate", "unknown"]
     settlement_reference: str | None
     reserved_microunits: int | None = Field(ge=0)
+    raw_request_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    price_snapshot_hash: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
 
 
 class ReuseReference(Record):
@@ -88,6 +96,14 @@ class EvidenceTrial(Record):
     outcome: TrialOutcome
     repeat: int | None = Field(default=None, ge=0)
     reuse: ReuseReference | None = None
+    replay_role: Literal["baseline", "diagnostic", "control"] | None = None
+    replay_episode_id: str | None = Field(default=None, max_length=256)
+    scripted_responses: tuple[dict, ...] = Field(default=(), max_length=3)
+    scripted_fixture_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    observer_fault_request: str | None = Field(default=None, max_length=256)
+    observer_fault_status: Literal["unsupported", "not-requested"] | None = None
+    platform_scope: Literal["synthetic-memory", "filesystem-posix"] | None = None
+    model_family_id: str | None = Field(default=None, max_length=256)
     selected_calls: tuple[SelectedCall, ...] | None = Field(default=None, max_length=65536)
     selection_journal_complete: bool | None = None
     fixture_ref: str | None = None

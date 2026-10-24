@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "urn:mcpsh:conformance-evidence:v3",
+  "type": "object", "additionalProperties": false,
+  "required": ["schema_version", "probe_id", "track", "scope", "request_sha256", "source_pins", "session", "frames", "observation", "checks", "record_sha256", "semantic", "requirements"],
+  "properties": {
+    "schema_version": {"type": "integer", "const": 3},
+    "probe_id": {"$ref": "evidence-v2.schema.json#/properties/probe_id"}, "track": {"$ref": "evidence-v2.schema.json#/properties/track"},
+    "scope": {"$ref": "evidence-v2.schema.json#/properties/scope"}, "request_sha256": {"$ref": "evidence-v2.schema.json#/properties/request_sha256"},
+    "source_pins": {"$ref": "evidence-v2.schema.json#/properties/source_pins"}, "session": {"$ref": "evidence-v2.schema.json#/properties/session"},
+    "frames": {"$ref": "evidence-v2.schema.json#/properties/frames"}, "observation": {"$ref": "evidence-v2.schema.json#/properties/observation"},
+    "checks": {"$ref": "evidence-v2.schema.json#/properties/checks"}, "record_sha256": {"$ref": "evidence-v2.schema.json#/properties/record_sha256"},
+    "semantic": {"$ref": "evidence-v2.schema.json#/properties/semantic"},
+    "requirements": {"type": "object", "additionalProperties": false, "required": ["inventory_version", "inventory_sha256", "requirement_ids", "required_scope"],
+      "properties": {"inventory_version": {"const": "m5-conformance-boundaries-v1"}, "inventory_sha256": {"$ref": "evidence-v1.schema.json#/$defs/sha256"},
+        "requirement_ids": {"type": "array", "maxItems": 64, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 96}},
+        "required_scope": {"enum": ["actual-memory", "actual-posix", "actual-stdio"]}}}
+  }
+}

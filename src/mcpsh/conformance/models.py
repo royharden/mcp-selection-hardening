@@ -86,15 +86,25 @@ class ConformanceReport:
     full_suite: bool
     approval_id: str
     semantic_manifest: dict | None = None
+    requirements_raw: bytes | None = None
+    expected_requirements_manifest_sha256: str | None = None
+    evidence_bindings: dict | None = None
+    registry_snapshot: tuple[ProbeDefinition, ...] | None = None
 
     def to_dict(self):
         from .probes import definitions
+        from .requirements import audit_requirements
 
+        registry = self.registry_snapshot if self.registry_snapshot is not None else definitions()
+        normative = audit_requirements(self.requirements_raw,
+            expected_requirements_manifest_sha256=self.expected_requirements_manifest_sha256,
+            registry=registry, results=self.results, tracks=self.tracks,
+            evidence_bindings=self.evidence_bindings)
         platforms = {}
         for track in self.tracks:
             rows = [row for row in self.results if row.track == track]
             required = [row for row in rows if row.required]
-            expected_ids = {probe.probe_id for probe in definitions() if probe.required and track in probe.tracks}
+            expected_ids = {probe.probe_id for probe in registry if probe.required and track in probe.tracks}
             actual_ids = [row.probe_id for row in required]
             counts = {status.value: sum(row.status == status for row in rows) for status in Status}
             if any(row.status == Status.FAIL for row in required):
@@ -111,11 +121,15 @@ class ConformanceReport:
                 verdict = "pending"
             else:
                 verdict = "passed"
+            boundary_verdict = normative["platforms"].get(track, {}).get("verdict", "pending")
+            if verdict != "blocked":
+                verdict = "blocked" if boundary_verdict == "blocked" else verdict if boundary_verdict == "passed" else "pending"
             platforms[track] = {"verdict": verdict, "counts": counts,
                                 "filesystem_proof": track == "filesystem-posix" and verdict == "passed"}
         payload = {"schema_version": 1, "kind": "conformance", "approval_id": self.approval_id,
                 "full_suite": self.full_suite, "selected_probe_ids": list(self.selected_probe_ids),
                 "platforms": platforms, "results": [row.to_dict() for row in self.results],
+                "normative_coverage": normative,
                 "product_acceptance": "pending",
                 "limitations": ["Track verdicts are separate; memory and stdio do not prove filesystem safety.",
                                 "Source construction and authored probes are not measured conformance."]}

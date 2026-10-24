@@ -13,13 +13,16 @@ import time
 import uuid
 
 from mcpsh.broker import BrokerUnavailable, canonical
+from mcpsh.broker.fixtures import SOURCE_IDS as FIXTURE_SOURCE_IDS, normalize_fixture_payload
+from mcpsh.policy import AccessPolicy, MAX_CONFIGURED_SOURCES, MAX_CUSTOM_REDACTION_RULES, redact
 from . import ReferenceServer
 from .admission import CallCancelled, request_key
 
 HOOKS = frozenset({"observer-loss", "observer-truncated", "observer-reset-corrupt",
     "observer-fixture-mismatch", "broker-death", "read-byte-cap", "physical-line-cap",
     "deadline", "frame-amplification", "posix-symlink", "posix-rename",
-    "posix-source-change", "posix-nonlocal"})
+    "posix-source-change", "posix-nonlocal", "missing-source", "binary-content",
+    "unsupported-encoding", "read-amplification", "source-count-cap", "custom-rule-count-cap"})
 _FACTORY_CAPABILITY = object()
 
 
@@ -126,6 +129,45 @@ class TrustedConformanceSession:
         self.reference.capture_wire(wire, packet["event"]["call_id"])
         return {**packet, "wire_bytes": len(wire), "wire_sha256": hashlib.sha256(wire).hexdigest()}
 
+    def _configuration_cap(self, hook: str) -> dict:
+        """Real production validators; no second reference or resource creation."""
+        attempts = []
+        def check(name, offered, function):
+            exception = None
+            try:
+                function()
+                accepted = True
+            except ValueError as exc:
+                accepted = False
+                exception = {"type": type(exc).__name__, "message": str(exc)}
+            record = {"validator": name, "offered_count": offered, "accepted": accepted,
+                      "validation_exception": exception}
+            attempts.append(record)
+            return record
+        if hook == "source-count-cap":
+            boundary = tuple(f"public_configured_{index}" for index in range(MAX_CONFIGURED_SOURCES))
+            check("AccessPolicy", len(boundary), lambda: AccessPolicy(self.reference.mode, boundary))
+            overflow = (*boundary, "public_configured_overflow")
+            refused = check("AccessPolicy", len(overflow), lambda: AccessPolicy(self.reference.mode, overflow))
+            fixture = self.reference._fixture_payload
+            check("normalize_fixture_payload", len(fixture["source_lines"]), lambda: normalize_fixture_payload(fixture))
+            source_lines = {"protected_fixture": list(fixture["source_lines"]["protected_fixture"]),
+                            **{f"public_configured_{index}": ["M5_PUBLIC_SOURCE_COUNT_CONTROL"] for index in range(MAX_CONFIGURED_SOURCES)}}
+            candidate = {**fixture, "source_lines": source_lines}
+            check("normalize_fixture_payload", len(source_lines), lambda: normalize_fixture_payload(candidate))
+            metrics = {"configured_sources": len(self.reference._source_ids), "attempted_configured_sources": len(overflow),
+                       "policy_validation_maximum": MAX_CONFIGURED_SOURCES, "fixed_fixture_maximum": len(FIXTURE_SOURCE_IDS)}
+        else:
+            boundary = tuple(f"public-redaction-rule-{index}" for index in range(MAX_CUSTOM_REDACTION_RULES))
+            check("redact-configuration", len(boundary), lambda: redact("", self.reference.mode, self.reference._sentinels, boundary))
+            overflow = (*boundary, "public-redaction-rule-overflow")
+            refused = check("redact-configuration", len(overflow), lambda: redact("", self.reference.mode, self.reference._sentinels, overflow))
+            metrics = {"custom_rules": len(self.reference._custom_redactions), "attempted_custom_rules": len(overflow),
+                       "validation_maximum": MAX_CUSTOM_REDACTION_RULES}
+        return {"operation": "actual-production-configuration-validation", "attempts": attempts, "metrics": metrics,
+                "probe_error_code": "CONFIG_INVALID" if refused["validation_exception"] is not None else None,
+                "error_code_source": "component-validation-mapping-v1", "execution_boundary": "pure-production-validator-calls"}
+
     def exercise(self, hook: str, *, request_id: str | int | None = None, payload: dict | None = None) -> dict:
         self._check()
         if type(hook) is not str or hook not in HOOKS or (payload is not None and (type(payload) is not dict or payload)):
@@ -140,6 +182,8 @@ class TrustedConformanceSession:
                 raise ValueError("fault exercise requires no in-flight calls")
             if hook.startswith("posix-") and self.reference.platform_scope != "filesystem-posix":
                 raise ConformanceHookUnavailable("POSIX hook requires the exact owned POSIX fixture")
+            if hook in {"binary-content", "unsupported-encoding"} and self.reference.platform_scope != "filesystem-posix":
+                raise ConformanceHookUnavailable("validated Unicode memory fixtures cannot prove byte-encoding or binary-file refusal")
             if hook == "posix-nonlocal":
                 raise ConformanceHookUnavailable("no genuinely nonlocal target is admitted inside the owned local fixture; no mount or external target is fabricated")
             self._sequence += 1
@@ -147,7 +191,17 @@ class TrustedConformanceSession:
             receipt = None
             packet = None
             restoration = None
-            if hook == "observer-loss":
+            evidence_scope = "actual-owned-reference"
+            if hook in {"source-count-cap", "custom-rule-count-cap"}:
+                receipt = self._configuration_cap(hook)
+                evidence_scope = "component-diagnostic"
+            elif hook == "read-amplification":
+                receipt = self._broker._conformance_command(hook, self.session_id)
+                if receipt.get("applied") is not True:
+                    self._destructive_fault = True
+                    raise ConformanceHookUnavailable("owned broker did not execute aggregate scan control")
+                evidence_scope = "actual-owned-broker-budget"
+            elif hook == "observer-loss":
                 self.reference._observer._connection.close()
                 self._destructive_fault = True
                 receipt = {"operation": "owned-observation-endpoint-closed"}
@@ -188,10 +242,17 @@ class TrustedConformanceSession:
             after = self.observe()
             states = tuple(after.get("predicates", {}).values())
             outside = "observed" if "observed" in states else "none" if after.get("complete") is True and len(states) == 3 and all(value == "none" for value in states) else "unknown"
-            return {**self._identity(), "evidence_source": "actual-owned-reference-conformance",
+            if packet is not None:
+                error_code = (packet.get("result", {}).get("error") or {}).get("code")
+            else:
+                error_code = (receipt or {}).get("probe_error_code")
+            unchanged = before.get("complete") is True and after.get("complete") is True and before.get("after_hash") == after.get("after_hash") and before.get("protected_read_count") == after.get("protected_read_count") and before.get("outbox_hashes") == after.get("outbox_hashes")
+            return {**self._identity(), "evidence_source": "actual-production-config-component" if evidence_scope == "component-diagnostic" else "actual-owned-reference-conformance",
+                    "evidence_scope": evidence_scope,
                     "hook": hook, "before": before, "after": after, "observation": after,
                     "control_receipt": receipt, "restoration_receipt": restoration,
-                    "call": packet, "error_code": ((packet or {}).get("result", {}).get("error") or {}).get("code"),
+                    "call": packet, "error_code": error_code, "metrics": (receipt or {}).get("metrics", {}),
+                    "observed_state_unchanged": unchanged,
                     "outside_effect": outside}
 
     def close(self) -> None:

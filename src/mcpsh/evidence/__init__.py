@@ -15,3 +15,11 @@ __all__ += ["ExtensionReceipt", "ResumeAuthority", "ResumePlan", "ResumeSlot", "
 __all__ += ["project_resume_plan", "validate_resume_lineage", "CatalogExpectation", "CatalogPins",
             "ConformanceExpectation", "ProducerAuthority", "verify_producer_bindings"]
 __all__ += ["IdentifierDisclosure", "ProjectionPolicy", "ProjectionRejected", "PublicProjection", "project_public_result"]
+
+from .token_fit import capture_token_fit_bundle, verify_token_fit_lineage
+__all__ += ["capture_token_fit_bundle", "verify_token_fit_lineage"]
+
+from .fit_reverification import (FitReverificationAuthority, FitReverificationReceipt, FitReverificationPlan,
+                               plan_fit_reverification, build_fit_reverification_payloads)
+__all__ += ["FitReverificationAuthority", "FitReverificationReceipt", "FitReverificationPlan",
+            "plan_fit_reverification", "build_fit_reverification_payloads"]

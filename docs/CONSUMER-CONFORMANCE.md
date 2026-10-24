@@ -109,3 +109,36 @@ request/report signatures are unchanged by this portable consumer package.
 
 All compatibility regressions are authored source only. No example, export,
 resource helper, import, test or bundle build was invoked during construction.
+
+## Normative portable format v2
+
+V1 above remains an explicit legacy integrity-only format. The new
+`mcpsh.conformance.export_v2` adapter reuses its producer, loader and validator;
+it does not redefine schemas or required cases. `packaged_normative_inputs()`
+returns base BundleInputs, fixed normative bytes, and two extra canonical schemas.
+`build_normative_bundle(base_inputs, requirements_raw=..., schemas=...)` returns
+deterministic bytes with an additional requirements_manifest_sha256 receipt.
+No construction helper is invoked merely by importing a module.
+
+Bundle v2 has eleven fixed artifacts: the original eight, contracts/requirements-v1.json,
+schemas/requirements-v1.schema.json and schemas/evidence-v3.schema.json. Its closed
+v2 index pins normative identity/version and every added byte before checking the
+closed legacy subset. Original bundle/semantic/runtime-schema pin checks remain.
+Source-integrity validation cannot promote unsupported platform or S1 claims.
+
+`validate_normative_bundle` adds optional expected_requirements_manifest_sha256.
+Without it, integrity-only may be valid while requirements_authority_valid is false;
+full conformance always remains pending. A supplied mismatching inventory pin
+rejects. The semantic-case and normative-boundary pins are distinct authorities.
+`read_portable_bundle` dispatches explicit v1/v2 resource sets and never downgrades
+missing v2 data. `write_normative_bundle` uses the existing new-directory writer;
+no exports were run here.
+
+D1 additional resources are requirements-v1.json under mcpsh/conformance/data and
+requirements-v1.schema.json/evidence-v3.schema.json under its data/schemas directory.
+The detached example now reads either portable version and accepts optional
+--requirements-sha256. Consumer inspect_bundle accepts the same optional keyword;
+v3 per-probe inspection verifies the outer inventory pin plus all unchanged v2
+external selections. Missing normative data/pins cannot grant normative credit.
+Legacy v1/v2 evidence retains its earlier compatibility without full normative
+credit. Component/memory cannot become POSIX proof; mixed known effects remain visible.
