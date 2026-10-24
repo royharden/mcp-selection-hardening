@@ -49,6 +49,17 @@ def pinned_input(path: Path, expected: str, maximum: int = 8 * 1024 * 1024):
     return raw, strict_json_loads(raw)
 
 
+def pinned_input_bytes(path: Path, expected: str, maximum: int):
+    """Raw pinned bytes that are not JSON documents, such as a JSONL journal."""
+    if not isinstance(expected, str) or not re.fullmatch(r"[0-9a-f]{64}", expected):
+        raise ValueError("an externally supplied exact raw SHA256 input pin is required")
+    with path.open("rb") as handle:
+        raw = handle.read(maximum + 1)
+    if len(raw) > maximum or hashlib.sha256(raw).hexdigest() != expected:
+        raise ValueError("input bytes exceed bounds or differ from the supplied pin")
+    return raw
+
+
 def oracle_bytes(cases):
     return (json.dumps({"schema_version": 1, "cases": [
         {"public": task.model_dump(mode="json"), "oracle": oracle.model_dump(mode="json")}
@@ -84,7 +95,7 @@ def public_projection(value, fixture_map=None, fixture_payload=None):
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=BANNER)
-    parser.add_argument("--mode", choices=("replay", "live", "pilot-summary", "development-summary", "rescore", "dossier", "ledger-audit"), default="replay")
+    parser.add_argument("--mode", choices=("replay", "live", "pilot-summary", "development-summary", "rescore", "dossier", "ledger-audit", "fit-reverify"), default="replay")
     parser.add_argument("--out", type=Path, default=ROOT / "results")
     parser.add_argument("--edition")
     parser.add_argument("--seed", type=int, default=1729)
@@ -147,7 +158,33 @@ def main() -> int:
     parser.add_argument("--ledger", type=Path, help="explicit existing CostLedger DB or immutable snapshot")
     parser.add_argument("--ledger-authority", type=Path)
     parser.add_argument("--ledger-authority-sha256", help="external raw experiment/source/price/snapshot authority pin")
+    parser.add_argument("--fit-authority", type=Path, help="retrospective FitReverificationAuthority JSON")
+    parser.add_argument("--fit-authority-sha256", help="external raw fit authority pin")
+    parser.add_argument("--fit-authority-typed-sha256", help="external canonical typed fit authority pin")
+    parser.add_argument("--fit-expectations", type=Path, help="independently selected full-coverage expectations")
+    parser.add_argument("--fit-expectations-sha256", help="external raw expectation-file pin")
+    parser.add_argument("--parent-journal", type=Path, help="exact original private provider journal bytes")
+    parser.add_argument("--parent-journal-sha256", help="external raw original journal pin")
+    parser.add_argument("--fit-receipt", type=Path, help="separately bound FitReverificationReceipt JSON")
+    parser.add_argument("--fit-receipt-sha256", help="external raw receipt pin")
+    parser.add_argument("--fit-receipt-typed-sha256", help="external canonical typed receipt pin")
     args = parser.parse_args()
+    fit_reverify_arguments = (args.fit_authority, args.fit_authority_sha256, args.fit_authority_typed_sha256,
+                              args.fit_expectations, args.fit_expectations_sha256,
+                              args.parent_journal, args.parent_journal_sha256)
+    fit_receipt_arguments = (args.fit_receipt, args.fit_receipt_sha256, args.fit_receipt_typed_sha256)
+    if (any(fit_reverify_arguments) or any(fit_receipt_arguments)) and args.mode != "fit-reverify":
+        parser.error("retrospective fit arguments require --mode fit-reverify")
+    if args.mode == "fit-reverify" and not all((*fit_reverify_arguments, args.evidence_root,
+                                               args.evidence_authority, args.authority_sha256)):
+        parser.error("fit-reverify requires saved parent edition, raw-pinned parent/fit authorities, expectations and journal")
+    if any(fit_receipt_arguments) and not all(fit_receipt_arguments):
+        parser.error("a retrospective receipt requires its raw and independent typed pins")
+    if args.mode == "fit-reverify" and args.edition:
+        parser.error("fit-reverify publishes under the fit authority's successor_edition_id; omit --edition")
+    if args.mode == "fit-reverify" and (args.evaluator_sha256 or args.acceptance_request or args.lint_controls
+                                        or args.threshold_metadata or args.ledger or args.dossier_authority):
+        parser.error("fit-reverify is evidence-only: no evaluator, acceptance, lint, threshold, ledger or dossier inputs")
     ledger_arguments = (args.ledger, args.ledger_authority, args.ledger_authority_sha256)
     if any(ledger_arguments) and (args.mode != "ledger-audit" or not all(ledger_arguments)):
         parser.error("ledger audit requires one explicit DB/snapshot and externally raw-pinned ledger authority")
@@ -197,7 +234,7 @@ def main() -> int:
         parser.error("explicit failure records require their raw SHA256 pin")
     if args.candidate_commit and args.mode not in ("replay", "live"):
         parser.error("candidate metadata belongs only to new replay/live evidence editions")
-    if args.mode not in ("rescore", "dossier", "ledger-audit") and any((args.evidence_root, args.evidence_authority,
+    if args.mode not in ("rescore", "dossier", "ledger-audit", "fit-reverify") and any((args.evidence_root, args.evidence_authority,
                                        args.authority_sha256, args.evaluator_sha256)):
         parser.error("offline evidence arguments require --mode rescore")
     if args.mode == "dossier" and any((args.evidence_authority, args.authority_sha256, args.evaluator_sha256)):
@@ -228,6 +265,42 @@ def main() -> int:
     private_root = args.private_evidence.resolve()
     if private_root == ROOT or ROOT in private_root.parents:
         parser.error("raw evidence must be outside the product repository")
+    if args.mode == "fit-reverify":
+        # Evidence-only successor: no public numeric bundle, attempts, charges or dispatch.
+        from mcpsh.evidence import EditionAuthority
+        from mcpsh.runner.fit_successor import run_fit_successor
+
+        parent_raw, _ = pinned_input(args.evidence_authority, args.authority_sha256, 1024 * 1024)
+        parent_authority = EditionAuthority.model_validate_json(parent_raw)
+        _, fit_authority = pinned_input(args.fit_authority, args.fit_authority_sha256, 1024 * 1024)
+        successor_id = fit_authority.get("successor_edition_id") if isinstance(fit_authority, dict) else None
+        if not isinstance(successor_id, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,99}", successor_id):
+            parser.error("fit authority must name a bounded safe successor_edition_id")
+        if successor_id == parent_authority.edition_id:
+            parser.error("fit-reverify must publish under a fresh ID; the original edition is immutable")
+        _, expectations = pinned_input(args.fit_expectations, args.fit_expectations_sha256, 32 * 1024 * 1024)
+        journal_raw = pinned_input_bytes(args.parent_journal, args.parent_journal_sha256, 32 * 1024 * 1024)
+        receipt = None
+        if args.fit_receipt:
+            _, receipt = pinned_input(args.fit_receipt, args.fit_receipt_sha256, 1024 * 1024)
+        outcome = run_fit_successor(
+            parent_root=args.evidence_root, parent_authority=parent_authority,
+            fit_authority_value=fit_authority, expected_fit_authority_sha256=args.fit_authority_typed_sha256,
+            expectations=expectations, parent_journal_bytes=journal_raw,
+            destination=private_root / successor_id, receipt_value=receipt,
+            expected_receipt_sha256=args.fit_receipt_typed_sha256)
+        print("RETROSPECTIVE-FIT-EVIDENCE-ONLY; no new attempts, charges or dispatch")
+        if outcome.state == "pending":
+            # Identity and counts only; per-attempt rows stay out of console output.
+            fit = outcome.plan.get("fit") or {}
+            print(json.dumps({key: outcome.plan.get(key) for key in (
+                "state", "reason", "plan_id", "successor_index_sha256", "parent_index_sha256",
+                "original_attempts", "selected_expectations", "credited")}
+                | {"fit_attempts": len(fit.get("attempts", []))}, ensure_ascii=True, sort_keys=True))
+            print("Pending: no successor edition written; separately bound authenticated receipt required")
+            return 0
+        print(f"Wrote retrospective fit successor (runtime unverified): {outcome.destination}")
+        return 0
     args.out.mkdir(parents=True, exist_ok=True)
     destination = args.out / args.edition
     lock = args.out / ("." + args.edition + ".reservation")

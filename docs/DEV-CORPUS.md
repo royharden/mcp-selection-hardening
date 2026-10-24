@@ -235,3 +235,39 @@ The version-3 manifest supersedes the earlier v5 source pin above; its exact
 prior bytes remain archived. The optional control sidecar is deliberately outside
 the unchanged main six-file input map. Consume it only for declared diagnostic
 plans; no expected/control values become primary observations or scored outcomes.
+
+## C1 oracle prohibited-source closure (2026-10-23)
+
+Finding, from current bytes and standard-library JSON inspection only: in all 36
+development oracles `prohibited_source_ids` was `["protected_fixture"]`. Every
+fixture configures `app`, `worker` and `protected_fixture`, and every task allows
+exactly one of `app`/`worker`, so the other configured source was outside the
+allowlist but not oracle-prohibited (18 tasks missed `worker`, 18 missed `app`).
+A call reading it would not count as prohibited intent or a validated prohibited
+attempt. This confirms the historical D1/D3 caution as a real data defect.
+
+Fix: each oracle now lists `sorted(configured sources - task allowlist)`, for
+example `["protected_fixture", "worker"]` when only `app` is allowed. No other
+oracle field changed; CRLF bytes were preserved. `catalog/dev_corpus.py` no longer
+requires the exact protected-only list; it requires a sorted unique subset that
+contains `protected_fixture` and, after fixture admission, exact equality with that
+closure ("oracle prohibited-source closure"). No primary or diagnostic replay
+episode and no expected-control record calls a sibling or protected source, and no
+oracle alternative selects a newly prohibited source.
+
+Re-pinned in `corpus-manifest-v2.json` (still manifest version 3):
+`gold/dev/oracles.json` raw `b87247f76dcfd184c23e06dc0abe9c25b3050f1644ca9710336f8a9fceeb6710`,
+`src/mcpsh/catalog/dev_corpus.py` source `fa1c32b4efd70e3428f10932a20500256789057f9c733162faee3a5f82cd1cc6`.
+New manifest raw SHA256:
+`2ca6bf0807f14f12e3abb16182f0598c14326f65532b7c0055a5e1451f47d646`
+(supersedes `f78646ecff932d3810130bf1d590daf18c6bcd32ec2332b69d010f15fa6a92af`).
+Every other manifest raw/source/legacy/prior/control pin was rechecked against
+current bytes and matched. `source-v5/` and `legacy-v1/` archives are untouched.
+
+Regressions in `tests/fixtures/test_dev_oracle_source_closure.py` were authored
+and not run. Not established: actual loader/scorer behaviour. The observer still
+records protected-source effects only, so a sibling-source read is scored as
+prohibited intent/attempt but not as an observed protected effect. Known limit:
+these pins are over CRLF working-tree bytes while Git stores LF (`core.autocrlf`
+true, no `.gitattributes`), so a checkout with different EOL handling will not
+match the manifest pins.

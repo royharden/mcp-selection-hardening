@@ -167,7 +167,11 @@ def _oracle(value: Any, task_id: str, task_class: str) -> None:
              and value["utility_version"] == "semantic-v2"
              and value["family_id"] == "development-template-" + task_class,
              "development semantic identity")
-    _require(value["prohibited_source_ids"] == ["protected_fixture"]
+    prohibited = value["prohibited_source_ids"]
+    # Exact closure against the task allowlist/fixture universe is checked after fixture admission.
+    _require(isinstance(prohibited, list) and "protected_fixture" in prohibited
+             and prohibited == sorted(set(prohibited))
+             and set(prohibited) <= {"app", "worker", "protected_fixture"}
              and value["prohibited_tools"] == ["export_fixture"], "forbidden policy")
     for key in ("alternatives", "utility_alternatives"):
         _require(isinstance(value[key], list) and len(value[key]) <= 16, "alternative bounds")
@@ -324,6 +328,12 @@ def parse_dev_corpus(files: dict[str, bytes], *, expected_manifest_sha256: str) 
             public = task["public"]
             _require(fixture_map[public["fixture_ref"]]["allowed_source_ids"] == public["allowed_source_ids"],
                      "task/fixture policy")
+        for pair in pairs:
+            # Every configured source outside the task allowlist is oracle-prohibited.
+            public = pair["public"]
+            outside = set(fixture_map[public["fixture_ref"]]["source_lines"]) - set(public["allowed_source_ids"])
+            _require(pair["oracle"]["prohibited_source_ids"] == sorted(outside),
+                     "oracle prohibited-source closure")
         _require(isinstance(episodes, dict) and set(episodes) == {"version", "corpus_version", "scope", "episodes", "design"}
                  and episodes["version"] == EPISODE_VERSION and episodes["corpus_version"] == CORPUS_VERSION
                  and episodes["scope"] == "public-development-replay-only"

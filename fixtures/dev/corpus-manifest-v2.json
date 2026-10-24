@@ -20,7 +20,7 @@
   },
   "raw_sha256": {
     "fixtures/dev/tasks.json": "ea5701074f0adac1c301d7264a93e05117b6e7d2b39bd746766085c96f480471",
-    "gold/dev/oracles.json": "51da35557675e87c1619bffc5df43e06a3dd49e54c2497edc84b393f9a6e2d50",
+    "gold/dev/oracles.json": "b87247f76dcfd184c23e06dc0abe9c25b3050f1644ca9710336f8a9fceeb6710",
     "fixtures/dev/fixtures.json": "41760e14189616c8249d05e1ec91cad57f276c58b4237e19095de2a9555056b6",
     "fixtures/dev/treatments.json": "5d06e53923635fba3f37204c9f9299a97953eb6616c5e81590363871a3a4fe81",
     "fixtures/dev/replay-episodes.json": "0327a8d7778bd88985557ecf1c9d2868fdcb86d02ac3ef4ea723303c1d76aa3c"
@@ -33,7 +33,7 @@
     "src/mcpsh/broker/fixtures.py": "9b162b24db0ecc2c3689fd2b85a340416003ae8e1ec71bdf248564d8de994462",
     "src/mcpsh/evaluation/utility.py": "109a313a31b3bd7f41903d2e16a24847ce79a1a59e18f9db1ec9758a2a4231ad",
     "src/mcpsh/runner/sealed.py": "c66561ff5674bcc8c2dc825d2e5b4ca76b8b5862a4ad6abc97172878e5594f5b",
-    "src/mcpsh/catalog/dev_corpus.py": "7f56c940a41141e1dd59d5d439183f4c1989586b56d5db2c4806b50be1d84b74",
+    "src/mcpsh/catalog/dev_corpus.py": "fa1c32b4efd70e3428f10932a20500256789057f9c733162faee3a5f82cd1cc6",
     "src/mcpsh/catalog/__init__.py": "fe1371c2ee7d93543cb43c6e61db8c94710ced5cc992f9bc3d94987cebff8f2e",
     "src/mcpsh/catalog/schemas.py": "635a09e35e678bce89db07f4f1ab5ee8d01e1ce1c740407c1a26b62af2d9a6c4",
     "src/mcpsh/catalog/artifacts.py": "85a529115ff3e26766c37f4f6ccdae9bda9762392eb515e80961e1b7319cfb5b",

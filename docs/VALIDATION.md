@@ -128,6 +128,44 @@ expectation selection requires an authorized successor evidence-construction pat
 this packet does not mutate original editions or invent that independent selection.
 No journal read, capture adapter, verifier, evidence builder or rescore was executed.
 
+## Retrospective fit successor writer (construction only)
+
+Built: `runner/fit_successor.run_fit_successor` and `scripts/eval.py --mode
+fit-reverify`, the publisher-side consumer of D7's pure
+`plan_fit_reverification` / `build_fit_reverification_payloads`. Required inputs
+are the saved parent edition with its raw-pinned EditionAuthority, the
+FitReverificationAuthority (raw pin plus independent typed pin, checked by the
+planner), raw-pinned full-coverage expectations and the exact raw-pinned original
+journal. A receipt is optional but must carry both its raw and typed pins.
+
+- No receipt, or a receipt the planner does not treat as authenticated and
+  independently selected: state `pending`; the plan is printed with the uncredited
+  `candidate_fit` removed and every fit row left unknown. Nothing is written.
+- Pin, identity, source, price or coverage mismatches raise the planner's
+  `EvidenceRejected`; nothing is written.
+- Ready: the successor is staged in a hidden sibling folder, validated there, and
+  only then renamed to `<private-evidence>/<successor_edition_id>/normalized/`
+  (the folder name must equal the authority's successor ID; `--edition` is
+  refused), beside `fit-plan.json` and a
+  `successor-authority.proposed.json` that a trusted caller must still select
+  externally. The writer requires `fit-parent.json`, `fit-reverification.json`,
+  `token-fit.json` and `EDITION.json`; rejects a successor that reuses the parent
+  ID or index; re-reads the staged successor through the existing reader; and
+  rehashes the parent root to prove it was not changed. Any failure leaves only
+  the hidden staging folder, never the published name. The destination must be
+  disjoint from the parent root. The pending console line carries identity and
+  counts only, no per-attempt rows.
+- Known limit (D7 planner, not this writer): readiness rests on the
+  `authenticated` / `independent_selection_confirmed` fields inside the supplied
+  authority and receipt plus their external pins. The writer adds no separate
+  authentication; trusted custody of those bytes must be established outside it.
+
+Not done: no command, reader, planner or authored regression
+(`tests/contracts/test_fit_successor_consumer.py`) has run. CLI flags never
+authenticate a receipt; authentication comes only from the externally selected
+receipt and authority bytes. No new attempts, charges, dispatch, pre-send
+admission, billing claim or public numeric publication is introduced.
+
 Offline dossier source uses `--mode dossier --evidence-root <saved-private-edition>`.
 Required metadata flags are `--dossier-authority`, `--dossier-authority-sha256`
 (external raw file identity), `--dossier-authority-typed-sha256` (external canonical

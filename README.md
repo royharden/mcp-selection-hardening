@@ -84,6 +84,17 @@ receives only bounded status, counts and hashes through the canonical projector.
 Fit is separate from spend authorization and billing. See [VALIDATION.md](docs/VALIDATION.md)
 for immutable-edition and retrospective selection limits. These paths remain unrun.
 
+`scripts/eval.py --mode fit-reverify` is the publisher-side route for a retrospective
+fit successor. It takes the saved parent edition (`--evidence-root`,
+`--evidence-authority`, `--authority-sha256`), a `--fit-authority` with raw and
+typed pins, raw-pinned `--fit-expectations` covering every original attempt, and
+the exact raw-pinned `--parent-journal`. Without a separately bound `--fit-receipt`
+(raw and typed pins) it prints a pending plan with no credited fit and writes
+nothing. With an authenticated receipt it writes a new successor edition under the
+private evidence root, leaving the original UNKNOWN edition untouched and archived
+inside the successor. It adds no attempts, charges, dispatch or public numeric
+results. Built during Dirty Mode construction; never run.
+
 `scripts/eval.py --mode dossier --evidence-root <saved-private-edition>` accepts
 `--dossier-authority` with separate external raw and typed pins, plus an explicitly
 raw-pinned `--acceptance-sources` package. It assembles D4's acceptance dossier from

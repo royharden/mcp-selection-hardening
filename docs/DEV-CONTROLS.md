@@ -86,7 +86,10 @@ mutation is rejected before diagnostic projection. No actual evidence checker,
 semantic preflight, parser, projection, handler, selector, fixture or test was run.
 
 Current source manifest (version 3 at the existing corpus-manifest-v2 filename)
-raw SHA256: `f78646ecff932d3810130bf1d590daf18c6bcd32ec2332b69d010f15fa6a92af`.
+raw SHA256: `2ca6bf0807f14f12e3abb16182f0598c14326f65532b7c0055a5e1451f47d646`
+(C1 oracle prohibited-source closure re-pin, 2026-10-23; the previous pin
+`f78646ecff932d3810130bf1d590daf18c6bcd32ec2332b69d010f15fa6a92af` is superseded,
+see `docs/DEV-CORPUS.md`).
 Control sidecar raw SHA256:
 `fee1bc68622bd27eb3c1c8fbd36c6017b109afe4c493cbcfc419df242923db49`.
 The primary source has 36 scripts/324 planned design slots; diagnostics remain
