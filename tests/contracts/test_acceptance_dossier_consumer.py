@@ -81,3 +81,29 @@ def test_replay_and_missing_rows_stay_original_and_unauthenticated(monkeypatch):
     status = view.result["acceptance_dossier_status"]
     assert status["authentication"] == "unconfirmed" and status["missing_trials"] == 1
     assert status["runtime_authorized"] is False and "PRIVATE-AUTHORED-DETAIL" not in str(status)
+    # Both fixed basis slots present (absent basis is zero, not null); no scoring claimed.
+    assert status["utility_basis_counts"] == {"semantic-v2": 1, "legacy-call-proxy-v1": 0}
+    assert view.result["scored_trials"] is None
+
+
+def test_dossier_status_matches_canonical_public_whitelist(monkeypatch):
+    """what_bug_this_catches: consumer status keys drifting from the projection allowlist."""
+    import mcpsh.evaluation.acceptance_evidence as producer
+    from mcpsh.evidence.public_projection import project_public_result
+
+    outcome = SimpleNamespace(trial_id="public-existing", utility_basis="legacy-call-proxy-v1",
+                              model_dump=lambda **kwargs: {"trial_id": "public-existing"})
+    trial = SimpleNamespace(outcome=outcome, repeat=1, model_dump=lambda **kwargs: {})
+    index = SimpleNamespace(platform_scope="synthetic-memory", scheduled_trial_ids=("public-existing",))
+    manifest = SimpleNamespace(model_dump=lambda **kwargs: {"mode": "replay"})
+    edition = SimpleNamespace(validate=lambda: (index, manifest, (trial,), (), None))
+    monkeypatch.setattr(producer, "assemble_acceptance_dossier", lambda _edition, **kwargs: SimpleNamespace(
+        version="verified-edition-acceptance-v1", source_index_sha256="a" * 64, authority_binding="missing",
+        authentication="unconfirmed", inspection_complete=False, recommendation="collect-required-evidence",
+        outcomes=(outcome,), model_dump=lambda **options: {}))
+    view = assemble_offline_dossier(edition, authority=None, sources=None,
+        expected_typed_authority_sha256="a" * 64, now=datetime(2026, 10, 23, tzinfo=timezone.utc))
+    projected = project_public_result(view.result)
+    assert projected.public["acceptance_dossier_status"] == view.result["acceptance_dossier_status"]
+    assert not [item for item in projected.private_diagnostics["private_field_diagnostics"]
+                if item["private_path"].startswith("result.acceptance_dossier_status")]

@@ -65,3 +65,14 @@ def test_lineage_status_preserves_failed_unknown_attempt_denominator():
     assert (status["attempts_total"], status["attempts_verified"], status["attempts_unknown"]) == (3, 1, 2)
     assert status["status"] == "unknown" and status["complete"] is False
     assert status["trials_without_attempts"] == 2
+
+
+@pytest.mark.parametrize("total", [2, 4])
+def test_caller_count_cannot_shrink_or_pad_lineage_denominator(total):
+    # what_bug_this_catches: a caller count hiding unknown attempts or producing a negative unknown count.
+    lineage = {"complete": False, "expectations_sha256": None, "trials_without_attempts": [],
+               "attempts": [{"state": "verified-fit-only"}, {"state": "unknown"}, {"state": "invalid"}]}
+    with pytest.raises(ValueError, match="lineage denominator"):
+        public_fit_status(attempts_total=total, trials_without_attempts=0, lineage=lineage)
+    with pytest.raises(ValueError, match="verified lineage"):
+        public_fit_status(attempts_total=3, trials_without_attempts=1, lineage=lineage)

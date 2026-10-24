@@ -46,7 +46,7 @@ def setup(tmp_path, *, unknown=False, cancelled=False):
             "price_snapshot_hash": "a" * 64, "request_hash": "b" * 64}),))
     manifest = NS(code_hash="c" * 64, prices={"fake": {"snapshot_hash": "a" * 64}})
     edition = NS(authority=NS(index_sha256="d" * 64), validate=lambda: (
-        NS(edition_id="experiment"), manifest, [trial], (), None))
+        NS(edition_id="experiment", scheduled_trial_ids=("trial",)), manifest, [trial], (), None))
     authority = report.LedgerAuditAuthority(experiment_id="experiment", edition_index_sha256="d" * 64,
         source_sha256="c" * 64, logical_snapshot_sha256=snapshot_pin(path),
         price_snapshot_hashes={"fake": "a" * 64}, snapshot_kind="read-transaction")
@@ -95,6 +95,18 @@ def test_missing_and_extra_attempts_stay_unallocated_and_scheduled(tmp_path):
     assert result["trial_audit"][0]["ledger_missing_attempt_ids"] == ["missing"]
 
 
+def test_scheduled_count_follows_edition_schedule_not_supplied_rows(tmp_path):
+    # what_bug_this_catches: an unsupplied scheduled trial shrinking the audit's scheduled count.
+    path, _, edition, authority, trial = setup(tmp_path)
+    old_validate = edition.validate
+    index = NS(edition_id="experiment", scheduled_trial_ids=("trial", "never-supplied"))
+    edition.validate = lambda: (index, *old_validate()[1:])
+    result = report.audit_ledger(path, edition=edition, authority=authority)
+    assert result["scheduled_trials"] == 2 and len(result["trial_audit"]) == 1
+    assert "scheduled_trial_rows_unavailable" in result["diagnostics"]
+    assert result["complete"] is False
+
+
 @pytest.mark.parametrize("field", ["experiment_id", "source_sha256", "edition_index_sha256", "price_snapshot_hashes"])
 def test_external_authority_mismatch_rejected_before_open(tmp_path, monkeypatch, field):
     # what_bug_this_catches: self-selected source/price/edition values becoming authority.
@@ -139,9 +151,11 @@ def test_duplicate_reuse_never_double_counts_original_billing_or_sample_credit(t
         cost_microunits=2, cost_basis="dated-price-estimate"), reuse=reference, model_attempts=[], accounting=[])
         for name in ("reuse1", "reuse2")]
     old_validate = edition.validate
-    edition.validate = lambda: (*old_validate()[:2], [trial, *reused], (), None)
+    index = NS(edition_id="experiment", scheduled_trial_ids=("trial", "reuse1", "reuse2"))
+    edition.validate = lambda: (index, old_validate()[1], [trial, *reused], (), None)
     result = report.audit_ledger(path, edition=edition, authority=authority)
     assert result["scheduled_trials"] == 3
+    assert "scheduled_trial_rows_unavailable" not in result["diagnostics"]
     assert result["totals"]["recorded_known_microunits"] == 2
     assert all(row["new_charge_microunits"] == 0 and row["independent_new_sample"] is False for row in result["reuse"])
     assert result["complete"] is False

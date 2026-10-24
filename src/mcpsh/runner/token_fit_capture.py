@@ -59,7 +59,17 @@ def capture_fit_handoff(journal_events, *, expectations=None, expected_typed_sha
 def public_fit_status(*, attempts_total: int, trials_without_attempts: int,
                       journal_sha256=None, bundle=None, lineage=None):
     """Counts retain all attempts; fit-only diagnostics cannot authorize billing."""
-    verified = sum(row.get("state") == "verified-fit-only" for row in lineage.get("attempts", [])) if lineage else 0
+    if type(attempts_total) is not int or attempts_total < 0 or type(trials_without_attempts) is not int or trials_without_attempts < 0:
+        raise ValueError("non-negative integer fit status counts required")
+    if lineage is not None:
+        # The lineage verifier owns the attempt denominator; a caller count cannot shrink
+        # it (hiding unknown attempts) or pad it (a negative/odd unknown count).
+        if type(lineage) is not dict or type(lineage.get("attempts")) is not list or attempts_total != len(lineage["attempts"]):
+            raise ValueError("fit status attempt count differs from the verified lineage denominator")
+        no_attempts = lineage.get("trials_without_attempts")
+        if no_attempts is not None and (type(no_attempts) is not list or trials_without_attempts != len(no_attempts)):
+            raise ValueError("fit status trial count differs from the verified lineage")
+    verified = sum(row.get("state") == "verified-fit-only" for row in lineage["attempts"]) if lineage else 0
     return {"version": "m5-token-fit-status-1",
             "status": "verified-fit-only" if lineage and lineage.get("complete") is True else "unknown",
             "complete": bool(lineage and lineage.get("complete") is True),

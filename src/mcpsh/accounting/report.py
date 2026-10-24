@@ -162,12 +162,16 @@ does not bind a WAL snapshot. Historical snapshot identity is not freshness.
             db.close()
     return _project(snapshot, edition=edition, trials=trials, authority=authority,
         snapshot_sha256=digest, totals=(budget, settled, committed), concurrent=concurrent,
-        billing=parsed_billing, billing_pinned=billing_pinned)
+        billing=parsed_billing, billing_pinned=billing_pinned,
+        scheduled_trial_ids=tuple(index.scheduled_trial_ids))
 
 
 def _project(snapshot, *, edition, trials, authority, snapshot_sha256, totals, concurrent,
-             billing, billing_pinned):
+             billing, billing_pinned, scheduled_trial_ids):
     diagnostics = []
+    # Scheduled is the edition's schedule, not the supplied rows; an absent row is a gap.
+    if sorted(trial.outcome.trial_id for trial in trials) != sorted(scheduled_trial_ids):
+        diagnostics.append("scheduled_trial_rows_unavailable")
     pinned = snapshot_sha256 == authority.logical_snapshot_sha256
     if not pinned:
         diagnostics.append("logical_snapshot_differs_from_external_pin")
@@ -319,7 +323,7 @@ def _project(snapshot, *, edition, trials, authority, snapshot_sha256, totals, c
             "unknown_attempts": sum(row["unknown_liability"] for row in rows),
             "cost_basis": "recorded-ledger-amounts-not-provider-billing"},
         "operations": operation_rows, "attempts": rows, "reuse": reuse,
-        "scheduled_trials": len(trials),
+        "scheduled_trials": len(scheduled_trial_ids),
         "trial_audit": [{"trial_id": trial.outcome.trial_id, "task_id": trial.outcome.task_id,
             "model_id": trial.outcome.model_id, "attempt_ids": list(trial.outcome.model_attempt_ids),
             "recorded_outcome_cost_microunits": trial.outcome.cost_microunits,

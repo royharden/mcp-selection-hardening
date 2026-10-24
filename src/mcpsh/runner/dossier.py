@@ -45,7 +45,9 @@ def assemble_offline_dossier(edition, *, authority, expected_typed_authority_sha
         else:
             rows.append({"outcome": trial.outcome.model_dump(mode="json"),
                          "private_trial": trial.model_dump(mode="json"), "repeat": trial.repeat})
-    bases = {}
+    # Both public basis slots are always present: an absent basis is a true zero count of
+    # supplied outcomes, not an unknown, and must not project to null.
+    bases = {"semantic-v2": 0, "legacy-call-proxy-v1": 0}
     for outcome in dossier.outcomes:
         bases[outcome.utility_basis] = bases.get(outcome.utility_basis, 0) + 1
     status = {"version": dossier.version, "source_index_sha256": dossier.source_index_sha256,
@@ -58,7 +60,8 @@ def assemble_offline_dossier(edition, *, authority, expected_typed_authority_sha
         {"schema_version": 1, "banner": "Offline acceptance evidence; independent acceptance pending",
          "execution_state": "acceptance-dossier-draft", "platform_scope": index.platform_scope,
          "manifest": manifest.model_dump(mode="json"), "rows": rows, "summary": [],
-         "scheduled_trials": len(index.scheduled_trial_ids), "scored_trials": len(trials),
+         # The dossier never rescores; supplied rows are not scored trials.
+         "scheduled_trials": len(index.scheduled_trial_ids), "scored_trials": None,
          "unknown_trials": missing, "acceptance_dossier_status": status,
          "acceptance_verdict": "pending",
          "limitations": ["Original evidence retained; no rescore or replacement rows.",

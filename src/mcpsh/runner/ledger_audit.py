@@ -38,7 +38,8 @@ def assemble_ledger_audit(path, *, edition, authority, billing_evidence=()) -> O
     result = {"schema_version": 1, "banner": "Read-only ledger evidence; independent acceptance pending",
               "execution_state": "ledger-audit-draft", "platform_scope": index.platform_scope,
               "manifest": manifest.model_dump(mode="json"), "rows": rows, "summary": [],
-              "scheduled_trials": len(index.scheduled_trial_ids), "scored_trials": len(trials),
+              # A ledger audit never scores; supplied rows are not scored trials.
+              "scheduled_trials": len(index.scheduled_trial_ids), "scored_trials": None,
               "unknown_trials": missing, "ledger_audit": report,
               "ledger_audit_status": status, "acceptance_verdict": "pending",
               "limitations": ["Original trials and full private ledger report retained.",

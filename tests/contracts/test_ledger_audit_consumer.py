@@ -76,6 +76,14 @@ def test_unknown_unallocated_reused_liability_survives_existing_read_only_api(mo
     assert status["cost_bases"] == ["dated-price-estimate", "unknown"]
     assert status["billed_attempts"] == 0
     assert len(view.result["rows"]) == view.result["scheduled_trials"] == 2
+    assert view.result["scored_trials"] is None  # an audit never scores supplied rows
+    from mcpsh.evidence.public_projection import project_public_result
+
+    # Status keys are exactly the canonical allowlist: nothing private or unknown is dropped.
+    projected = project_public_result(view.result)
+    assert projected.public["ledger_audit_status"] == status
+    assert not [item for item in projected.private_diagnostics["private_field_diagnostics"]
+                if item["private_path"].startswith("result.ledger_audit_status")]
 
 
 def test_all_ledger_views_copy_same_unknown_values_and_escape_text():

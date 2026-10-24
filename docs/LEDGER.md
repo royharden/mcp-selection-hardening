@@ -43,6 +43,10 @@ parent diagnostics never repair or erase ledger records.
 Each attempt joins actual edition trial, turn, provider, model, operation, usage,
 request/price pins and settlement reference. Extra attempts remain unallocated;
 missing ledger attempts remain explicit in every scheduled trial's audit row.
+`scheduled_trials` counts the edition's own `scheduled_trial_ids`, not the rows
+supplied. If the supplied rows differ from that schedule (missing or duplicated),
+the audit adds the diagnostic `scheduled_trial_rows_unavailable` and is not complete.
+The offline audit/dossier views report `scored_trials` as null, since neither scores.
 Reused evidence preserves its original cost basis/reference with zero new charge
 and no independent sample credit; repeated reuse is diagnosed rather than summed
 as new billing. Model/task grouping is available from these parented rows, without
