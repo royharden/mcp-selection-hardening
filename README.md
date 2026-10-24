@@ -133,9 +133,19 @@ no wheel was built or installed. `server-check` accepts external
 explicit disposable/runtime request. Missing pins remain unknown, with no
 self-calculated substitute. See [CONSUMER-CONFORMANCE.md](docs/CONSUMER-CONFORMANCE.md).
 
+## Added in the 2026-10-23/24 construction run (built, never executed)
+
+Everything below is source, data and docs only. No test, CLI, reader, server, conformance hook or provider call was run; there are no results, prices or approvals. The method end to end is in the [evaluation guide](docs/EVALUATION-GUIDE.md).
+
+- **Conformance producer closure (D6).** Six boundary-hook receipts now carry exact per-hook scopes and metrics, and the server source-pin closure includes `policy/__init__.py`, `catalog/schemas.py`, `broker/bounds.py` and `server/conformance.py`. **Pending:** read-amplification receipts have no public call frames, so under the original v3 frame rules a genuine pass can never be creditable. A versioned broker-control frame rule was chosen and is being built in a separate, not yet accepted package; until it is accepted and exercised, that requirement stays uncreditable ([CONFORMANCE-V7.md](docs/CONFORMANCE-V7.md)).
+- **Normative-v3 producer bridge and public status (D7).** `verify_producer_bindings` checks v3 conformance documents against the fixed `policy/conformance/requirements-v1.json` inventory; legacy v1 authorities are integrity-only and never creditable. A finite `normative_v3_status` block (counts, bases, pins; totals null unless evaluated) reaches public reports. Dossier/ledger consumers were reconciled with their producers ([EVIDENCE.md](docs/EVIDENCE.md), [LEDGER.md](docs/LEDGER.md)).
+- **Report views (D4).** Mode-specific evaluation view sections in REPORT.md, `index.html` and `evaluation-views.json`, copied from the projected result; missing values read "not supplied", never zero ([REPORT-VIEWS.md](docs/REPORT-VIEWS.md)).
+- **Publisher and data (D5).** `scripts/eval.py --mode fit-reverify` writes a retrospective fit successor only with a separately pinned, authenticated receipt, leaving the original edition untouched. The dossier publication copies `normative_v3_status` only when the producer report is bound to the dossier pins. All 36 development oracles now prohibit every configured source outside the task allowlist (previously only the protected source), with the corpus manifest re-pinned. `pilot.py plan` reads the corpus through the canonical parser and requires `--development-manifest-sha256`. A root `.gitattributes` keeps pinned bytes identical across checkouts.
+
 ## What remains pending
 
-- Execute the source journey and meaningful regression/conformance checks after Dirty Mode closes. The static review is not runtime proof.
+- Execute the source journey and meaningful regression/conformance checks after Dirty Mode closes. The static review is not runtime proof. The short deferred-validation list is in [VALIDATION.md](docs/VALIDATION.md#deferred-validation-list).
+- Accept and exercise the read-amplification broker-control frame rule (see above); until then that normative requirement cannot be credited.
 - Establish and lock compatible Python/Pydantic/MCP dependencies; exercise actual stdio and separate-process IPC, failure/teardown/reset behavior, byte/line/frame/deadline caps and redaction.
 - Verify the authored disposable POSIX backend and its filesystem conformance track on actual supported storage. Current `synthetic-memory` evidence cannot satisfy it; real Windows filesystem support is deferred.
 - Admit and exercise the authored OpenAI/Anthropic HTTP codecs, controller and live-runner source with two exact model families, returned identities, dated prices, full-wire tokenizer, durable accounting and approved bounded spend. These integrations have not been run.
@@ -165,7 +175,7 @@ gold/dev/               development-only oracle labels, never provider inputs
 scripts/                demonstration and sole metric-edition publisher
 ```
 
-See [ARCHITECTURE.md](ARCHITECTURE.md), [limitations and validation handoff](docs/VALIDATION.md) and [provenance](docs/PROVENANCE.md). MIT licensed. Source was authored with Codex agents working in disjoint packages under Roy Harden’s direction. Coordination records and chat exports stay outside the product repository. No remote, publication, deployment or CI infrastructure was created.
+See [ARCHITECTURE.md](ARCHITECTURE.md), the [evaluation guide](docs/EVALUATION-GUIDE.md), [limitations and validation handoff](docs/VALIDATION.md) and [provenance](docs/PROVENANCE.md). MIT licensed. Source was authored with Codex and Claude agents working in disjoint packages under Roy Harden’s direction. Coordination records and chat exports stay outside the product repository. No remote, publication, deployment or CI infrastructure was created.
 
 The [scripted walkthrough](docs/DEMO.md) documents C0/C1/C2 and failure evidence without attributing any scripted selection to a real model.
 

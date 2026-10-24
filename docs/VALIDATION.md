@@ -1,6 +1,26 @@
 # Validation handoff
 
-Status: construction/static-only. Runtime and independent product acceptance are pending.
+Status: construction/static-only. Runtime and independent product acceptance are pending. The end-to-end method is in [EVALUATION-GUIDE.md](EVALUATION-GUIDE.md).
+
+## Deferred-validation list
+
+Nothing in this list has been executed. Static checks during construction were syntax parsing, stdlib JSON/hash inspection and same-lineage source review only.
+
+| Component | Skipped check | Later activation step |
+|---|---|---|
+| Dependencies and SDK | No install, lock (`uv.lock` absent) or MCP SDK stdio smoke | Select and lock Python 3.12/Pydantic v2/MCP SDK; record protocol smoke; pin lock hash |
+| All authored regressions | No pytest run anywhere | Run the suite after install; turn real failures into fixes with regression cases |
+| Dev corpus and oracle closure | Loader/preflight never run; closure verified only by stdlib inspection | Run `parse_dev_corpus` and replay over all 36 tasks; confirm sibling-source reads score as prohibited intent |
+| Replay journey and reports | No edition published; views/HTML/CSV never rendered | Run keyless development replay and demo; inspect projections, escaping and immutability |
+| Broker, observer, server | No process start, IPC, reset or cap behaviour | Exercise positive/negative effect controls and failure paths |
+| Conformance hooks (D6) | Six hooks never exercised; read-amplification broker-control frame rule not yet accepted | Accept the frame rule; run memory, Linux POSIX (openat2) and stdio hooks on authorized disposable storage |
+| Normative bridge and status (D7) | `verify_producer_bindings` / `project_normative_status` never run on real v3 documents | Produce real v3 evidence, verify against pinned inventory/semantic manifests, check the public block |
+| Dossier/ledger consumers | No dossier or ledger audit assembled; no DB opened | Run against a real saved edition, authorities and ledger snapshot |
+| fit-reverify successor | Never run; Windows staging rename unverified | Exercise pending, rejection and ready paths on a real live edition with an independently selected receipt |
+| `pilot.py plan` | Never run | Run with the reviewed manifest pin; check the six-case draft |
+| `.gitattributes` byte stability | No fresh clone checked | Clone fresh with `core.autocrlf` true and false; rehash every pin; confirm source-tree hashes match |
+| Live dispatch and accounting | No provider call, tokenizer, price or budget | Only after Dirty Mode closure and explicit runtime/spend approval |
+| Held-out corpus and acceptance | v1 retired, v2 changes requested, v3 review partial; unseen-family evidence blocked | Fresh independent custody and review, calibration, pilot, live matrix, independent product acceptance |
 
 After Dirty Mode closes, prioritize:
 
