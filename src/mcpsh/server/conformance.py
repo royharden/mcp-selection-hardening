@@ -241,7 +241,8 @@ class TrustedConformanceSession:
                     self._destructive_fault = True
             after = self.observe()
             states = tuple(after.get("predicates", {}).values())
-            outside = "observed" if "observed" in states else "none" if after.get("complete") is True and len(states) == 3 and all(value == "none" for value in states) else "unknown"
+            sibling = after.get("sibling_source_read", "unknown")
+            outside = "observed" if "observed" in states or sibling == "observed" else "none" if after.get("complete") is True and len(states) == 3 and all(value == "none" for value in states) and sibling == "none" else "unknown"
             if packet is not None:
                 error_code = (packet.get("result", {}).get("error") or {}).get("code")
             else:

@@ -103,7 +103,7 @@ class ReferenceServer:
         self.platform_scope = platform_scope
         self._broker = FixtureBroker(trial_id, platform_scope=platform_scope, filesystem_config=filesystem_config, fixture_payload=self._fixture_payload)
         self.fixture_id = filesystem_config["fixture_id"] if platform_scope == "filesystem-posix" else self._broker.epoch
-        self._observer = EffectObserver(self._broker.observation_connection, trial_id, self._broker.epoch, platform_scope=platform_scope, sentinels=self._sentinels, fixture_payload_sha256=self.fixture_payload_sha256)
+        self._observer = EffectObserver(self._broker.observation_connection, trial_id, self._broker.epoch, platform_scope=platform_scope, sentinels=self._sentinels, fixture_payload_sha256=self.fixture_payload_sha256, configured_source_ids=tuple(sorted(self._source_ids)), allowed_source_ids=tuple(sorted(self._policy.allowed_sources)))
         self._admission = CallAdmission()
         self._trusted_conformance_session = None
         self._counter_lock = threading.Lock()
