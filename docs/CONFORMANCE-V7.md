@@ -102,3 +102,31 @@ packet, so its provenance `frames` are empty and `verify_evidence` reports
 status PASS but never creditable, and the normative `read-amplification` requirement on
 memory/POSIX cannot be met as written. Options: a versioned frame rule for broker-control
 receipts, or a distinct control-receipt evidence channel. C1 does not fabricate frames.
+
+## C2 versioned broker-control frame rule (D6, INT decision 2026-10-23)
+
+Closes the C1 open item inside the v3 path. v1/v2 verification and `verify_evidence_v3`'s
+signature and return keys are unchanged; `requirements-v1.json` is unchanged.
+
+- Rule `m5-broker-control-receipt-v1` (`conformance/frame_rule.py`, `FRAME_RULES` closed
+  enum). Declared probes: `BROKER_CONTROL_PROBES = {"read-amplification": {synthetic-memory,
+  filesystem-posix}}`. Empty frames alone never imply the rule.
+- New v3 documents for a declared probe carry an optional root `frame_rule` field (schema:
+  `evidence-v3.schema.json`, closed object). Present means frames must be `[]`; absent means
+  the original v3 frame rules (old v3 documents verify exactly as before).
+- `frame_rule` binds the actual producer `control_receipt` verbatim plus `receipt_sha256`,
+  `evidence_scope`, `error_code` and the same-child identity (approval_id, conformance session,
+  server instance, trial, child/broker PID, broker epoch, fixture id/payload, sequence).
+- Verification recomputes from the bound receipt: digest and 16 KiB bound; scope
+  `actual-owned-broker-budget`; `error_code == probe_error_code`; the shared
+  `receipt_guard.read_amplification_checks` (stimulus exceeds 8 MiB, refused at budget boundary,
+  restored, real exception); broker dispatch (`applied` and `command == probe`); identity equal to
+  the session, external expected instance/fixture pins and observation epoch, and receipt
+  trial/epoch. A failed check emits `frame-rule.*` and leaves `frames.missing-or-cap` in place;
+  a structurally ill-typed rule header returns only `evidence-v3.ill-shaped`. Either way the record is
+  invalid and uncreditable.
+- Only on a fully valid binding are exactly `frames.missing-or-cap` and
+  `frames.response-attribution` waived; credit is then recomputed as no remaining violations,
+  actual track scope, complete observation and known coverage. Credit stays per-probe.
+- The runner attaches the binding only for declared probes with empty frames. The stdio alias
+  and config caps never qualify. Regressions: `tests/conformance/test_frame_rule_c2.py` (unrun).

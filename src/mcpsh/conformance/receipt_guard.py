@@ -106,24 +106,8 @@ def refusal_checks(hook, evidence):
                 "configured_within_maximum": 0 <= metrics[configured] <= maximum,
                 "same_reference_unchanged": evidence.get("observed_state_unchanged") is True}
     if hook == "read-amplification":
-        metrics = evidence["metrics"]
-        keys = ("aggregate_read_bytes", "read_limit_bytes", "completed_scans", "requested_scans",
-                "requested_scan_bytes")
-        if any(type(metrics.get(key)) is not int for key in keys):
-            return None
-        return {"aggregate_budget_refused": evidence.get("error_code") == ERRORS[hook],
-                "budget_exact": metrics["read_limit_bytes"] == READ_LIMIT_BYTES,
-                "bounded_aggregate": 0 <= metrics["aggregate_read_bytes"] <= READ_LIMIT_BYTES,
-                "stimulus_exceeds_budget": metrics["requested_scan_bytes"] > READ_LIMIT_BYTES,
-                "real_multiple_scans": 1 <= metrics["completed_scans"] < metrics["requested_scans"] == 3,
-                # Refusal at exactly the budget boundary, not an earlier deadline/other LIMIT_EXCEEDED.
-                "refused_at_budget_boundary": metrics["requested_scan_bytes"] % 3 == 0 and
-                    metrics["completed_scans"] == READ_LIMIT_BYTES // (metrics["requested_scan_bytes"] // 3) and
-                    metrics["aggregate_read_bytes"] == metrics["completed_scans"] * (metrics["requested_scan_bytes"] // 3),
-                "actual_broker_receipt": evidence["control_receipt"].get("applied") is True,
-                "aggregate_restored": evidence["control_receipt"].get("restored") is True or
-                    (evidence["control_receipt"].get("restoration_receipt") or {}).get("applied") is True,
-                "actual_limit_exception": isinstance(evidence["control_receipt"].get("validation_exception"), dict)}
+        return read_amplification_checks(evidence["control_receipt"], evidence["metrics"],
+                                         evidence.get("error_code"))
     packet = evidence.get("call")
     restore = evidence.get("restoration_receipt")
     if not isinstance(packet, dict) or not isinstance(restore, dict):
@@ -133,3 +117,32 @@ def refusal_checks(hook, evidence):
             "broker_dispatched": (packet.get("event") or {}).get("dispatched") is True,
             "stimulus_applied": evidence["control_receipt"].get("applied") is True,
             "owned_fixture_restored": restore.get("applied") is True}
+
+
+READ_AMPLIFICATION_METRICS = ("aggregate_read_bytes", "read_limit_bytes", "completed_scans",
+                              "requested_scans", "requested_scan_bytes")
+
+
+def read_amplification_checks(receipt, metrics, error_code):
+    """Pure recomputation shared by the runner and the v3 broker-control frame rule."""
+    if not isinstance(receipt, dict) or not isinstance(metrics, dict):
+        return None
+    if any(type(metrics.get(key)) is not int for key in READ_AMPLIFICATION_METRICS):
+        return None
+    if metrics["requested_scan_bytes"] // 3 <= 0:
+        # Untrusted receipts must never crash verification (division below).
+        return None
+    return {"aggregate_budget_refused": error_code == ERRORS["read-amplification"],
+            "budget_exact": metrics["read_limit_bytes"] == READ_LIMIT_BYTES,
+            "bounded_aggregate": 0 <= metrics["aggregate_read_bytes"] <= READ_LIMIT_BYTES,
+            "stimulus_exceeds_budget": metrics["requested_scan_bytes"] > READ_LIMIT_BYTES,
+            "real_multiple_scans": 1 <= metrics["completed_scans"] < metrics["requested_scans"] == 3,
+            # Refusal at exactly the budget boundary, not an earlier deadline/other LIMIT_EXCEEDED.
+            "refused_at_budget_boundary": metrics["requested_scan_bytes"] % 3 == 0 and
+                metrics["completed_scans"] == READ_LIMIT_BYTES // (metrics["requested_scan_bytes"] // 3) and
+                metrics["aggregate_read_bytes"] == metrics["completed_scans"] * (metrics["requested_scan_bytes"] // 3),
+            "actual_broker_receipt": receipt.get("applied") is True,
+            "aggregate_restored": receipt.get("restored") is True or
+                (isinstance(receipt.get("restoration_receipt"), dict) and
+                 receipt["restoration_receipt"].get("applied") is True),
+            "actual_limit_exception": isinstance(receipt.get("validation_exception"), dict)}

@@ -206,6 +206,13 @@ def run_conformance(request, *, backend_factory=None, expected_semantic_manifest
                     "expected_fixture_payload_sha256": binding.get("fixture_payload_sha256")}
                 if inventory is not None:
                     document = build_evidence_v3(document, inventory=inventory)
+                    from .frame_rule import attach_frame_rule, build_frame_rule, is_broker_control
+
+                    if is_broker_control(probe.probe_id, track) and not document["frames"]:
+                        # Declared broker-control probe: bind its actual receipt for v3 frame rule.
+                        rule = build_frame_rule(hook_evidence, probe_id=probe.probe_id, track=track)
+                        if rule is not None:
+                            document = attach_frame_rule(document, rule)
                     verification = verify_evidence_v3(document, requirements_raw=requirements_raw,
                         expected_requirements_manifest_sha256=expected_requirements_manifest_sha256,
                         **proof_binding)
