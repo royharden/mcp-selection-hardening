@@ -2,7 +2,7 @@
 
 Source constructed under Dirty Mode; no planner, summarizer, tokenizer, test, clock callback, model, fixture or runner has been executed.
 
-The six-case producer `scripts/pilot.py plan` emits exactly a `manifest`, `planned_caps` and `threshold_proposal` envelope. The sole evaluator accepts this real envelope or a standalone typed `DraftPilotManifest`. Cached counts/proposals are re-derived and compared as typed JSON, so metadata cannot turn strings/booleans into numeric planning authority. All raw input files still require explicit byte pins.
+The six-case producer `scripts/pilot.py plan --development-manifest-sha256 <raw-manifest-pin>` emits exactly a `manifest`, `planned_caps` and `threshold_proposal` envelope. The sole evaluator accepts this real envelope or a standalone typed `DraftPilotManifest`. Cached counts/proposals are re-derived and compared as typed JSON, so metadata cannot turn strings/booleans into numeric planning authority. All raw input files still require explicit byte pins.
 
 The full public development publication route is:
 

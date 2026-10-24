@@ -474,6 +474,15 @@ def main() -> int:
             sources=acceptance_sources, now=datetime.now(timezone.utc),
             threshold_attachment=dossier_threshold_attachment)
         result = dossier.result
+        if acceptance_sources.conformance is not None:
+            from mcpsh.runner.normative_status import attach_normative_status
+
+            # Copy-only, and only for a producer report bound to the external dossier pins.
+            attach_normative_status(
+                result, acceptance_sources.conformance.producer_report,
+                expected_report_sha256=dossier_authority.conformance_report_sha256,
+                expected_authority_sha256=dossier_authority.producer_authority_sha256,
+                source_index_sha256=dossier_authority.edition.index_sha256)
         manifest = result["manifest"]
         result["publication_edition_id"] = args.edition
         private_payloads.update({"dossier-authority.json": dossier_raw,

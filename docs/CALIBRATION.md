@@ -64,7 +64,7 @@ points, with its interval rule pending the required approval.
 Future CLI surface (do not execute while Dirty Mode is open):
 
 ```text
-python scripts/pilot.py plan [--arms draft-arms.json --arms-sha256 RAW_SHA256]
+python scripts/pilot.py plan --development-manifest-sha256 MANIFEST_RAW_SHA256 [--arms draft-arms.json --arms-sha256 RAW_SHA256]
 python scripts/pilot.py summarize --plan draft.json --plan-sha256 RAW_SHA256 \
   --observations observed-dev.json --observations-sha256 RAW_SHA256
 ```

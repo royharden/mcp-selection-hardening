@@ -24,28 +24,28 @@ def pinned_json(path: Path, expected_sha256: str, maximum_bytes: int = 8 * 1024 
     return strict_json_loads(raw)
 
 
-def public_inventory():
-    # Deliberately fixed public development paths: no held-out/oracle-path flag.
-    tasks_raw = (ROOT / "fixtures/dev/tasks.json").read_bytes()
-    labels_raw = (ROOT / "gold/dev/oracles.json").read_bytes()
-    tasks, labels = strict_json_loads(tasks_raw), strict_json_loads(labels_raw)
-    if type(tasks) is not list or type(labels) is not list:
-        raise ValueError("public development arrays required")
-    classes = {}
-    for label in labels:
-        if label.get("development_only") is not True or label["task_id"] in classes:
-            raise ValueError("unreviewed public development inventory must be unique and explicit")
-        classes[label["task_id"]] = label["task_class"]
+def public_inventory(expected_manifest_sha256: str):
+    """Classes come from the canonical dev-corpus parser, never ad hoc oracle JSON.
+
+    Deliberately fixed public development paths: no held-out/oracle-path flag. The
+    parser enforces the {schema_version, cases} oracle package, the task/oracle join
+    and the externally supplied manifest pin before any case is planned.
+    """
+    from mcpsh.catalog.dev_corpus import FILES, MANIFEST, ORACLES, TASKS, parse_dev_corpus
+
+    files = {name: (ROOT / name).read_bytes() for name in FILES}
+    package = parse_dev_corpus(files, expected_manifest_sha256=expected_manifest_sha256)
+    oracle_ids = {pair["oracle"]["task_id"] for pair in package["oracle_package"]["cases"]}
     records = []
-    for task in tasks:
+    for task in package["tasks"]:
         if task.get("development_only") is not True:
             raise ValueError("planner accepts public development cases only")
-        task_id = task["public"]["task_id"]
-        records.append(DevelopmentCase(task_id=task_id, task_class=classes[task_id]))
-    if {record.task_id for record in records} != set(classes):
-        raise ValueError("development inventory/class join mismatch")
-    pin = typed_hash({"tasks_raw_sha256": hashlib.sha256(tasks_raw).hexdigest(),
-                      "public_labels_raw_sha256": hashlib.sha256(labels_raw).hexdigest()})
+        records.append(DevelopmentCase(task_id=task["public"]["task_id"], task_class=task["task_class"]))
+    if len({record.task_id for record in records}) != len(records) or {record.task_id for record in records} != oracle_ids:
+        raise ValueError("development inventory/oracle join mismatch")
+    hashes = package["raw_sha256"]
+    pin = typed_hash({"tasks_raw_sha256": hashes[TASKS], "public_labels_raw_sha256": hashes[ORACLES],
+                      "manifest_raw_sha256": hashes[MANIFEST]})
     return tuple(records), pin
 
 
@@ -70,6 +70,8 @@ def main(argv=None):
     design.add_argument("--arms", type=Path, help="optional two-arm draft identity JSON")
     design.add_argument("--arms-sha256")
     design.add_argument("--seed", type=int, default=1729)
+    design.add_argument("--development-manifest-sha256", required=True,
+                        help="explicit raw pin for canonical fixtures/dev/corpus-manifest-v2.json")
     design.add_argument("--out", type=Path)
     summarize = commands.add_parser("summarize", help="summarize pinned supplied evidence only")
     for name in ("plan", "observations"):
@@ -78,7 +80,7 @@ def main(argv=None):
     summarize.add_argument("--out", type=Path)
     args = parser.parse_args(argv)
     if args.command == "plan":
-        cases, input_pin = public_inventory()
+        cases, input_pin = public_inventory(args.development_manifest_sha256)
         arms = None
         if args.arms is not None:
             if not args.arms_sha256:
