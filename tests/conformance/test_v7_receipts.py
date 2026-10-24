@@ -51,8 +51,9 @@ def test_handwritten_pass_boolean_is_not_proof():
 def test_aggregate_single_scan_is_not_read_amplification():
     _, evidence = receipt()
     evidence.update(evidence_source="actual-owned-reference-conformance", error_code="LIMIT_EXCEEDED",
+        evidence_scope="actual-owned-broker-budget",
         metrics={"aggregate_read_bytes": 8388608, "read_limit_bytes": 8388608,
-                 "completed_scans": 0, "requested_scans": 3})
+                 "completed_scans": 0, "requested_scans": 3, "requested_scan_bytes": 9437184})
     assert not all(refusal_checks("read-amplification", evidence).values())
 
 

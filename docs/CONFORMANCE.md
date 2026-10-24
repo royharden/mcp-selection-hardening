@@ -160,7 +160,9 @@ can support that track's probe evaluation, not that a protocol check succeeded o
 that a product/release was accepted. Source pins have exactly server/broker/observer/
 stdio/conformance keys and bind bounded public source bytes at activation and probe
 completion. server/broker/observer/conformance pins cover each directory's bounded
-Python source closure, including admission/control modules; stdio pins its exact
+Python source closure, including admission/control modules; the server pin also
+covers policy/__init__.py and catalog/schemas.py, and required producer members
+(e.g. broker/bounds.py) must be present (C1, CONFORMANCE-V7.md); stdio pins its exact
 adapter source. The caller supplies expected pins externally; record self-hashes alone
 do not authorize a different selection or prove an observation narrative true.
 

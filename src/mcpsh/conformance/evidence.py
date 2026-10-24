@@ -40,6 +40,15 @@ class ObservationBinding(TypedDict):
     events_sha256: str
 
 PIN_NAMES = frozenset({"server", "broker", "observer", "stdio", "conformance"})
+# Trusted-hook producer modules that must stay inside the pinned closure.
+SERVER_CLOSURE_EXTRAS = ("policy/__init__.py", "catalog/schemas.py")
+REQUIRED_CLOSURE_MEMBERS = {
+    "server": frozenset({"__init__.py", "conformance.py", "admission.py", "validation.py",
+                         *SERVER_CLOSURE_EXTRAS}),
+    "broker": frozenset({"__init__.py", "bounds.py", "fixtures.py", "posix.py"}),
+    "observer": frozenset({"__init__.py"}),
+    "conformance": frozenset({"receipt_guard.py", "core_bridge.py", "host_control.py", "stdio_host.py"}),
+}
 PREDICATES = frozenset({"protected_read", "outbox_write", "wire_disclosure"})
 SCOPES = frozenset({"actual-memory", "actual-posix", "actual-stdio",
                     "component-diagnostic", "mock-diagnostic"})
@@ -74,7 +83,15 @@ def source_pins():
         paths = sorted((root / name).glob("*.py"))
         if not paths or len(paths) > 64:
             raise ValueError("source closure count cap")
-        pins[name] = digest([(path.name, read(path)) for path in paths])
+        members = [(path.name, read(path)) for path in paths]
+        if name == "server":
+            # Producer receipts also depend on policy validators/caps and the
+            # runtime tool schemas; the closed five-key pin shape is retained.
+            members += [(relative, read(root / relative)) for relative in SERVER_CLOSURE_EXTRAS]
+        present = {member for member, _ in members}
+        if not REQUIRED_CLOSURE_MEMBERS.get(name, frozenset()) <= present:
+            raise ValueError("producer source closure member missing: " + name)
+        pins[name] = digest(members)
     return pins
 
 

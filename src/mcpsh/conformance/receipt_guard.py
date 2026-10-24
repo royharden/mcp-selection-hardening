@@ -9,6 +9,16 @@ COMPONENT_HOOKS = frozenset({"source-count-cap", "custom-rule-count-cap"})
 ERRORS = {"missing-source": "SOURCE_MISSING", "binary-content": "BINARY_CONTENT",
           "unsupported-encoding": "UNSUPPORTED_ENCODING", "read-amplification": "LIMIT_EXCEEDED",
           "source-count-cap": "CONFIG_INVALID", "custom-rule-count-cap": "CONFIG_INVALID"}
+# Exact producer evidence_scope per hook (server/conformance.py exercise).
+SCOPES = {"missing-source": "actual-owned-reference", "binary-content": "actual-owned-reference",
+          "unsupported-encoding": "actual-owned-reference", "read-amplification": "actual-owned-broker-budget",
+          "source-count-cap": "component-diagnostic", "custom-rule-count-cap": "component-diagnostic"}
+# Normative maxima from requirements-v1; deliberately literal so production drift is caught.
+READ_LIMIT_BYTES = 8388608
+CAP_METRICS = {"source-count-cap": ("AccessPolicy", 100, "configured_sources",
+                                    "attempted_configured_sources", "policy_validation_maximum"),
+               "custom-rule-count-cap": ("redact-configuration", 32, "custom_rules",
+                                         "attempted_custom_rules", "validation_maximum")}
 
 
 class ReceiptGuard:
@@ -69,14 +79,19 @@ def refusal_checks(hook, evidence):
         return None
     if not evidence.get("control_receipt") or not evidence.get("before") or not evidence.get("after"):
         return None
+    if hook not in SCOPES or evidence.get("evidence_scope") != SCOPES[hook]:
+        # A producer receipt from another scope is never relabelled here.
+        return None
+    if not isinstance(evidence.get("metrics"), dict):
+        return None
     if hook in COMPONENT_HOOKS:
-        if evidence.get("evidence_scope") != "component-diagnostic":
-            return None
         attempts = evidence["control_receipt"].get("attempts")
         if not isinstance(attempts, list) or not attempts:
             return None
-        maximum = 100 if hook == "source-count-cap" else 32
-        validator = "AccessPolicy" if hook == "source-count-cap" else "redact-configuration"
+        validator, maximum, configured, attempted, reported_maximum = CAP_METRICS[hook]
+        metrics = evidence["metrics"]
+        if any(type(metrics.get(key)) is not int for key in (configured, attempted, reported_maximum)):
+            return None
         boundary = [row for row in attempts if row.get("validator") == validator and row.get("offered_count") == maximum]
         overflow = [row for row in attempts if row.get("validator") == validator and row.get("offered_count") == maximum + 1]
         if len(boundary) != 1 or len(overflow) != 1:
@@ -86,16 +101,25 @@ def refusal_checks(hook, evidence):
                 "overflow_exception": overflow[0].get("accepted") is False and
                     isinstance(overflow[0].get("validation_exception"), dict) and
                     overflow[0]["validation_exception"].get("type") == "ValueError",
+                "producer_maximum_normative": metrics[reported_maximum] == maximum,
+                "overflow_attempt_counted": metrics[attempted] == maximum + 1,
+                "configured_within_maximum": 0 <= metrics[configured] <= maximum,
                 "same_reference_unchanged": evidence.get("observed_state_unchanged") is True}
     if hook == "read-amplification":
-        metrics = evidence.get("metrics", {})
-        keys = ("aggregate_read_bytes", "read_limit_bytes", "completed_scans", "requested_scans")
+        metrics = evidence["metrics"]
+        keys = ("aggregate_read_bytes", "read_limit_bytes", "completed_scans", "requested_scans",
+                "requested_scan_bytes")
         if any(type(metrics.get(key)) is not int for key in keys):
             return None
         return {"aggregate_budget_refused": evidence.get("error_code") == ERRORS[hook],
-                "budget_exact": metrics["read_limit_bytes"] == 8388608,
-                "bounded_aggregate": 0 <= metrics["aggregate_read_bytes"] <= 8388608,
+                "budget_exact": metrics["read_limit_bytes"] == READ_LIMIT_BYTES,
+                "bounded_aggregate": 0 <= metrics["aggregate_read_bytes"] <= READ_LIMIT_BYTES,
+                "stimulus_exceeds_budget": metrics["requested_scan_bytes"] > READ_LIMIT_BYTES,
                 "real_multiple_scans": 1 <= metrics["completed_scans"] < metrics["requested_scans"] == 3,
+                # Refusal at exactly the budget boundary, not an earlier deadline/other LIMIT_EXCEEDED.
+                "refused_at_budget_boundary": metrics["requested_scan_bytes"] % 3 == 0 and
+                    metrics["completed_scans"] == READ_LIMIT_BYTES // (metrics["requested_scan_bytes"] // 3) and
+                    metrics["aggregate_read_bytes"] == metrics["completed_scans"] * (metrics["requested_scan_bytes"] // 3),
                 "actual_broker_receipt": evidence["control_receipt"].get("applied") is True,
                 "aggregate_restored": evidence["control_receipt"].get("restored") is True or
                     (evidence["control_receipt"].get("restoration_receipt") or {}).get("applied") is True,
@@ -105,5 +129,7 @@ def refusal_checks(hook, evidence):
     if not isinstance(packet, dict) or not isinstance(restore, dict):
         return None
     return {"actual_call_refused": (packet.get("result", {}).get("error") or {}).get("code") == ERRORS[hook],
+            # The refusal must come from the stimulated broker read, not pre-dispatch validation.
+            "broker_dispatched": (packet.get("event") or {}).get("dispatched") is True,
             "stimulus_applied": evidence["control_receipt"].get("applied") is True,
             "owned_fixture_restored": restore.get("applied") is True}

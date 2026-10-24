@@ -52,7 +52,9 @@ def main():
         injected = "reference" in parameters and "conformance_session" in parameters
         identity = {"child_pid": os.getpid(), "server_instance_id": reference.instance_id,
                     "trial_id": reference.trial_id,
-                    "fixture_id": fixture["fixture_ref"],
+                    # Producer receipts attribute reference.fixture_id (instance),
+                    # not the public fixture_ref; same-child guards compare both.
+                    "fixture_id": reference.fixture_id,
                     "fixture_payload_sha256": reference.fixture_payload_sha256,
                     "platform_scope": reference.platform_scope,
                     "core_control_available": control is not None,
