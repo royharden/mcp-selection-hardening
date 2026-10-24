@@ -259,6 +259,26 @@ LEDGER_AUDIT = {"schema_version": COUNT, "scope": E("read-only-authoritative-led
     "non_model": L({"id": A("non-model-event"), "category": E("replay", "keyword", "abstain")}),
     "dispatches": L({"attempt_id": A("attempt"), "scope": A("dispatch-scope")}),
     "dispatch_stops": L({"reason": "failure"})}
+NORMATIVE_REASONS = ("requirements-authority-invalid", "unselected", "missing-evidence", "invalid-evidence",
+                     "component-or-nonplatform-scope", "incomplete-or-unknown-observation")
+NORMATIVE_TRACK = {"required_scope": E("actual-memory", "actual-posix", "actual-stdio"),
+    **{key: COUNT for key in ("required_requirements", "per_probe_creditable_requirements",
+                              "pending_requirements", "selected_probe_count")},
+    "pending_reason_counts": {key: COUNT for key in NORMATIVE_REASONS}, "verdict": E("pending")}
+# Mirrors evidence.producers.project_normative_status; finite counts/bases/pins, no documents.
+NORMATIVE_STATUS = {"version": E("m5-normative-v3-status-1"),
+    "mode": E("normative-v3", "legacy-v1-integrity-only"),
+    "status": E("evaluated", "authority-invalid", "requirements-unavailable", "not-evaluated"),
+    "basis": E("fixed-normative-inventory", "legacy-v1-authority"),
+    "inventory_version": E("m5-conformance-boundaries-v1"),
+    **{key: HASH for key in ("inventory_sha256", "requirements_manifest_sha256", "semantic_manifest_sha256",
+                             "source_index_sha256", "authority_sha256")},
+    "authority_valid": BOOLEAN,
+    **{key: COUNT for key in ("selected_probe_count", "unmapped_selected_probes", "creditable_probes",
+        "required_requirements", "per_probe_creditable_requirements", "pending_requirements")},
+    "probe_states": {key: COUNT for key in ("verified", "invalid", "unknown")},
+    "tracks": {track: NORMATIVE_TRACK for track in ("synthetic-memory", "filesystem-posix", "stdio")},
+    "full_platform_credit": "false-only", "suite_acceptance": E("pending"), "product_verdict": E("pending")}
 ACCEPTANCE = {"schema_version": COUNT, "manifest_sha256": HASH, "outcomes_sha256": HASH,
     "recommendation": E("do-not-accept", "collect-required-evidence", "exploratory-only", "eligible-for-independent-review"),
     "independent_product_acceptance": E("pending"), "criteria": L({"criterion_id": A("criterion"),
@@ -476,6 +496,7 @@ def project_public_result(result: dict, *, policy: ProjectionPolicy | None = Non
             **{key: COUNT for key in ("attempts_total", "attempts_verified", "attempts_unknown", "trials_without_attempts")},
             **{key: HASH for key in ("journal_sha256", "bundle_typed_sha256", "expectations_sha256")},
             "live_admission": "false-only", "billing_verified": "false-only"},
+        "normative_v3_status": NORMATIVE_STATUS,
         "input_pins": {key: HASH for key in ("plan_sha256", "outcomes_sha256", "failures_sha256")},
         "development_input_pins": {"version": E("m5-dev-semantic-v2"), "manifest_sha256": HASH,
             "cases": COUNT, "episodes": COUNT, "scope": E("source-data-only; runtime-unverified"),

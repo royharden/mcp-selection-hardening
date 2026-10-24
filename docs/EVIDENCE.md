@@ -178,6 +178,74 @@ adapter always returns `full_platform_credit=False`: complete supported-probe co
 and independent platform/product acceptance remain outside a per-probe structural join.
 Producer verification output is private; it does not publish artifact descriptions.
 
+### Normative-v3 producer bridge (C1)
+
+`verify_producer_bindings` now has two explicit modes, reported as `mode`:
+
+- `ProducerAuthority` (schema 1, unchanged fields so historical authority hashes stay
+  stable) is `legacy-v1-integrity-only`. It still runs D6's v1 checker but every probe
+  is `creditable=False` (the v1 result is kept as `integrity_creditable`), because v1
+  has no semantic or normative authority. It rejects semantic/inventory resources.
+- `NormativeProducerAuthority` (schema 2) is `normative-v3`. It adds external
+  `semantic_manifest_sha256` and `requirements_manifest_sha256` pins. Conformance
+  documents are keyed by `probe_key(track, probe_id)` (`"<track>/<probe_id>"`), because
+  one probe can serve several tracks. Each document goes to D6's
+  `evidence_v3.verify_evidence_v3(document, requirements_raw=...,
+  expected_requirements_manifest_sha256=..., semantic_manifest=...,
+  expected_manifest_sha256=..., <all v1 probe/track/request/source/server/fixture pins>)`.
+  The caller passes the public `semantic_manifest` dict and the `requirements_raw`
+  inventory bytes explicitly; nothing is discovered or read from disk.
+
+Normative mode never falls back. If either resource is missing, every probe is
+`unknown` (`conformance.normative-resource-missing`) and the summary is
+`requirements-unavailable`, with no counts made up. If the inventory bytes do not match
+the external pin, the summary is `authority-invalid` and gives no counts or tracks at
+all: unapproved bytes cannot supply a smaller denominator. A v1/v2 document is `invalid` (`conformance.v3-required`).
+The edition platform-mismatch check applies in both modes.
+
+The private `normative` block reports the **whole** externally pinned inventory
+(`policy/conformance/requirements-v1.json`) for all three tracks, whatever was
+selected. Per track: `required_requirements` (equal to D6's `required_counts`),
+`per_probe_creditable_requirements`, `pending_requirements`, `pending_reason_counts`
+over the fixed reasons `requirements-authority-invalid`, `unselected`,
+`missing-evidence`, `invalid-evidence`, `component-or-nonplatform-scope` and
+`incomplete-or-unknown-observation`, plus `required_probe_ids`, `selected_probe_count`
+and per-requirement rows that keep `observed_predicates`. A requirement is
+`per-probe-creditable` only if the inventory authority is valid and every mapped probe
+verified creditably at that track's actual scope. Component and mock scopes never
+qualify. Selected probes outside the inventory are counted in
+`unmapped_selected_probes`; they are never added to the denominator. Track `verdict`,
+`suite_acceptance` and `product_verdict` stay `pending`, and `full_platform_credit`
+stays false: D6's suite audit (`requirements.audit_requirements`) and independent
+acceptance stay separate. The output has `visibility: private`.
+
+Public status: `project_normative_status(bindings) -> dict` turns a bridge result into
+the finite `m5-normative-v3-status-1` block. The canonical `project_public_result`
+whitelists it at root key `normative_v3_status`. Fields:
+
+- `version`, `mode`, `status`, `basis`, `inventory_version`
+- pins: `inventory_sha256`, `requirements_manifest_sha256`, `semantic_manifest_sha256`,
+  `source_index_sha256`, `authority_sha256`
+- `authority_valid`, `selected_probe_count`, `unmapped_selected_probes`,
+  `probe_states` (`verified`/`invalid`/`unknown`), `creditable_probes`
+- totals: `required_requirements`, `per_probe_creditable_requirements`,
+  `pending_requirements`
+- `tracks`: for each of `synthetic-memory`, `filesystem-posix`, `stdio`:
+  `required_scope`, the four counts, `pending_reason_counts`, `verdict=pending`
+- `full_platform_credit` (false only; any other value projects to null),
+  `suite_acceptance=pending`, `product_verdict=pending`
+
+No documents, requirement rows, probe IDs, predicates or violation text are
+included. Totals and `tracks` are null unless the summary is `evaluated`, so an
+unavailable or unapproved inventory, or legacy mode, never shows up as zero
+obligations. The D1 publisher and D4 views copy this block as-is; they don't
+recompute it.
+
+Regression source: `tests/evidence/test_normative_bridge.py` (full denominator kept,
+missing v3 explicit, pin mismatches rejected, component scope uncredited, legacy mode
+integrity-only, public status finite and unchanged by projection, withheld counts,
+tampered credit flag). It was written under Dirty Mode and not run.
+
 V3 construction receipt: fourteen owned Python sources parsed with stdlib AST and
 passed direct whitespace inspection. Forty-five regression functions are present in
 that checked source scope, including meaningful selected-cap, codec recovery, exact
