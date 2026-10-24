@@ -38,18 +38,34 @@ scalars: `execution_state`, `platform_scope`, `development_only`, `live_model_ru
 `projection.policy`, plus the counts of rows and listed unknown trials. Other keys are
 never shown. Neither are nested metadata, raw authority, bodies or final text.
 
-Cross-axis diagnostics are produced inside the private acceptance dossier.
-Projection `mcpsh-public-result-v1` defines no aliased `cross_axes` block, so dossier
-editions show that section as `pending`. Any `cross_axes` key on the input is
-ignored. That way unaliased model IDs or per-trial diagnostics cannot be displayed.
-Before it can be shown, the projector owner must add an aliased schema and this
-module must add a whitelist.
+Cross-axis diagnostics are produced by the dossier and projected as root
+`cross_axes`, version `cross-axis-status-v1`. In that block the projector aliases
+group `model_id` and every selector that is not a control selector. The block has no
+per-trial rows, call order, hashes, arguments or text. The views render it only when
+`version` is exactly `cross-axis-status-v1`. A `cross_axes` value without that
+version, such as a raw private summary, is ignored and the section shows as
+`pending`. A dossier edition without the block also shows `pending`.
+
+When the block is present, three sections are shown:
+
+- **Cross-axis diagnostics** lists the version, interpretation, source integrity, the
+  scheduled, supplied, missing, duplicate and unexpected row counts, and the
+  unlisted-code count. It also shows the trial-state, observer-effect, cost-state,
+  utility-basis, semantic-utility and mixed-failure-category maps, and
+  `independent_product_acceptance`.
+- **Cross-axis diagnostic codes** lists each supplied code with its trial count,
+  sorted. A supplied zero stays zero.
+- **Cross-axis groups** lists group coordinates and counts. A shared
+  scheduled-coordinate denominator is not an acceptance denominator.
+
+Missing counts show as `not supplied`. No rate, interval or acceptance metric is
+derived.
 
 | `execution_state` | Sections expected (pending when absent) |
 | --- | --- |
 | `pilot-summary-draft` | pilot status, pilot threshold proposal, threshold approval binding |
 | `development-summary-draft` | full36 status, paired retention, development threshold proposal, threshold approval binding |
-| `acceptance-dossier-draft` | acceptance dossier status, cross-axis diagnostics (pending until projected) |
+| `acceptance-dossier-draft` | acceptance dossier status, cross-axis diagnostics |
 | `ledger-audit-draft` | ledger audit status |
 | `replay-only` | replay design, development input pins |
 | `live-complete`, `partial` | token-fit status |
@@ -83,10 +99,10 @@ verdicts, `suite_acceptance` and `product_verdict` stay `pending`.
 
 ## Status
 
-These views were built under Dirty Mode and have not been run. Nine regressions were
+These views were built under Dirty Mode and have not been run. Ten regressions were
 written in `tests/report/test_evaluation_views.py` and have not been run: value
 preservation, missing versus zero, retained unknown and gap rows, replay and platform
 labels, hostile cells, the shared object left unchanged, deterministic order,
-normative-v3 pending versus evaluated, and cross-axis staying pending with unprojected
-data ignored. A rendering pass over real projected editions
+normative-v3 pending versus evaluated, the projected cross-axis block copied with its
+missing counts pending, and an unversioned cross-axis summary ignored. A rendering pass over real projected editions
 still needs to happen.

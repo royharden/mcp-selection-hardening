@@ -85,6 +85,15 @@ SECTIONS = (
 )
 RETENTION_COLUMNS = ("arm_slot", "decision", "family_independence", "interpretation", "metric", "difference",
                      "low", "high", "family_count", "missing_pairs", "unknown_metric_trials")
+CROSS_AXIS_VERSION = "cross-axis-status-v1"
+CROSS_AXIS_FIELDS = ("version", "source_version", "interpretation", "source_integrity", "scheduled_denominator",
+    "supplied_rows", "missing_scheduled_rows", "duplicate_rows", "unexpected_rows", "unlisted_code_count",
+    "trial_states", "observer_effect", "cost_state", "utility_basis", "semantic_utility",
+    "mixed_failure_categories", "independent_product_acceptance")
+CROSS_AXIS_GROUP_COLUMNS = ("model_id", "selector", "condition", "cell", "repeat", "execution_mode",
+    "platform_scope", "utility_basis", "cost_basis", "supplied_rows", "shared_scheduled_coordinate_denominator",
+    "observed_effect_rows", "unknown_effect_rows", "semantic_success_rows", "legacy_proxy_rows",
+    "unknown_utility_rows", "unknown_cost_rows", "inconsistent_rows")
 NORMATIVE_TRACKS = ("synthetic-memory", "filesystem-posix", "stdio")
 NORMATIVE_REASONS = ("requirements-authority-invalid", "unselected", "missing-evidence", "invalid-evidence",
                      "component-or-nonplatform-scope", "incomplete-or-unknown-observation")
@@ -187,13 +196,34 @@ def evaluation_view_sections(public_result: dict) -> list[dict]:
             else:
                 sections.append(_absent("development_paired_retention", retention_title,
                                         "development_paired_retention" in expected))
-    # Projection mcpsh-public-result-v1 defines no aliased cross-axis block, so any
-    # `cross_axes` key is ignored rather than displayed with unaliased identifiers.
-    if "cross_axes" in expected:
-        sections.append(_section("cross_axes", "Cross-axis diagnostics", PENDING,
-            "Cross-axis diagnostics are in the private dossier; this public projection carries no cross-axis block."))
+    # Only the projected, versioned block is shown; its group identities are already
+    # aliased by the projector. A raw private summary (no version) stays pending.
+    cross = public_result.get("cross_axes")
+    title = "Cross-axis diagnostics"
+    if isinstance(cross, dict) and cross.get("version") == CROSS_AXIS_VERSION:
+        sections.append(_section("cross_axes", title, PRESENT,
+            "Diagnostic counts only: no rates, intervals or acceptance metric.", rows=_fields(cross, CROSS_AXIS_FIELDS)))
+        codes = cross.get("code_counts")
+        if isinstance(codes, dict):
+            sections.append(_section("cross_axes_codes", "Cross-axis diagnostic codes", PRESENT,
+                "Every listed code with its supplied trial count; unlisted codes are counted above.",
+                ("code", "trials"), [(_text(code), _text(codes[code])) for code in sorted(codes, key=str)]))
+        else:
+            sections.append(_section("cross_axes_codes", "Cross-axis diagnostic codes", PENDING,
+                                     "Code counts were not supplied."))
+        groups = cross.get("groups")
+        if isinstance(groups, list):
+            sections.append(_section("cross_axes_groups", "Cross-axis groups", PRESENT,
+                "A shared scheduled-coordinate denominator is not an acceptance denominator.", CROSS_AXIS_GROUP_COLUMNS,
+                [tuple(_text(group.get(name)) if isinstance(group, dict) else MISSING
+                       for name in CROSS_AXIS_GROUP_COLUMNS) for group in groups]))
+        else:
+            sections.append(_section("cross_axes_groups", "Cross-axis groups", PENDING, "Groups were not supplied."))
+    elif "cross_axes" in expected or cross is not None:
+        sections.append(_section("cross_axes", title, PENDING,
+            f"No projected {CROSS_AXIS_VERSION} block was supplied in this public result."))
     else:
-        sections.append(_absent("cross_axes", "Cross-axis diagnostics", False))
+        sections.append(_absent("cross_axes", title, False))
     return sections
 
 

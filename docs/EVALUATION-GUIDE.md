@@ -94,7 +94,7 @@ A separate nonauthor reviewer then has to:
 - rerun supported conformance;
 - adjudicate label and family lineage with explicit custody grants.
 
-Cross-axis diagnostics are kept in the private dossier. Public projection v1 has no cross-axis block, so the report shows **Cross-axis diagnostics (pending)** rather than an empty or clean result ([CROSS-AXIS.md](CROSS-AXIS.md)). The primary unseen-family claim requires independently authored held-out families whose lineage has been adjudicated. If they are missing, the claim is blocked. Swapping in new seeds or IDs does not unblock it.
+The dossier publishes a finite cross-axis status block (`cross_axes`, version `cross-axis-status-v1`) whose group identities are aliased ([CROSS-AXIS.md](CROSS-AXIS.md)). The report shows it as **Cross-axis diagnostics**, **Cross-axis diagnostic codes** and **Cross-axis groups**. These are diagnostic counts, not an additional acceptance metric. If the block is absent, the section shows as pending rather than as an empty or clean result. The primary unseen-family claim requires independently authored held-out families whose lineage has been adjudicated. If they are missing, the claim is blocked. Swapping in new seeds or IDs does not unblock it.
 
 ## 7. Separate bases: do not pool them
 

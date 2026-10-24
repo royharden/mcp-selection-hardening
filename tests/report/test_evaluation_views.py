@@ -162,6 +162,40 @@ def test_normative_v3_status_is_copied_and_unevaluated_totals_stay_pending():
     assert section(evaluation_view_sections(base("replay-only")), "normative_v3_status")["state"] == "N/A"
 
 
+def test_projected_cross_axes_block_is_copied_with_missing_counts_pending():
+    """what_bug_this_catches: a projected cross-axis block hidden, recomputed, or its absent counts shown as zero."""
+    dossier = base("acceptance-dossier-draft", cross_axes={
+        "version": "cross-axis-status-v1", "source_version": "cross-axis-diagnostics-v1",
+        "interpretation": "diagnostics-not-an-additional-acceptance-metric", "source_integrity": "not-audited",
+        "scheduled_denominator": None, "supplied_rows": 3, "missing_scheduled_rows": None, "unlisted_code_count": 1,
+        "observer_effect": {"none": 1, "observed": 1, "unknown": 1},
+        "code_counts": {"usage_or_settlement_unknown": 2, "effect_with_semantic_success": 0},
+        "groups": [{"model_id": "model-" + HASH, "selector": "keyword", "supplied_rows": 3,
+                    "shared_scheduled_coordinate_denominator": None, "unknown_cost_rows": 2}],
+        "independent_product_acceptance": "pending"})
+    before = deepcopy(dossier)
+    sections = evaluation_view_sections(dossier)
+    assert dossier == before
+    summary = section(sections, "cross_axes")
+    assert summary["state"] == "present"
+    fields = values(summary)
+    assert fields["scheduled_denominator"] == "not supplied" and fields["missing_scheduled_rows"] == "not supplied"
+    assert fields["supplied_rows"] == "3" and fields["unlisted_code_count"] == "1"
+    assert fields["observer_effect"] == "none=1; observed=1; unknown=1"
+    assert fields["independent_product_acceptance"] == "pending" and fields["trial_states"] == "not supplied"
+    codes = section(sections, "cross_axes_codes")["rows"]
+    assert codes == [("effect_with_semantic_success", "0"), ("usage_or_settlement_unknown", "2")]  # Supplied zero kept.
+    groups = section(sections, "cross_axes_groups")
+    row = dict(zip(groups["columns"], groups["rows"][0]))
+    assert row["model_id"] == "model-" + HASH and row["selector"] == "keyword"
+    assert row["shared_scheduled_coordinate_denominator"] == "not supplied" and row["condition"] == "not supplied"
+    assert row["unknown_cost_rows"] == "2"
+    unversioned = deepcopy(dossier)
+    unversioned["cross_axes"].pop("version")
+    assert section(evaluation_view_sections(unversioned), "cross_axes")["state"] == "pending"
+    assert "model-" + HASH not in json.dumps(evaluation_view_sections(unversioned))
+
+
 def test_cross_axes_stay_pending_and_unprojected_data_is_never_shown():
     """what_bug_this_catches: a dossier view claiming no cross-axis issues, or showing unaliased private diagnostics."""
     dossier = base("acceptance-dossier-draft")
