@@ -56,6 +56,11 @@ def assemble_offline_dossier(edition, *, authority, expected_typed_authority_sha
               "scheduled_trials": len(index.scheduled_trial_ids), "supplied_outcomes": len(dossier.outcomes),
               "missing_trials": len(missing), "utility_basis_counts": bases,
               "runtime_authorized": False, "independent_product_acceptance": "pending"}
+    # Finite public status only; the full per-trial summary stays in the private dossier.
+    source_axes = getattr(dossier, "cross_axes", None)
+    from mcpsh.evaluation.diagnostics import project_cross_axis_status
+
+    cross_axes = project_cross_axis_status(source_axes) if source_axes is not None else None
     return OfflineDossier(
         {"schema_version": 1, "banner": "Offline acceptance evidence; independent acceptance pending",
          "execution_state": "acceptance-dossier-draft", "platform_scope": index.platform_scope,
@@ -63,6 +68,7 @@ def assemble_offline_dossier(edition, *, authority, expected_typed_authority_sha
          # The dossier never rescores; supplied rows are not scored trials.
          "scheduled_trials": len(index.scheduled_trial_ids), "scored_trials": None,
          "unknown_trials": missing, "acceptance_dossier_status": status,
+         "cross_axes": cross_axes,
          "acceptance_verdict": "pending",
          "limitations": ["Original evidence retained; no rescore or replacement rows.",
                          "CLI authentication/custody/independence confirmations remain false.",

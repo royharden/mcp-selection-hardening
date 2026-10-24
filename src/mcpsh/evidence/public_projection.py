@@ -26,6 +26,22 @@ FAILURE_CODES = frozenset({"task_deadline_exceeded", "selector_invalid_call_batc
     "selection_journal_unavailable_or_incomplete", "runner_stopped_before_dispatch",
     "selector_rejected_before_dispatch", "usage_unknown", "identity_drift", "rate_limit",
     "transient_transport", "selection_capture_incomplete", "reservation_overrun"})
+# Closed accounting.report ledger diagnostic/reason vocabulary (mirrored, not imported, to
+# avoid an evidence<->accounting import cycle; a parity test pins it). Anything else
+# still becomes a hashed private-detail code exactly as before.
+LEDGER_CODES = frozenset({"amount_and_attempt_state_disagree", "attempt_missing_dispatch_intent",
+    "billing_evidence_unpinned_or_mismatched", "committed_over_budget", "dispatches_missing_attempt_parent",
+    "duplicate_billing_evidence", "duplicate_reuse_reference_no_new_charge_or_sample_credit",
+    "edition_attempts_missing_from_ledger", "edition_original_price_pin_mismatch",
+    "finished_operation_hides_unknown_liability", "known_cost_exceeds_reservation",
+    "logical_snapshot_differs_from_external_pin", "missing_operation_parent",
+    "missing_or_mismatched_original_price_pin", "open_reservation_unsettled", "operation_provider_model_mismatch",
+    "operation_request_pin_mismatch", "recorded_cost_differs_from_edition", "recorded_usage_differs_from_edition",
+    "scheduled_model_trial_without_attempts", "scheduled_trial_cost_unknown", "scheduled_trial_rows_unavailable",
+    "settlement_reference_not_bound_to_attempt", "trial_turn_model_operation_parent_mismatch",
+    "unallocated_attempt_parent_unknown", "unallocated_billing_evidence", "unknown_attempt_state",
+    "unknown_liability_reservation_retained", "unknown_non_model_category", "unknown_operation_state"})
+FAILURE_CODES = FAILURE_CODES | LEDGER_CODES
 
 
 class ProjectionRejected(ValueError):
@@ -279,6 +295,45 @@ NORMATIVE_STATUS = {"version": E("m5-normative-v3-status-1"),
     "probe_states": {key: COUNT for key in ("verified", "invalid", "unknown")},
     "tracks": {track: NORMATIVE_TRACK for track in ("synthetic-memory", "filesystem-posix", "stdio")},
     "full_platform_credit": "false-only", "suite_acceptance": E("pending"), "product_verdict": E("pending")}
+# Mirrors evaluation.diagnostics.project_cross_axis_status; no per-trial rows or text.
+CROSS_AXIS_CODES = (
+    "actual_server_call_count_mismatch", "server_trace_order_not_contiguous", "selected_call_count_mismatch",
+    "selected_order_not_contiguous", "selected_journal_hash_mismatch",
+    "oracle_server_attempt_block_projection_mismatch", "complete_selected_intent_projection_mismatch",
+    "observer_projection_not_reproduced", "utility_status_value_mismatch", "live_usage_cannot_be_non_model",
+    "selection_journal_unknown", "server_trace_unavailable", "selected_journal_hash_unavailable",
+    "observer_missing_unknown", "observer_incomplete_unknown_predicates", "observer_record_invalid",
+    "semantic_spec_unavailable", "semantic_success_final_capture_unavailable",
+    "semantic_success_result_capture_unavailable", "reported_settlement_lacks_matching_usage_evidence",
+    "reused_parent_evidence_not_new_sample_or_free_usage", "usage_or_settlement_unknown",
+    "cap_refusal_is_not_server_policy_block", "invalid_selection_without_server_dispatch",
+    "prohibited_intent_without_validated_server_attempt", "observed_effect_dominates_other_unknowns",
+    "effect_with_semantic_success", "effect_with_legacy_proxy_success",
+    "effect_without_reported_prohibited_intent", "prohibited_server_block_then_later_observed_effect",
+    "gate_denial_and_effect_without_later_call_order_proof", "legacy_call_proxy_is_not_semantic_utility",
+    "unknown_usage_after_apparent_success", "duplicate_outcome_trial_ids", "duplicate_expected_trial_ids",
+    "diagnostic_schedule_coordinate_mismatch")
+CROSS_AXIS_CATEGORIES = ("effect_with_apparent_utility", "effect_without_reported_intent", "block_then_effect",
+                         "intent_without_server_attempt", "selection_not_server_policy", "unknown_usage_after_success")
+CROSS_AXES = {"version": E("cross-axis-status-v1"), "source_version": E("cross-axis-diagnostics-v1"),
+    "interpretation": E("diagnostics-not-an-additional-acceptance-metric"),
+    "source_integrity": E("not-audited", "incomplete-or-invalid", "schedule-identity-checked"),
+    **{key: COUNT for key in ("scheduled_denominator", "supplied_rows", "missing_scheduled_rows",
+                              "duplicate_rows", "unexpected_rows", "unlisted_code_count")},
+    "trial_states": {key: COUNT for key in ("mixed-axes-recorded", "incomplete", "inconsistent")},
+    "observer_effect": {key: COUNT for key in ("none", "observed", "unknown")},
+    "cost_state": {key: COUNT for key in ("non-model", "recorded-estimate", "unknown")},
+    "utility_basis": {key: COUNT for key in ("semantic-v2", "legacy-call-proxy-v1")},
+    "semantic_utility": {key: COUNT for key in ("success", "failure", "unknown")},
+    "mixed_failure_categories": {key: COUNT for key in CROSS_AXIS_CATEGORIES},
+    "code_counts": {key: COUNT for key in CROSS_AXIS_CODES},
+    "groups": L({"model_id": A("model"), "selector": "selector", "condition": OUTCOME["condition"],
+        "cell": OUTCOME["cell"], "repeat": COUNT, "execution_mode": E("replay", "live"),
+        "platform_scope": E("synthetic-memory", "filesystem-posix"), "utility_basis": UTILITY, "cost_basis": BASIS,
+        **{key: COUNT for key in ("supplied_rows", "shared_scheduled_coordinate_denominator", "observed_effect_rows",
+            "unknown_effect_rows", "semantic_success_rows", "legacy_proxy_rows", "unknown_utility_rows",
+            "unknown_cost_rows", "inconsistent_rows")}}),
+    "independent_product_acceptance": E("pending")}
 ACCEPTANCE = {"schema_version": COUNT, "manifest_sha256": HASH, "outcomes_sha256": HASH,
     "recommendation": E("do-not-accept", "collect-required-evidence", "exploratory-only", "eligible-for-independent-review"),
     "independent_product_acceptance": E("pending"), "criteria": L({"criterion_id": A("criterion"),
@@ -496,7 +551,7 @@ def project_public_result(result: dict, *, policy: ProjectionPolicy | None = Non
             **{key: COUNT for key in ("attempts_total", "attempts_verified", "attempts_unknown", "trials_without_attempts")},
             **{key: HASH for key in ("journal_sha256", "bundle_typed_sha256", "expectations_sha256")},
             "live_admission": "false-only", "billing_verified": "false-only"},
-        "normative_v3_status": NORMATIVE_STATUS,
+        "normative_v3_status": NORMATIVE_STATUS, "cross_axes": CROSS_AXES,
         "input_pins": {key: HASH for key in ("plan_sha256", "outcomes_sha256", "failures_sha256")},
         "development_input_pins": {"version": E("m5-dev-semantic-v2"), "manifest_sha256": HASH,
             "cases": COUNT, "episodes": COUNT, "scope": E("source-data-only; runtime-unverified"),

@@ -234,17 +234,44 @@ def assemble_acceptance_dossier(edition: "VerifiedEdition", *, authority: Dossie
     add("external-family-support", "pass" if family_ok and auth.family_independence_confirmed else "pending",
         "A label count or supplied family-support hash is not independent-family authentication.")
     conformance = None
+    conformance_reason = "D7 per-probe reports alone cannot establish D6 normative whole-suite conformance."
     attachment = sources.conformance
     try:
         if root_ok and attachment is not None:
             producer, requirements = attachment.producer_report, attachment.requirements_report
-            platform = requirements.get("platforms", {}).get(index.platform_scope, {})
+            if type(producer.get("schema_version")) is int and producer.get("schema_version") == 1:
+                conformance_reason = ("Legacy v1 producer report is integrity-only and can never establish "
+                    "conformance; a normative-v3 (schema 2) producer report plus D6's suite audit is required.")
+            track = index.platform_scope
+            platform = requirements.get("platforms", {}).get(track, {})
             required = set(platform.get("required_probe_ids", ()))
             probe_rows = producer.get("conformance", ())
-            probes = {row.get("probe_id"): row for row in probe_rows if type(row) is dict}
+            # Normative probe rows are per (track, probe_id): one probe can serve several
+            # tracks, so probe_id alone is not a unique key. Only this edition's track counts.
+            keyed = {}
+            for row in probe_rows:
+                if type(row) is not dict:
+                    raise ValueError("producer probe row shape")
+                keyed.setdefault((row.get("track"), row.get("probe_id")), []).append(row)
+            probes = {probe_id: rows[0] for (row_track, probe_id), rows in keyed.items()
+                      if row_track == track and len(rows) == 1}
+            duplicated = any(len(rows) != 1 for rows in keyed.values())
+            # The per-probe normative block is a cross-check on the same fixed denominator;
+            # it never satisfies the suite by itself (full_platform_credit is always false).
+            normative = producer.get("normative") if type(producer.get("normative")) is dict else {}
+            normative_track = (normative.get("tracks") or {}).get(track) if type(normative.get("tracks")) is dict else None
+            normative_ok = (normative.get("status") == "evaluated" and normative.get("authority_valid") is True
+                and normative.get("full_platform_credit") is False
+                and normative.get("inventory_sha256") == authority.requirements_inventory_sha256
+                and type(normative_track) is dict
+                and normative_track.get("required_requirements") == platform.get("required_requirements")
+                and normative_track.get("pending_requirements") == 0
+                and normative_track.get("per_probe_creditable_requirements") == platform.get("required_requirements"))
             checks = {check.check_id: check for check in attachment.evidence.checks}
             conform_ok = (_bound(attachment.evidence, authority.conformance_sha256)
-                and type(producer.get("schema_version")) is int and producer.get("schema_version") == 1
+                and type(producer.get("schema_version")) is int and producer.get("schema_version") == 2
+                and producer.get("mode") == "normative-v3" and normative_ok and not duplicated
+                and producer.get("full_platform_credit") is False
                 and type(requirements.get("schema_version")) is int and requirements.get("schema_version") == 1
                 and typed_hash(producer) == authority.conformance_report_sha256
                 and typed_hash(requirements) == authority.requirements_report_sha256
@@ -263,7 +290,7 @@ def assemble_acceptance_dossier(edition: "VerifiedEdition", *, authority: Dossie
                 and set(attachment.evidence.required_check_ids) == required
                 and len(attachment.evidence.required_check_ids) == len(required)
                 and len(checks) == len(attachment.evidence.checks)
-                and len(probes) == len(probe_rows) and required <= set(probes)
+                and required <= set(probes)
                 and required <= set(checks) and required <= set(authority.probe_raw_sha256)
                 and all(probes[key].get("state") == "verified" and probes[key].get("creditable") is True
                         and checks[key].state == "executed" and checks[key].verdict == "pass"
@@ -276,8 +303,7 @@ def assemble_acceptance_dossier(edition: "VerifiedEdition", *, authority: Dossie
                 conformance = attachment.evidence
     except (ValueError, TypeError, KeyError, AttributeError, OverflowError):
         conformance = None
-    add("attributable-full-conformance", "pass" if conformance is not None else "pending",
-        "D7 per-probe reports alone cannot establish D6 normative whole-suite conformance.")
+    add("attributable-full-conformance", "pass" if conformance is not None else "pending", conformance_reason)
     controls = sources.controls if root_ok and authority.controls_sha256 is not None and auth.controls_confirmed and (
         typed_hash([control.model_dump(mode="json") for control in sources.controls]) == authority.controls_sha256) else ()
     add("external-controls-admission", "pass" if controls else "pending",

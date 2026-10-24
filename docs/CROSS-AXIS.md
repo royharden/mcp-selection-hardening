@@ -34,6 +34,34 @@ arguments, oracle predicates, assistant text and provider payloads are excluded.
 Independent product acceptance remains pending. Diagnostic schedule identity checks
 do not authenticate external authority or replace the dossier admission criteria.
 
+## Public status (D7 C3)
+
+`project_cross_axis_status(summary_dict)` turns `CrossAxisSummary.model_dump(mode="json")`
+into the finite `cross-axis-status-v1` block. `runner.dossier` carries it as the result's
+`cross_axes`, and `public_projection` allowlists it (`CROSS_AXES`). Fields:
+
+- `version`, `source_version`, `interpretation`, `source_integrity`
+- `scheduled_denominator`, `supplied_rows`, `missing_scheduled_rows`, `duplicate_rows`,
+  `unexpected_rows`
+- per-axis counts: `trial_states` (mixed-axes-recorded, incomplete, inconsistent),
+  `observer_effect` (none, observed, unknown), `cost_state` (non-model,
+  recorded-estimate, unknown), `utility_basis` (semantic-v2, legacy-call-proxy-v1),
+  `semantic_utility` (success, failure, unknown)
+- `mixed_failure_categories`: trials, not codes, per category. The categories are
+  effect_with_apparent_utility, effect_without_reported_intent, block_then_effect,
+  intent_without_server_attempt, selection_not_server_policy and
+  unknown_usage_after_success.
+- `code_counts`: every code in the closed `CROSS_AXIS_CODES` vocabulary, zero-filled.
+  A code outside that vocabulary is added to `unlisted_code_count`, never dropped.
+- `groups`: the summary's coordinate groups. Model IDs and selectors are aliased by
+  the projection; condition, cell, repeat, mode, platform and bases appear with all
+  nine counts.
+- `independent_product_acceptance: pending`
+
+No per-trial rows, selected-call order, outcome hashes, arguments or text are included.
+The full summary stays in the private dossier. Parity tests pin the projection's
+copies of the code and category vocabularies.
+
 Construction receipt, D4 source-v5: scoped AST parses passed for the two new source
 modules and both regression files. Seventeen regression functions were authored
 (nine admission, eight cross-axis), covering source drift, unknown costs, missing

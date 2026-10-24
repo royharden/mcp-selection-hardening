@@ -175,3 +175,59 @@ def test_altered_threshold_source_does_not_reach_approval_projection(monkeypatch
         now=datetime(2030, 1, 1, tzinfo=timezone.utc))
     assert called == []
     assert criterion(result, "external-threshold-approval-admission").verdict == "pending"
+
+
+def conformance_case(monkeypatch, *, schema=2, suite=True, extra_rows=()):
+    """Synthetic producer/suite/check records for one platform track; never real probe evidence."""
+    from mcpsh.evaluation.acceptance import ConformanceCheck, ConformanceEvidence
+    from mcpsh.evaluation.acceptance_evidence import ConformanceAttachment
+
+    edition, root, sources, _ = fixture(monkeypatch)
+    track, probes, inventory = "synthetic-memory", ("probe-a", "probe-b"), "cd" * 32
+    rows = [{"track": track, "probe_id": probe, "state": "verified", "creditable": True} for probe in probes]
+    producer = {"schema_version": schema, "mode": "normative-v3" if schema == 2 else "legacy-v1-integrity-only",
+        "source_index_sha256": root.edition.index_sha256, "authority_sha256": "ef" * 32,
+        "bindings_complete": True, "all_selected_probes_creditable": True, "full_platform_credit": False,
+        "conformance": rows + list(extra_rows),
+        "normative": {"status": "evaluated", "authority_valid": True, "full_platform_credit": False,
+            "inventory_sha256": inventory, "tracks": {track: {"required_requirements": 2,
+                "pending_requirements": 0, "per_probe_creditable_requirements": 2}}}}
+    platform = {"verdict": "passed", "required_probe_ids": list(probes), "required_requirements": 2,
+        "covered_requirements": 2, "filesystem_proof": False,
+        "requirements": [{"covered": True, "violations": []}, {"covered": True, "violations": []}]}
+    requirements = ({"schema_version": 1, "inventory_sha256": inventory, "authority_valid": True,
+                     "audit_valid": True, "platforms": {track: platform}} if suite else {})
+    raw = {probe: hashlib.sha256(probe.encode()).hexdigest() for probe in probes}
+    evidence = ConformanceEvidence(manifest_sha256=root.manifest_typed_sha256, platform_scope=track,
+        required_check_ids=probes, checks=tuple(ConformanceCheck(check_id=probe, state="executed", verdict="pass",
+            evidence_sha256=raw[probe]) for probe in probes))
+    root = root.model_copy(update={"conformance_sha256": typed_hash(evidence.model_dump(mode="json")),
+        "conformance_report_sha256": typed_hash(producer), "requirements_report_sha256": typed_hash(requirements),
+        "requirements_inventory_sha256": inventory, "producer_authority_sha256": "ef" * 32, "probe_raw_sha256": raw})
+    sources = AcceptanceSources(conformance=ConformanceAttachment(evidence=evidence, producer_report=producer,
+                                                                 requirements_report=requirements))
+    return dossier(edition, root, sources, authentication=DossierAuthentication(conformance_confirmed=True))
+
+
+def test_normative_v3_producer_with_suite_audit_can_pass_conformance(monkeypatch):
+    """what_bug_this_catches: the criterion being unreachable after the normative-v3 producer upgrade."""
+    assert criterion(conformance_case(monkeypatch), "attributable-full-conformance").verdict == "pass"
+
+
+def test_legacy_v1_producer_never_passes_and_says_why(monkeypatch):
+    """what_bug_this_catches: integrity-only legacy reports earning whole-suite conformance."""
+    row = criterion(conformance_case(monkeypatch, schema=1), "attributable-full-conformance")
+    assert row.verdict == "pending" and "Legacy v1" in row.reason
+
+
+def test_normative_block_without_suite_audit_stays_pending(monkeypatch):
+    """what_bug_this_catches: the per-probe normative block substituting for D6's suite audit."""
+    assert criterion(conformance_case(monkeypatch, suite=False), "attributable-full-conformance").verdict == "pending"
+
+
+def test_multi_track_probe_rows_do_not_collide(monkeypatch):
+    """what_bug_this_catches: probe_id-keyed maps overwriting or rejecting a probe that serves two tracks."""
+    other = {"track": "filesystem-posix", "probe_id": "probe-a", "state": "verified", "creditable": True}
+    assert criterion(conformance_case(monkeypatch, extra_rows=(other,)), "attributable-full-conformance").verdict == "pass"
+    duplicate = {"track": "synthetic-memory", "probe_id": "probe-a", "state": "verified", "creditable": True}
+    assert criterion(conformance_case(monkeypatch, extra_rows=(duplicate,)), "attributable-full-conformance").verdict == "pending"

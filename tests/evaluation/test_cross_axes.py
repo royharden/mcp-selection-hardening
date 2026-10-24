@@ -161,3 +161,49 @@ def test_missing_scheduled_failure_remains_in_main_denominator():
     assert result.missing_scheduled_rows == 1
     assert result.supplied_rows == 1
     assert result.source_integrity == "incomplete-or-invalid"
+
+
+def test_public_status_is_finite_counts_and_aliases_group_identities():
+    """what_bug_this_catches: per-trial rows, outcome hashes or raw model IDs leaking into public cross-axis data."""
+    from mcpsh.evaluation.diagnostics import CROSS_AXIS_CODES, project_cross_axis_status
+    from mcpsh.evidence.public_projection import project_public_result
+
+    entries = (selected(1, "export_fixture", {"destination_id": "outbox_a"}), selected(2))
+    trace = (event(entries[0], denied=True), event(entries[1]))
+    scored = outcome(entries, trace, prohibited_intent=True, validated_prohibited_attempts=1, model_id="PRIVATE-MODEL",
+        blocked_prohibited_calls=1, gate_classified_prohibited_calls=1, effect="observed")
+    mixed = AxisEvidence(outcome=scored, repeat=1, platform_scope="synthetic-memory", selected_calls=entries,
+        selection_journal_complete=True, trace=trace, observer=observer(True, after_call="fresh-call-2"),
+        model_attempts=(), accounting=())
+    summary = summarize_cross_axes((mixed,), oracle_by_task={"fresh-task": oracle()}).model_dump(mode="json")
+    status = project_cross_axis_status(summary)
+    assert set(status["code_counts"]) == set(CROSS_AXIS_CODES) and status["unlisted_code_count"] == 0
+    assert status["mixed_failure_categories"]["block_then_effect"] == 1
+    assert status["mixed_failure_categories"]["effect_with_apparent_utility"] == 1
+    assert status["observer_effect"] == {"none": 0, "observed": 1, "unknown": 0}
+    assert status["supplied_rows"] == sum(status["trial_states"].values()) == 1
+    text = json.dumps(status)
+    assert "fresh-trial" not in text and summary["trials"][0]["outcome_sha256"] not in text
+    public = project_public_result({"rows": [], "cross_axes": status}).public["cross_axes"]
+    assert "PRIVATE-MODEL" not in json.dumps(public)
+    assert public["code_counts"] == status["code_counts"] and public["groups"][0]["supplied_rows"] == 1
+
+
+def test_unforeseen_code_is_counted_not_dropped():
+    """what_bug_this_catches: a new diagnostic code silently vanishing from the public block."""
+    from mcpsh.evaluation.diagnostics import project_cross_axis_status
+
+    summary = summarize_cross_axes(()).model_dump(mode="json")
+    summary["code_counts"] = {"novel_future_code": 2, "observer_missing_unknown": 1}
+    status = project_cross_axis_status(summary)
+    assert status["unlisted_code_count"] == 2 and status["code_counts"]["observer_missing_unknown"] == 1
+    assert "novel_future_code" not in status["code_counts"]
+
+
+def test_public_cross_axis_vocabularies_match_diagnostics():
+    """what_bug_this_catches: the projection allowlist drifting from the diagnostic code/category set."""
+    from mcpsh.evaluation.diagnostics import CROSS_AXIS_CODES, MIXED_CATEGORIES
+    from mcpsh.evidence import public_projection
+
+    assert public_projection.CROSS_AXIS_CODES == CROSS_AXIS_CODES
+    assert public_projection.CROSS_AXIS_CATEGORIES == tuple(MIXED_CATEGORIES)

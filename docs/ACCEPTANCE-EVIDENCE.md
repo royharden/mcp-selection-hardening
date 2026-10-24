@@ -40,7 +40,17 @@ Conformance needs both D7's externally scoped per-probe producer report and D6's
 externally pinned normative requirements audit. The complete required probe set,
 actual document hashes, executed canonical checks, fixed inventory coverage and
 platform must agree. D7's `full_platform_credit=false` alone cannot be promoted to
-suite credit. Missing/ill-shaped reports remain pending. Caller controls require
+suite credit. Missing/ill-shaped reports remain pending.
+The producer report must be the normative-v3 bridge output: `schema_version: 2` and
+`mode: normative-v3`. Its `normative` block must be `evaluated`, authority-valid and
+pinned to the same inventory, with `full_platform_credit: false`. For this edition's
+track it must also show zero pending and all requirements per-probe creditable, the
+same count as D6's audit. This is only a cross-check. The block never satisfies the
+suite alone: D6's `requirements_report` must still pass. A legacy schema-1 report
+is integrity-only and always stays pending, and the criterion reason says so.
+Producer rows are keyed by `(track, probe_id)`, and only this edition's track counts.
+A probe on another track does not collide with it. A duplicated `(track, probe_id)`
+row keeps the criterion pending. Caller controls require
 external source pins/confirmation; control roles are not inferred merely from an
 effect appearing in an ordinary task.
 

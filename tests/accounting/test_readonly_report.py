@@ -223,3 +223,14 @@ def test_status_helper_reports_unknown_without_another_financial_calculator(tmp_
     assert status["cost_bases"] == ["unknown"]
     assert status["runtime_authorized"] is status["database_mutated"] is False
     assert "metadata" not in json.dumps(status)
+
+
+def test_public_ledger_code_vocabulary_matches_emitted_codes():
+    # what_bug_this_catches: a ledger diagnostic published only as an opaque hash, or a stale allowlist entry.
+    import inspect
+    import re
+
+    from mcpsh.evidence.public_projection import FAILURE_CODES, LEDGER_CODES
+
+    emitted = set(re.findall(r'(?:diagnostics|reasons)\.append\("([a-z_]+)"\)', inspect.getsource(report)))
+    assert emitted == set(LEDGER_CODES) and LEDGER_CODES <= FAILURE_CODES

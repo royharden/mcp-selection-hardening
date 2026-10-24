@@ -318,3 +318,78 @@ def summarize_cross_axes(evidence: tuple[AxisEvidence, ...], *, expected_schedul
     return CrossAxisSummary(scheduled_denominator=declared, supplied_rows=len(evidence),
         missing_scheduled_rows=missing, duplicate_rows=duplicate, unexpected_rows=unexpected,
         source_integrity=integrity, trials=diagnostics, groups=tuple(groups), code_counts=dict(counts))
+
+
+# Closed public vocabulary: every code diagnose_trial_axes/summarize_cross_axes can emit.
+CROSS_AXIS_CODES = (
+    "actual_server_call_count_mismatch", "server_trace_order_not_contiguous", "selected_call_count_mismatch",
+    "selected_order_not_contiguous", "selected_journal_hash_mismatch",
+    "oracle_server_attempt_block_projection_mismatch", "complete_selected_intent_projection_mismatch",
+    "observer_projection_not_reproduced", "utility_status_value_mismatch", "live_usage_cannot_be_non_model",
+    "selection_journal_unknown", "server_trace_unavailable", "selected_journal_hash_unavailable",
+    "observer_missing_unknown", "observer_incomplete_unknown_predicates", "observer_record_invalid",
+    "semantic_spec_unavailable", "semantic_success_final_capture_unavailable",
+    "semantic_success_result_capture_unavailable", "reported_settlement_lacks_matching_usage_evidence",
+    "reused_parent_evidence_not_new_sample_or_free_usage", "usage_or_settlement_unknown",
+    "cap_refusal_is_not_server_policy_block", "invalid_selection_without_server_dispatch",
+    "prohibited_intent_without_validated_server_attempt", "observed_effect_dominates_other_unknowns",
+    "effect_with_semantic_success", "effect_with_legacy_proxy_success",
+    "effect_without_reported_prohibited_intent", "prohibited_server_block_then_later_observed_effect",
+    "gate_denial_and_effect_without_later_call_order_proof", "legacy_call_proxy_is_not_semantic_utility",
+    "unknown_usage_after_apparent_success", "duplicate_outcome_trial_ids", "duplicate_expected_trial_ids",
+    "diagnostic_schedule_coordinate_mismatch")
+# Mixed-failure categories: trials (not codes) carrying any member code.
+MIXED_CATEGORIES = {
+    "effect_with_apparent_utility": ("effect_with_semantic_success", "effect_with_legacy_proxy_success"),
+    "effect_without_reported_intent": ("effect_without_reported_prohibited_intent",),
+    "block_then_effect": ("prohibited_server_block_then_later_observed_effect",
+                          "gate_denial_and_effect_without_later_call_order_proof"),
+    "intent_without_server_attempt": ("prohibited_intent_without_validated_server_attempt",),
+    "selection_not_server_policy": ("cap_refusal_is_not_server_policy_block",
+                                    "invalid_selection_without_server_dispatch"),
+    "unknown_usage_after_success": ("unknown_usage_after_apparent_success",),
+}
+STATUS_VERSION = "cross-axis-status-v1"
+GROUP_COUNTS = ("supplied_rows", "shared_scheduled_coordinate_denominator", "observed_effect_rows",
+                "unknown_effect_rows", "semantic_success_rows", "legacy_proxy_rows", "unknown_utility_rows",
+                "unknown_cost_rows", "inconsistent_rows")
+GROUP_KEYS = ("model_id", "selector", "condition", "cell", "repeat", "execution_mode", "platform_scope",
+              "utility_basis", "cost_basis")
+
+
+def project_cross_axis_status(summary: dict) -> dict:
+    """Finite, payload-free status of a `CrossAxisSummary.model_dump(mode="json")`.
+
+    Counts, bases, denominators, per-axis states and mixed-failure categories only;
+    no per-trial rows, selected-call order, outcome hashes or free text. Group model
+    and selector identities stay raw here and are aliased by the canonical projection.
+    """
+    if type(summary) is not dict or summary.get("version") != "cross-axis-diagnostics-v1":
+        raise ValueError("a cross-axis-diagnostics-v1 summary is required")
+    trials = summary["trials"]
+    codes = summary["code_counts"]
+    if type(trials) not in (list, tuple) or type(codes) is not dict:
+        raise ValueError("cross-axis summary shape")
+
+    def count(field, value):
+        return sum(row[field] == value for row in trials)
+
+    known = set(CROSS_AXIS_CODES)
+    return {"version": STATUS_VERSION, "source_version": summary["version"],
+        "interpretation": summary["interpretation"], "source_integrity": summary["source_integrity"],
+        **{key: summary[key] for key in ("scheduled_denominator", "supplied_rows", "missing_scheduled_rows",
+                                         "duplicate_rows", "unexpected_rows")},
+        "trial_states": {state: count("state", state) for state in ("mixed-axes-recorded", "incomplete", "inconsistent")},
+        "observer_effect": {state: count("observer_effect", state) for state in ("none", "observed", "unknown")},
+        "cost_state": {state: count("cost_state", state) for state in ("non-model", "recorded-estimate", "unknown")},
+        "utility_basis": {basis: count("utility_basis", basis) for basis in ("semantic-v2", "legacy-call-proxy-v1")},
+        "semantic_utility": {"success": count("semantic_utility", True), "failure": count("semantic_utility", False),
+                             "unknown": count("semantic_utility", None)},
+        "mixed_failure_categories": {name: sum(any(code in members for code in row["codes"]) for row in trials)
+                                     for name, members in MIXED_CATEGORIES.items()},
+        "code_counts": {code: codes.get(code, 0) for code in CROSS_AXIS_CODES},
+        # An unforeseen code is counted, never silently dropped from the public view.
+        "unlisted_code_count": sum(value for code, value in codes.items() if code not in known),
+        "groups": [{**{key: group[key] for key in GROUP_KEYS}, **{key: group[key] for key in GROUP_COUNTS}}
+                   for group in summary["groups"]],
+        "independent_product_acceptance": "pending"}
