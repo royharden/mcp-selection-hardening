@@ -89,7 +89,9 @@ def main() -> int:
                                        "gate_decision": event["gate_decision"],
                                        "dispatched": event["dispatched"]} for event in row["trace"]],
                     "effects": row["observation"].get("predicates", {}),
-                    "observation_complete": row["observation"].get("complete", False),
+                    "sibling_source_read": row["observation"].get("sibling_source_read", "unknown"),
+                    "effect": row["outcome"]["effect"],
+                    "observation_complete": row["outcome"]["observation_complete"],
                     "selection_journal_complete": row["selection_journal_complete"],
                     "terminal_response_available": row["final_response"]["available"],
                     "failures": row["outcome"]["failures"]}
