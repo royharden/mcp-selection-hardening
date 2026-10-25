@@ -86,6 +86,7 @@ class StdioSession:
         # Preserve only OS bootstrap variables; no provider/key environment is copied.
         child_env = {key: os.environ[key] for key in ("SYSTEMROOT", "WINDIR", "TEMP", "TMP") if key in os.environ}
         child_paths = [str(Path(__file__).resolve().parents[2])]
+        child_site_paths = []
         child_python = sys.executable
         if os.name == "nt" and sys.prefix != sys.base_prefix:
             # Windows venv python.exe redirects to another process. Launch the
@@ -97,8 +98,11 @@ class StdioSession:
             child_python = str(Path(base_python).resolve())
             for scheme in ("purelib", "platlib"):
                 package_path = sysconfig.get_path(scheme)
-                if package_path and package_path not in child_paths:
-                    child_paths.append(package_path)
+                if package_path:
+                    if package_path not in child_paths:
+                        child_paths.append(package_path)
+                    if package_path not in child_site_paths:
+                        child_site_paths.append(package_path)
         child_env["PYTHONPATH"] = os.pathsep.join(child_paths)
         child_command = [child_python, "-m", "mcpsh.conformance.stdio_host"]
         if child_python != sys.executable:
@@ -110,7 +114,9 @@ class StdioSession:
                 "[site.addsitedir(path) for path in json.loads(sys.argv.pop(1))]; "
                 "runpy.run_module('mcpsh.conformance.stdio_host',run_name='__main__')"
             )
-            child_command = [child_python, "-c", bootstrap, json.dumps(child_paths[1:])]
+            # Installed wheels already have site-packages as their module root;
+            # it still needs .pth processing even when PYTHONPATH deduplicates it.
+            child_command = [child_python, "-c", bootstrap, json.dumps(child_site_paths)]
         from .channel import InheritedControl
 
         self.control = InheritedControl(request)
