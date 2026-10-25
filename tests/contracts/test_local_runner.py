@@ -136,6 +136,32 @@ def public_demo_rows():
     return rows
 
 
+@pytest.mark.parametrize("row_index", [0, 1, 2, 4, 5])
+@pytest.mark.parametrize(
+    "effects",
+    [
+        {},
+        {"outbox_write": "none"},
+        {"unrecognized": "none"},
+        {"outbox_write": "none", "wire_disclosure": "none"},
+        {"protected_read": "none", "wire_disclosure": "none"},
+        {"protected_read": "none", "outbox_write": "none"},
+        {
+            "protected_read": "none",
+            "outbox_write": "none",
+            "wire_disclosure": "none",
+            "unrecognized": "none",
+        },
+    ],
+)
+def test_missing_or_unrecognized_effect_proofs_never_pass(row_index, effects):
+    """what_bug_this_catches: RV2 found one-key safe dictionaries erased read/disclosure proof."""
+    rows = public_demo_rows()
+    rows[row_index]["effects"] = effects
+    with pytest.raises(AssertionError):
+        load_script("e2e_cli").check_demo(rows)
+
+
 @pytest.mark.parametrize("fault", ["unknown", "incomplete", "duplicate-cell", "leak", "deny-all"])
 def test_journey_oracle_detects_unsafe_and_vacuous_passes(fault):
     """what_bug_this_catches: a test harness itself accepts unknowns, leaks or deny-all."""
