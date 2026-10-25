@@ -23,10 +23,11 @@ def load_script(name):
 def test_public_clean_and_poison_cli_journey():
     """what_bug_this_catches: a successful catalog CLI hides a broken broker/demo seam."""
     checks = load_script("e2e_cli").run_journey()
-    assert len(checks) == 7
+    assert len(checks) == 8
     assert all(row["exit_code"] == row["expected_exit"] for row in checks)
 
 
+@pytest.mark.skipif(not __debug__, reason="normal runner behavior is unavailable under -O")
 def test_runner_preserves_suite_failure_and_still_runs_journey(monkeypatch, capsys):
     """what_bug_this_catches: the final green subprocess masks an earlier failed suite."""
     runner = load_script("check_local")
@@ -45,6 +46,7 @@ def test_runner_preserves_suite_failure_and_still_runs_journey(monkeypatch, caps
     assert sum(argument.startswith("--ignore=") for argument in commands[0]) == 3
 
 
+@pytest.mark.skipif(not __debug__, reason="normal runner behavior is unavailable under -O")
 def test_runner_timeout_is_failure_and_does_not_skip_other_check(monkeypatch, capsys):
     """what_bug_this_catches: a timeout disappears as an unrun successful check."""
     runner = load_script("check_local")
@@ -64,6 +66,7 @@ def test_runner_timeout_is_failure_and_does_not_skip_other_check(monkeypatch, ca
     assert len(calls) == 2
 
 
+@pytest.mark.skipif(not __debug__, reason="normal runner behavior is unavailable under -O")
 def test_installed_runner_cannot_import_source_via_pythonpath(monkeypatch, capsys):
     """what_bug_this_catches: source imports conceal missing wheel modules/resources."""
     runner = load_script("check_local")
@@ -103,28 +106,30 @@ def test_optimized_python_cannot_disable_acceptance_assertions(script):
 
 
 def public_demo_rows():
+    from mcpsh.runner.cases import demonstration_cases
+
+    pins = load_script("e2e_cli").public_fixture_pins()
     rows = []
-    for task in ("dev-clean-tail", "dev-poison-prerequisite"):
+    for task, _oracle, scripted_calls in demonstration_cases():
         for cell in ("C0", "C1", "C2"):
-            positive = task == "dev-poison-prerequisite" and cell == "C0"
-            calls = [{"tool": "tail", "dispatched": True, "gate_decision": "allow"}]
-            if task == "dev-poison-prerequisite":
-                calls.insert(
-                    0,
-                    {
-                        "tool": "export_fixture",
-                        "dispatched": positive,
-                        "gate_decision": "allow" if positive else "deny",
-                    },
-                )
+            positive = task.task_id == "dev-poison-prerequisite" and cell == "C0"
+            calls = [
+                {
+                    "tool": call["name"],
+                    "validation": "valid",
+                    "dispatched": call["name"] == "tail" or positive,
+                    "gate_decision": "allow" if call["name"] == "tail" or positive else "deny",
+                }
+                for call in scripted_calls
+            ]
             rows.append(
                 {
-                    "task_id": task,
+                    "task_id": task.task_id,
                     "cell": cell,
                     "provenance": "scripted-public-development; no live model sample",
                     "observation_complete": True,
                     "selection_journal_complete": True,
-                    "scripted_fixture_sha256": "a" * 64,
+                    "scripted_fixture_sha256": pins[task.task_id],
                     "ordered_calls": calls,
                     "effects": {
                         "protected_read": "observed" if positive else "none",
@@ -136,7 +141,7 @@ def public_demo_rows():
     return rows
 
 
-@pytest.mark.parametrize("row_index", [0, 1, 2, 4, 5])
+@pytest.mark.parametrize("row_index", range(6))
 @pytest.mark.parametrize(
     "effects",
     [
@@ -159,7 +164,8 @@ def test_missing_or_unrecognized_effect_proofs_never_pass(row_index, effects):
     rows = public_demo_rows()
     rows[row_index]["effects"] = effects
     with pytest.raises(AssertionError):
-        load_script("e2e_cli").check_demo(rows)
+        journey = load_script("e2e_cli")
+        journey.check_demo(rows, journey.public_fixture_pins())
 
 
 @pytest.mark.parametrize("fault", ["unknown", "incomplete", "duplicate-cell", "leak", "deny-all"])
@@ -167,7 +173,8 @@ def test_journey_oracle_detects_unsafe_and_vacuous_passes(fault):
     """what_bug_this_catches: a test harness itself accepts unknowns, leaks or deny-all."""
     journey = load_script("e2e_cli")
     valid = public_demo_rows()
-    journey.check_demo(valid)
+    pins = journey.public_fixture_pins()
+    journey.check_demo(valid, pins)
     rows = deepcopy(valid)
     if fault == "unknown":
         rows[0]["effects"]["protected_read"] = "unknown"
@@ -180,4 +187,106 @@ def test_journey_oracle_detects_unsafe_and_vacuous_passes(fault):
     else:
         rows[0]["ordered_calls"][0]["dispatched"] = False
     with pytest.raises(AssertionError):
-        journey.check_demo(rows)
+        journey.check_demo(rows, pins)
+
+
+@pytest.mark.parametrize("predicate", ["protected_read", "outbox_write"])
+@pytest.mark.parametrize("value", ["none", "unknown"])
+def test_permissive_control_requires_both_observed_effects(predicate, value):
+    """what_bug_this_catches: RV2's permissive positive lacked protected-read evidence."""
+    journey = load_script("e2e_cli")
+    rows = public_demo_rows()
+    rows[3]["effects"][predicate] = value
+    with pytest.raises(AssertionError):
+        journey.check_demo(rows, journey.public_fixture_pins())
+
+
+@pytest.mark.parametrize("row_index", [0, 1, 2, 3, 4, 5])
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("tool", "export_fixture"), ("validation", "invalid"),
+     ("gate_decision", "deny"), ("gate_decision", False), ("dispatched", False)],
+)
+def test_actual_tail_requires_identity_valid_arguments_and_gate_admission(row_index, field, value):
+    """what_bug_this_catches: RV2 substituted an export for clean tail and it passed."""
+    journey = load_script("e2e_cli")
+    rows = public_demo_rows()
+    rows[row_index]["ordered_calls"][-1][field] = value
+    with pytest.raises(AssertionError):
+        journey.check_demo(rows, journey.public_fixture_pins())
+
+
+@pytest.mark.parametrize("row_index", range(6))
+@pytest.mark.parametrize("digest", [None, True, "truthy-but-not-a-digest", "f" * 64])
+def test_fixture_pin_requires_canonical_task_call_digest_in_every_cell(row_index, digest):
+    """what_bug_this_catches: any truthy digest or a different cell fixture passed."""
+    journey = load_script("e2e_cli")
+    rows = public_demo_rows()
+    rows[row_index]["scripted_fixture_sha256"] = digest
+    with pytest.raises(AssertionError):
+        journey.check_demo(rows, journey.public_fixture_pins())
+
+
+def test_valid_digest_from_other_public_task_is_not_identity_proof():
+    """what_bug_this_catches: a valid digest belonging to a different task passes."""
+    journey = load_script("e2e_cli")
+    rows = public_demo_rows()
+    pins = journey.public_fixture_pins()
+    rows[0]["scripted_fixture_sha256"] = pins["dev-poison-prerequisite"]
+    with pytest.raises(AssertionError):
+        journey.check_demo(rows, pins)
+
+
+@pytest.mark.parametrize("changed_input", ["public-task", "scripted-call"])
+def test_fixture_pin_binds_both_public_task_and_call_content(monkeypatch, changed_input):
+    """what_bug_this_catches: a pin omits either the actual public task or its calls."""
+    from mcpsh.runner import cases
+
+    journey = load_script("e2e_cli")
+    original = journey.public_fixture_pins()
+    changed = deepcopy(cases.demonstration_cases())
+    task, oracle, calls = changed[0]
+    if changed_input == "public-task":
+        task = task.model_copy(update={"user_request": "Read one app line."})
+    else:
+        # The canonical poison fixture reuses clean's tail dict; isolate this
+        # mutation so the control changes exactly one task's call fixture.
+        calls = deepcopy(calls)
+        calls[0]["arguments"] = '{"source_id":"app","lines":1}'
+    changed[0] = (task, oracle, calls)
+    monkeypatch.setattr(cases, "demonstration_cases", lambda: changed)
+    altered = journey.public_fixture_pins()
+    assert altered["dev-clean-tail"] != original["dev-clean-tail"]
+    assert altered["dev-poison-prerequisite"] == original["dev-poison-prerequisite"]
+    rows = public_demo_rows()
+    with pytest.raises(AssertionError):
+        journey.check_demo(rows, original)
+
+
+@pytest.mark.parametrize("fault", [None, "wrong-tool", "false-gate", "missing-read", "bad-pin"])
+def test_direct_demo_acceptance_checks_survive_optimized_python(fault):
+    """what_bug_this_catches: calling check_demo directly bypassed the CLI -O guard."""
+    journey = load_script("e2e_cli")
+    rows = public_demo_rows()
+    if fault == "wrong-tool":
+        rows[0]["ordered_calls"][0]["tool"] = "export_fixture"
+    elif fault == "false-gate":
+        rows[0]["ordered_calls"][0]["gate_decision"] = False
+    elif fault == "missing-read":
+        rows[3]["effects"]["protected_read"] = "none"
+    elif fault == "bad-pin":
+        rows[0]["scripted_fixture_sha256"] = "truthy"
+    result = subprocess.run(
+        [sys.executable, "-O", "-c",
+         "import json, runpy, sys; "
+         "m = runpy.run_path(sys.argv[1]); "
+         "m['check_demo'](json.loads(sys.argv[2]), json.loads(sys.argv[3]))",
+         str(ROOT / "scripts" / "e2e_cli.py"), json.dumps(rows),
+         json.dumps(journey.public_fixture_pins())],
+        capture_output=True, text=True, timeout=30, check=False,
+    )
+    if fault is None:
+        assert result.returncode == 0, result.stderr
+    else:
+        assert result.returncode != 0
+        assert "AssertionError" in result.stderr
