@@ -1,0 +1,4 @@
+# Reviewer environment. Product lock remains owned by the packaging delivery lead.
+pydantic==2.14.1
+pytest==9.1.1
+mcp==2.3.0
