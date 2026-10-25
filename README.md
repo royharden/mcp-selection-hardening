@@ -4,7 +4,7 @@
 
 This research harness separates a selector choosing a prohibited call from a server allowing its effect. It contains a fixed nine-tool synthetic catalog, clean/ambiguous/poisoned metadata, bounded lint and trusted-description normalization, a server-owned policy boundary, a separate fixture broker/observer, ordered replay, scorer-only labels, local cost-accounting source and escaped static reports.
 
-Validation update, 2026-10-25, run PB-M5-R03: the project has moved from source construction to Normal-mode keyless validation. `uv.lock` exists; Python 3.12.13, Pydantic 2.14.1 and MCP SDK 2.3.0 have been installed and exercised. At source commit `a1f61c1320166cc68f14b3bfebc5dfac634514ef`, the Windows local runner reports **877 tests passed, 3 Linux-only skips, no failures or errors**, plus a passing public CLI journey. Fresh installed-wheel checks also ran. Independent High-effort review approved the bounded public synthetic-memory joined source with notes; final Docker/Linux checks remain pending. These results are not product, live-model or filesystem acceptance. See the scoped evidence and open gates in [VALIDATION.md](docs/VALIDATION.md).
+Validation update, 2026-10-25, run PB-M5-R03: the project has moved from source construction to Normal-mode keyless validation. `uv.lock` exists; Python 3.12.13, Pydantic 2.14.1 and MCP SDK 2.3.0 have been installed and exercised. At source commit `a1f61c1320166cc68f14b3bfebc5dfac634514ef`, the Windows local runner reports **877 tests passed, 3 Linux-only skips, no failures or errors**, plus a passing public CLI journey. Fresh installed-wheel checks also ran. Independent High-effort review approved the bounded public synthetic-memory joined source with notes. Docker evaluation ran, but the full POSIX gate is blocked by the required unavailable `posix-nonlocal` probe. These results are not product, live-model or filesystem acceptance. See the scoped evidence and open gates in [VALIDATION.md](docs/VALIDATION.md).
 
 ## Source journey
 
@@ -152,9 +152,9 @@ The 2026-10-23/24 construction phase authored the features below without runtime
 
 ## What remains pending
 
-- Complete final Docker/Linux checks and independent product acceptance. The exact-source joined review, Windows suite and public journey have passed within their declared scopes; they do not close every conformance or acceptance requirement. The validation table is in [VALIDATION.md](docs/VALIDATION.md#deferred-validation-list).
+- Resolve the required unavailable `posix-nonlocal` adapter/fixture/hook and complete platform and independent product acceptance. The Docker runtime driver exits 1 with that platform gate open; its passing tests and replay-provenance checks do not waive it. The validation table is in [VALIDATION.md](docs/VALIDATION.md#deferred-validation-list).
 - Obtain externally admitted semantic/requirements authorities and complete the required normative inventory; diagnostic stdio or broker-hook evidence alone cannot earn full conformance.
-- Verify the disposable POSIX backend and mandatory filesystem conformance on supported storage. Keep the final Linux result separate from Windows `synthetic-memory` evidence; real Windows filesystem support is deferred.
+- Complete mandatory POSIX filesystem conformance on supported storage: the selected Linux suite reports 62 passing probes and one required unavailable probe, with no filesystem proof. Keep this result separate from Windows `synthetic-memory` evidence; real Windows filesystem support is deferred.
 - Admit and exercise the authored OpenAI/Anthropic HTTP codecs, controller and live-runner source with two exact model families, returned identities, dated prices, full-wire tokenizer, durable accounting and approved bounded spend. These integrations have not been run.
 - Appoint independent held-out custody and product review, seal independent task/attack families, calibrate the utility floor on development data, run the pilot and complete the approved live matrix. These are W3C/W6/W7 gates, not completed construction outcomes.
 
