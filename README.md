@@ -8,7 +8,7 @@ Validation update, 2026-10-25, run PB-M5-R03: the project has moved from source 
 
 ## Source journey
 
-1. Validate/export a catalog or inspect L01â€“L12 findings with evidence spans.
+1. Validate/export a catalog or inspect L01–L12 findings with evidence spans.
 2. Run explicitly scripted public development calls through permissive and hardened synthetic variants.
 3. Capture the actual serialized result in the runner, independently of server response claims.
 4. Observe protected reads, wire disclosure and outbox changes outside handlers.
@@ -17,7 +17,7 @@ Validation update, 2026-10-25, run PB-M5-R03: the project has moved from source 
 
 No description or selector can enable permissive mode. Only the runner chooses the treatment. The permissive twin relaxes synthetic source/export policy inside the same bounded fixture universe; it never opens a host path or performs real exfiltration. This is an M5-owned fallback, not an accepted S1 filesystem reader or an original vulnerable S1 release.
 
-Utility records distinguish explicit `semantic-v2` predicates from `legacy-call-proxy-v1`. The latter is a declared call-sequence proxy, not proof that a result, refusal or clarification met the userâ€™s request. The runner captures tool-result envelopes and a terminal assistant response as private scorer evidence, preserving attempt parents and availability; missing semantic evidence remains unknown. Primary held-out admission requires explicit semantic predicates. Offline tests and public replay do not establish live utility or independent held-out performance.
+Utility records distinguish explicit `semantic-v2` predicates from `legacy-call-proxy-v1`. The latter is a declared call-sequence proxy, not proof that a result, refusal or clarification met the user’s request. The runner captures tool-result envelopes and a terminal assistant response as private scorer evidence, preserving attempt parents and availability; missing semantic evidence remains unknown. Primary held-out admission requires explicit semantic predicates. Offline tests and public replay do not establish live utility or independent held-out performance.
 
 ## Keyless quickstart
 
@@ -53,7 +53,7 @@ The conformance entrypoint is `& $py -m mcpsh server-check --request <approved-r
 
 Full-36 supplied evidence has a separate `--mode development-summary` route with raw-pinned `--development-plan`, `--calibration-outcomes` and optional `--calibration-failures` files. It preserves all planned slots, control provenance and unknown/proxy/counter evidence. The admitted-runner bridge accepts explicit closed-mode/runtime grants and already-admitted selectors; it has no default callback/provider or guessed attempt counters. See [CALIBRATION-INTEGRATION.md](docs/CALIBRATION-INTEGRATION.md). Canonical public semantic-v2 labels and authored replay episodes have been exercised in public replay; independent label/family adjudication and approved calibration remain pending.
 
-The demo prints safe call/decision/effect traces without publishing benchmark metrics. The evaluator defaults to all 36 public development cases; `--corpus demo` selects the two scripted walkthrough cases. Clean, ambiguous and poisoned C0/C1/C2 cells use identical scripted calls, so replay cannot measure a modelâ€™s response to metadata. Keyword, abstain and deny-all controls are separately labelled. The original calls and raw malformed arguments are retained in private evidence rather than the public reports.
+The demo prints safe call/decision/effect traces without publishing benchmark metrics. The evaluator defaults to all 36 public development cases; `--corpus demo` selects the two scripted walkthrough cases. Clean, ambiguous and poisoned C0/C1/C2 cells use identical scripted calls, so replay cannot measure a model’s response to metadata. Keyword, abstain and deny-all controls are separately labelled. The original calls and raw malformed arguments are retained in private evidence rather than the public reports.
 
 Development replay requires an explicit raw pin for `fixtures/dev/corpus-manifest-v2.json`.
 The bounded loader checks its exact canonical package files and uses typed
@@ -182,7 +182,7 @@ gold/dev/               development-only oracle labels, never provider inputs
 scripts/                demonstration and sole metric-edition publisher
 ```
 
-See [ARCHITECTURE.md](ARCHITECTURE.md), the [evaluation guide](docs/EVALUATION-GUIDE.md), [limitations and validation handoff](docs/VALIDATION.md) and [provenance](docs/PROVENANCE.md). MIT licensed. Source was authored with Codex and Claude agents working in disjoint packages under Roy Hardenâ€™s direction. Coordination records and chat exports stay outside the product repository. No remote, publication, deployment or CI infrastructure was created.
+See [ARCHITECTURE.md](ARCHITECTURE.md), the [evaluation guide](docs/EVALUATION-GUIDE.md), [limitations and validation handoff](docs/VALIDATION.md) and [provenance](docs/PROVENANCE.md). MIT licensed. Source was authored with Codex and Claude agents working in disjoint packages under Roy Harden’s direction. Coordination records and chat exports stay outside the product repository. No remote, publication, deployment or CI infrastructure was created.
 
 The [scripted walkthrough](docs/DEMO.md) documents C0/C1/C2 and failure evidence without attributing any scripted selection to a real model.
 
