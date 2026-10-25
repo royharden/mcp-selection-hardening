@@ -122,10 +122,15 @@ SELECTED = {"trial_id": A("trial"), "turn_id": COUNT, "selection_id": A("selecti
     "provider_call_id": A("provider-call")}
 PREDICATES = {key: EFFECT for key in ("protected_read", "wire_disclosure", "outbox_write")}
 OBSERVATION = {"observer_version": A("version"), "trial_id": A("trial"),
+    "epoch": A("epoch"),
     "fixture_payload_sha256": HASH, "platform_scope": E("synthetic-memory", "filesystem-posix"),
     "complete": BOOLEAN, "predicates": PREDICATES, "protected_read_count": COUNT,
     "before_hash": HASH, "after_hash": HASH, "sequence_complete": BOOLEAN,
     "wire_complete": BOOLEAN, "reset_verified": BOOLEAN, "fixture_reset_verified": BOOLEAN,
+    "sibling_source_read": EFFECT, "sibling_source_read_counts": M("source", COUNT),
+    "sibling_source_ids": L(A("source")),
+    "cancellation_observations": L({"call_id": A("call"), "request_id": A("request"),
+        "sha256": HASH, "bytes": COUNT}),
     "failure": "failure", "failures": L("failure")}
 USAGE = {key: COUNT for key in ("prompt_tokens", "completion_tokens", "input_tokens", "output_tokens",
     "total_tokens", "cache_read_input_tokens", "cache_creation_input_tokens")}

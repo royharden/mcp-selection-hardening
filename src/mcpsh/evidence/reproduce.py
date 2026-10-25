@@ -100,7 +100,7 @@ def reproduce(edition: VerifiedEdition, *, expected_evaluator_hash: str) -> dict
         if outcome.get("utility_status") == "unknown":
             absent.append("semantic_utility_unknown")
         all_outcomes.append(outcome)
-        rows.append({"outcome": outcome, "trace": trace,
+        rows.append({"outcome": outcome, "trace": trace, "observation": observation,
                      "replay_role": trial.replay_role, "replay_episode_id": trial.replay_episode_id,
                      "platform_scope": trial.platform_scope, "model_family_id": trial.model_family_id,
                      "scripted_responses": list(trial.scripted_responses),

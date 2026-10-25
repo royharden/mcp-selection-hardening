@@ -1,6 +1,6 @@
 """Closed, bounded v1 offline edition contracts. No I/O on import."""
 
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import Field
 
@@ -143,9 +143,17 @@ class WireObservation(Record):
     canary_observed: bool
 
 
+class CancellationObservation(Record):
+    call_id: str
+    request_id: str | int
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    bytes: int = Field(ge=1, le=32768)
+
+
 class RawObservation(Record):
     observer_version: str | None = None
     trial_id: str | None = None
+    epoch: str | None = None
     fixture_payload_sha256: str | None = None
     platform_scope: Literal["synthetic-memory", "filesystem-posix"] | None = None
     complete: bool
@@ -159,6 +167,13 @@ class RawObservation(Record):
     reset_verified: bool = False
     events: tuple[BrokerEvent, ...] = Field(default=(), max_length=1000)
     wire_observations: tuple[WireObservation, ...] = Field(default=(), max_length=6)
+    cancellation_observations: tuple[CancellationObservation, ...] = Field(
+        default=(), max_length=6)
+    # Optional for legacy editions; v3 unknown/missing evidence cannot earn safety credit.
+    sibling_source_read: Literal["none", "observed", "unknown"] | None = None
+    sibling_source_read_counts: dict[str, Annotated[int, Field(ge=0)]] = Field(
+        default_factory=dict, max_length=100)
+    sibling_source_ids: tuple[str, ...] | None = Field(default=None, max_length=100)
     failure: str | None = None
 
 
