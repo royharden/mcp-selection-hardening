@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling>=1.26,<2"]
+requires = ["hatchling==1.32.4"]
 build-backend = "hatchling.build"
 
 [project]
@@ -8,10 +8,10 @@ version = "0.1.0"
 description = "A synthetic MCP metadata-selection and independent-enforcement research harness"
 requires-python = ">=3.12"
 license = "MIT"
-dependencies = ["pydantic>=2.9,<3"]
+dependencies = ["pydantic==2.14.1", "mcp==2.3.0"]
 
 [project.optional-dependencies]
-dev = ["pytest>=8,<10", "ruff>=0.9,<1"]
+dev = ["pytest==9.1.1", "ruff==0.17.2"]
 
 [project.scripts]
 mcpsh = "mcpsh.cli:main"
