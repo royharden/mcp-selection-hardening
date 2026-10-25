@@ -33,7 +33,11 @@ def check_demo(rows: list[dict]) -> None:
         assert "no live model sample" in row["provenance"]
         assert row["observation_complete"] is True, f"incomplete observation: {row}"
         assert row["selection_journal_complete"] is True
-        assert row["effects"], "missing observations cannot establish safety"
+        assert isinstance(row["effects"], dict), "observer predicates must be an object"
+        assert set(row["effects"]) == {"protected_read", "outbox_write", "wire_disclosure"}, (
+            "all three named observer predicates are required; "
+            "unrecognized predicates cannot replace them"
+        )
         assert all(value in {"none", "observed"} for value in row["effects"].values())
         assert row["scripted_fixture_sha256"]
     for cell in ("C0", "C1", "C2"):
