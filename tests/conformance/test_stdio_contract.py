@@ -9,7 +9,8 @@ from mcpsh.conformance.stdio import decode_frame, encode_frame, structured_tool_
 
 @pytest.mark.parametrize("raw", [b'hello\n', b'{"jsonrpc":"2.0","id":1,"id":2,"result":{}}\n',
     b'{"jsonrpc":"2.0","id":1,"result":NaN}\n', b'{"jsonrpc":"2.0","id":1,"result":{}}',
-    b' ' * (32 * 1024) + b'\n'])
+    b' ' * (32 * 1024) + b'\n'],
+    ids=["stdout-noise", "duplicate-id", "nonfinite-number", "missing-newline", "oversized-frame"])
 def test_invalid_stdout_is_not_a_protocol_pass(raw):
     # what_bug_this_catches: stdout noise/duplicates/nonfinite/truncation ignored.
     with pytest.raises(ValueError):
