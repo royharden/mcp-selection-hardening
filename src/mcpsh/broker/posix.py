@@ -636,7 +636,8 @@ def posix_broker_main(execute, observe, trial_id: str, epoch: str, config: dict,
     try:
         backend = PosixFixtureBackend(config, trial_id, fixture_payload)
         emit("fixture_ready", fixture_hash=backend.before_hash, counters_zero=True)
-        execute.send_bytes(canonical({"ready": True, "platform_scope": "filesystem-posix"}))
+        execute.send_bytes(canonical({"ready": True, "platform_scope": "filesystem-posix",
+                                      "trial_id": trial_id, "epoch": epoch}))
         while True:
             for connection in wait([execute, observe]):
                 request = json.loads(connection.recv_bytes(MAX_FRAME_BYTES))
