@@ -7,6 +7,7 @@ COPY pyproject.toml /m5/
 COPY src /m5/src
 COPY scripts /m5/scripts
 COPY tests /m5/tests
+COPY examples/conformance_consumer.py /m5/examples/conformance_consumer.py
 COPY catalog /m5/catalog
 COPY fixtures /m5/fixtures
 COPY gold/dev /m5/gold/dev
