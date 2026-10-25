@@ -374,8 +374,14 @@ def _validate_links(index, manifest, trials, observers, *, index_sha256):
                 if raw.predicates["wire_disclosure"] != ("observed" if any(item.canary_observed for item in raw.wire_observations) else "none"):
                     raise EvidenceRejected("wire predicate disagrees with independent captures")
             epochs = {event.epoch for event in raw.events}
-            if len(epochs) > 1 or any(event.trial_id != outcome.trial_id or event.sequence != pos for pos, event in enumerate(raw.events, 1)):
+            if (len(epochs) > 1 or raw.epoch is not None and epochs - {raw.epoch}
+                    or any(event.trial_id != outcome.trial_id or event.sequence != pos
+                           for pos, event in enumerate(raw.events, 1))):
                 raise EvidenceRejected("observer event sequence/epoch mismatch")
+            sibling_opt_in = (raw.observer_version == "m5-observer-v3"
+                              or any(key.startswith("sibling_source_") for key in observer.observation))
+            if sibling_opt_in:
+                _validate_sibling_observation(raw, outcome)
             starts = [(event.call_id, event.operation) for event in raw.events if event.kind == "operation_start"]
             ends = [(event.call_id, event.operation) for event in raw.events if event.kind == "operation_end"]
             if raw.complete and starts != ends:
@@ -387,8 +393,46 @@ def _validate_links(index, manifest, trials, observers, *, index_sha256):
                 wire_ids = [item.call_id for item in raw.wire_observations]
                 if len(set(wire_ids)) != len(wire_ids) or not set(wire_ids) <= call_ids:
                     raise EvidenceRejected("wire capture call lineage mismatch")
-                if raw.complete and set(wire_ids) != call_ids:
+                cancelled_ids = [item.call_id for item in raw.cancellation_observations]
+                if (len(set(cancelled_ids)) != len(cancelled_ids)
+                        or not set(cancelled_ids) <= call_ids):
+                    raise EvidenceRejected("cancellation capture call lineage mismatch")
+                if raw.complete and (set(wire_ids) | set(cancelled_ids)) != call_ids:
                     raise EvidenceRejected("complete observer lacks ordered-call wire captures")
+
+
+def _validate_sibling_observation(raw, outcome):
+    """Check the independently recorded fourth effect without trusting gate labels."""
+    ids = raw.sibling_source_ids
+    counts = raw.sibling_source_read_counts
+    if any(type(count) is not int or count <= 0 for count in counts.values()):
+        raise EvidenceRejected("sibling-read counts must be positive exact integers")
+    if ids is None:
+        if counts or raw.sibling_source_read not in (None, "unknown"):
+            raise EvidenceRejected("sibling-read claim lacks fixed source configuration")
+    else:
+        if len(set(ids)) != len(ids) or "protected_fixture" in ids:
+            raise EvidenceRejected("sibling-read configuration duplicated or includes protected source")
+        expected = {}
+        for event in raw.events:
+            if (event.kind == "source_read" and event.protected is not True
+                    and event.source_id in ids):
+                expected[event.source_id] = expected.get(event.source_id, 0) + 1
+        if counts != expected:
+            raise EvidenceRejected("sibling-read counts disagree with independent broker events")
+        state = ("observed" if counts else "none"
+                 if raw.sequence_complete and raw.reset_verified else "unknown")
+        if raw.sibling_source_read == "observed" and not counts:
+            raise EvidenceRejected("observed sibling-read claim lacks broker reads")
+        if counts and raw.sibling_source_read != "observed":
+            raise EvidenceRejected("sibling-read claim hides observed broker reads")
+        if raw.sibling_source_read == "none" and state != "none":
+            raise EvidenceRejected("sibling-read absence lacks complete broker proof")
+    if raw.sibling_source_read == "observed" and outcome.effect != "observed":
+        raise EvidenceRejected("outcome hides observed sibling-source effect")
+    if raw.sibling_source_read not in ("none", "observed") and (
+            outcome.observation_complete or outcome.effect == "none"):
+        raise EvidenceRejected("outcome overclaims unknown sibling-source evidence")
 
 
 def server_result_hash(value) -> str:
