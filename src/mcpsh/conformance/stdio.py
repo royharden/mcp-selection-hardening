@@ -11,6 +11,7 @@ import os
 import queue
 import subprocess
 import sys
+import sysconfig
 import threading
 import time
 from pathlib import Path
@@ -84,7 +85,32 @@ class StdioSession:
             raise BackendUnavailable("compatible official SDK is not installed")
         # Preserve only OS bootstrap variables; no provider/key environment is copied.
         child_env = {key: os.environ[key] for key in ("SYSTEMROOT", "WINDIR", "TEMP", "TMP") if key in os.environ}
-        child_env["PYTHONPATH"] = str(Path(__file__).resolve().parents[2])
+        child_paths = [str(Path(__file__).resolve().parents[2])]
+        child_python = sys.executable
+        if os.name == "nt" and sys.prefix != sys.base_prefix:
+            # Windows venv python.exe redirects to another process. Launch the
+            # actual interpreter so Popen.pid is the control peer's PID, retaining
+            # exact PID/nonce verification and this environment's dependency set.
+            base_python = getattr(sys, "_base_executable", None)
+            if not base_python or not Path(base_python).is_file():
+                raise BackendUnavailable("actual Windows interpreter unavailable")
+            child_python = str(Path(base_python).resolve())
+            for scheme in ("purelib", "platlib"):
+                package_path = sysconfig.get_path(scheme)
+                if package_path and package_path not in child_paths:
+                    child_paths.append(package_path)
+        child_env["PYTHONPATH"] = os.pathsep.join(child_paths)
+        child_command = [child_python, "-m", "mcpsh.conformance.stdio_host"]
+        if child_python != sys.executable:
+            # Reproduce venv site initialization, including pywin32's .pth setup.
+            # Only paths derived from this interpreter's install scheme enter
+            # the fixed bootstrap; no caller-supplied executable/code is accepted.
+            bootstrap = (
+                "import json,runpy,site,sys; "
+                "[site.addsitedir(path) for path in json.loads(sys.argv.pop(1))]; "
+                "runpy.run_module('mcpsh.conformance.stdio_host',run_name='__main__')"
+            )
+            child_command = [child_python, "-c", bootstrap, json.dumps(child_paths[1:])]
         from .channel import InheritedControl
 
         self.control = InheritedControl(request)
@@ -92,7 +118,7 @@ class StdioSession:
             arguments, options = self.control.child_arguments()
             if probe.semantic_case_id:
                 arguments.extend(["--semantic-case", probe.semantic_case_id])
-            self.process = subprocess.Popen([sys.executable, "-m", "mcpsh.conformance.stdio_host", *arguments,
+            self.process = subprocess.Popen([*child_command, *arguments,
                 "--runtime-authorized", "--disposable-authorized", "--approval-id", request.approval_id],
                                             stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                             stderr=subprocess.DEVNULL, env=child_env, shell=False, **options)
@@ -112,8 +138,17 @@ class StdioSession:
                 "approval_id": request.approval_id, "child_pid": self.process.pid})
             if self.control.identity.get("stdio_reference_injected") is not True:
                 raise BackendUnavailable("D2 stdio same-reference injection unavailable")
-            response = self.rpc("initialize", {"protocolVersion": PROTOCOL_VERSION,
-                "capabilities": {}, "clientInfo": {"name": "mcpsh-conformance", "version": "1"}})
+            # Identity precedes SDK import in the child. Initialization is still
+            # bootstrap, not a tool call; restore the admitted deadline afterward.
+            from .channel import CONTROL_STARTUP_SECONDS
+
+            call_timeout = self.timeout
+            try:
+                self.timeout = CONTROL_STARTUP_SECONDS
+                response = self.rpc("initialize", {"protocolVersion": PROTOCOL_VERSION,
+                    "capabilities": {}, "clientInfo": {"name": "mcpsh-conformance", "version": "1"}})
+            finally:
+                self.timeout = call_timeout
             result = response.get("result", {})
             if result.get("protocolVersion") != PROTOCOL_VERSION:
                 raise BackendUnavailable("negotiated SDK protocol is not the admitted probe version")
