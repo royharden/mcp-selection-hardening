@@ -1,49 +1,57 @@
 # Validation handoff
 
-Status: construction/static-only. Runtime and independent product acceptance are pending. The end-to-end method is in [EVALUATION-GUIDE.md](EVALUATION-GUIDE.md).
+Updated 2026-10-25 for PB-M5-R03. Normal-mode execution has replaced the earlier construction-only status. The source revision covered by this update is `a1f61c1320166cc68f14b3bfebc5dfac634514ef` (tree `c04bc5755380db089f99dfc22251b7a3a224deed`). This is a local development candidate, not an accepted product or a live benchmark. The method is in [EVALUATION-GUIDE.md](EVALUATION-GUIDE.md).
 
 ## Deferred-validation list
 
-Nothing in this list has been executed. Static checks during construction were syntax parsing, stdlib JSON/hash inspection and same-lineage source review only.
+The table separates completed bounded checks from open gates. Counts belong to their stated source and scope; earlier component evidence does not become a final joined verdict. Final independent joined review and Docker/Linux execution are still pending at this documentation checkpoint.
 
-| Component | Skipped check | Later activation step |
+| Component | Executed evidence | Remaining scope or gate |
 |---|---|---|
-| Dependencies and SDK | No install, lock (`uv.lock` absent) or MCP SDK stdio smoke | Select and lock Python 3.12/Pydantic v2/MCP SDK; record protocol smoke; pin lock hash |
-| All authored regressions | No pytest run anywhere | Run the suite after install; turn real failures into fixes with regression cases |
-| Dev corpus and oracle closure | Loader/preflight never run; closure verified only by stdlib inspection | Run `parse_dev_corpus` and replay over all 36 tasks; confirm sibling-source reads score as prohibited intent |
-| Replay journey and reports | No edition published; views/HTML/CSV never rendered | Run keyless development replay and demo; inspect projections, escaping and immutability |
-| Broker, observer, server | No process start, IPC, reset or cap behaviour | Exercise positive/negative effect controls and failure paths |
-| Conformance hooks (D6) | Six hooks and the `m5-broker-control-receipt-v1` frame rule never exercised | Run memory, Linux POSIX (openat2) and stdio hooks on authorized disposable storage; verify read-amplification credit under the frame rule |
-| Observer sibling-source effects (`m5-observer-v3`) | Scorer and `RawObservation` do not yet opt in to the sibling fields; `RawObservation` (`extra=forbid`) would reject the real observer fields `epoch` and `cancellation_observations` | Add the scorer/`RawObservation` opt-in and accept those fields, then run positive/negative sibling-read controls |
-| Normative bridge and status (D7) | `verify_producer_bindings` / `project_normative_status` never run on real v3 documents | Produce real v3 evidence, verify against pinned inventory/semantic manifests, check the public block |
-| Dossier/ledger consumers | No dossier or ledger audit assembled; no DB opened | Run against a real saved edition, authorities and ledger snapshot |
-| fit-reverify successor | Never run; Windows staging rename unverified | Exercise pending, rejection and ready paths on a real live edition with an independently selected receipt |
-| `pilot.py plan` | Never run | Run with the reviewed manifest pin; check the six-case draft |
-| `.gitattributes` byte stability | No fresh clone checked | Clone fresh with `core.autocrlf` true and false; rehash every pin; confirm source-tree hashes match |
-| Live dispatch and accounting | No provider call, tokenizer, price or budget | Only after Dirty Mode closure and explicit runtime/spend approval |
-| Held-out corpus and acceptance | v1 retired, v2 changes requested, v3 review partial; unseen-family evidence blocked | Fresh independent custody and review, calibration, pilot, live matrix, independent product acceptance |
+| Dependencies and packaging | `uv.lock` exists. Python 3.12.13; Pydantic 2.14.1, MCP SDK 2.3.0, pytest 9.1.1 and ruff 0.17.2 pinned. Reviewed bootstrap builds and installs a noneditable wheel. | New environments must use the lock and verify installed source/resource identity; a version declaration is not execution proof. |
+| Windows local runner | At `a1f61c1`, `scripts/check_local.py --scope all --timeout 600` reports 877 passed, 3 skipped, 0 failures/errors, exit 0; the public CLI journey also passes. | The three skips are Linux-only POSIX tests. The root runner does not supply independent product or platform acceptance. |
+| Fresh installed distribution | D8's `a1f61c1` receipt reports 110 installed Python files matching joined source, 121 wheel payload files matching installation and seven resource matches. Public installed journey: eight checks passed. | Installed proof is scoped; byte identity and a successful journey do not establish every feature or acceptance requirement. |
+| SDK and stdio | Fresh-installed SDK initialize/list/call smoke passed at `a1f61c1`, negotiated protocol `2025-11-25`, listed nine tools, allowed source discovery and denied export. Five controlled stdio probes passed, zero unknowns. | Diagnostic five-probe selection only; full normative verdict remains pending external semantic/requirements authority pins. |
+| Broker, observer, scoring | Process startup readiness, bounded stdio reads and installed-launcher identity were repaired. Observer-v3 sibling state reaches scoring/diagnostics; observed effects dominate incomplete evidence. | Broader platform claims need their own evidence; missing/unknown observations never earn complete safe absence. |
+| Trace and evidence contract | Independently reviewed repair `8b354f1` preserves the four real trace metadata fields, original hashes and server lineage. Actual producer/build/read/reproduce positives and the ordinary 24-row publisher/readback passed in the scoped JEV review. | Fresh independent joined review at `a1f61c1` remains pending. Do not substitute a reviewer-filtered trace or stand-in for the original chain. |
+| Sibling configuration authority | Reviewed JEV controls bind retained nonprotected reads to the pinned public-task allowlist. Omitted/fake sibling inventories cannot erase unauthorized reads; missing authority cannot earn complete safe absence. | Rebound synthetic-authority tests do not demonstrate tampering past an independently immutable production authority. |
+| Installed actual evidence chain | At `a1f61c1`, D8 ran two canonical actual producer/build/read/reproduce cases (allowed and sibling), both passing; 19 other cases were deselected. | This receipt is not a second full 21-test JEV run or a 24-row publisher run. |
+| Public development replay | The 36-task loader and scripted publisher have executed. Earlier 477-slot public replay retained nine failed outcomes and 21 unknown utility rows. | Provenance/immutability success is not task-utility success; retain all failures and unknowns. Final r3 public-evaluation receipt remains pending. |
+| Docker and Linux/POSIX | Earlier corrected-context `6189e0a` targeted detached-consumer run: five passed, exit 0, network disabled, no published ports. | Final full `a1f61c1` Docker/Linux/public-evaluation result pending. Windows skips and memory evidence cannot close POSIX path/handle/race requirements; real Windows filesystem support remains deferred. |
+| Normative conformance | Local diagnostic/hook tests and installed resources have executed. | External semantic/requirements authorities, complete inventory coverage and any unsupported/missing cases remain required; local hashes cannot self-authorize normative credit. |
+| Dossier, ledger and fit consumers | Offline regressions have run as part of keyless suites. | No authenticated provider billing, real live token-fit collection or independently admitted live successor is established by those tests. See the contracts below. |
+| Calibration, pilot and held-out families | Public synthetic development data and draft/consumer paths exist. | Independently reviewed labels/families, approved utility floor, real pilot and live matrix remain pending; a draft cannot grant dispatch. |
+| Byte stability | Pinned source/resource bytes were checked for the scoped builds/reviews. | A general fresh-clone comparison under both `core.autocrlf` settings is not established by those checks. |
+| Live models and product acceptance | No live/paid or hidden/held-out execution is claimed. | Two distinct approved model families, dated prices, full-wire fit, durable accounting, independent custody and product acceptance remain open. |
 
-After Dirty Mode closes, prioritize:
+## Reproduce the bounded checks
 
-1. Install and lock compatible dependencies, then run the keyless clean/poison journey on the actual host. Verify the CLI, catalog, lint, replay selectors and report writer together. Add meaningful regression fixtures for any defects found.
-2. Exercise broker process startup/teardown, isolation/reset, sequence and wire capture. Positive controls must show read-only protected access, disclosure without writes and synthetic export. Missing/killed observer, truncated events and failed reset must remain unknown/incomplete. A mixed blocked-then-effect trace must retain both facts; gate false negatives must stay in oracle attempt counts.
-3. Probe strict raw/typed boundaries: duplicate JSON keys, nonfinite JSON, malformed protected intent, integer/string/bool distinctions, optional defaults, namespace mismatch, duplicated/extra/late calls and accepted multistep/no-tool alternatives. Ensure labels cannot escape through provider requests, logs or exception text.
-4. Verify actual read/frame/escaping/line/deadline/cursor/concurrency/redaction limits and structured errors. Select a compatible official MCP SDK and exercise real stdio response/schema behavior. No SDK/protocol pin or interoperability claim exists yet.
-5. Verify edition immutability, interrupted reservation/staging recovery, raw evidence outside the repo, safe report projections, CSV formula protection, and HTML escaping of malicious metadata/tool text. Reports must reproduce from the same scored object and retained private raw evidence. These source paths have not been executed.
-6. Reconcile local accounting with actual provider usage/retry/cancellation/restart behavior before allowing real dispatch. Unknown usage stays reserved. Admit exact live family/model identities, prices, cap fit, independent corpus custody and budget receipts before the pilot/matrix.
-7. Author/verify a supported POSIX filesystem implementation and mandatory path/handle/race conformance on disposable authorized storage. Memory success cannot substitute for this. Unsupported Windows filesystem cases remain unsupported.
-8. Obtain independent label/family review, development calibration and independent product acceptance. Never promote development templates or public poison examples to unseen-family evidence. No measured live/effect/utility verdict is available from this construction phase.
+Use the [README quickstart](../README.md#keyless-quickstart) from the repository root. `scripts/bootstrap.py` selects Python 3.12.13 and runs locked, noneditable installation before a wheel build and installed CLI help check. It makes no provider requests.
 
-Authored but unexecuted integrations now include concrete provider HTTP codecs, an approved live CLI/core-matrix path, ModelAttempt/cost linkage and a disposable POSIX reader/fixture backend. A real compatible SDK/dependency lock, approved model tokenizer module and independently adjudicated/admitted held-out corpus remain pending inputs. A sealed candidate does not establish semantic label or lineage acceptance. No independent label review, calibration, pilot, live matrix or product acceptance has occurred. Runtime checks must cover these source integrations before claiming they work.
+```powershell
+python scripts/bootstrap.py
+$py = ".\.venv\Scripts\python.exe"
+& $py scripts/e2e_cli.py
+& $py scripts/e2e_cli.py --installed
+$env:MCPSH_TEST_SOURCE_COMMIT = (git rev-parse HEAD).Trim()
+& $py scripts/check_local.py --scope all --timeout 600
+```
 
-The sealed-data consumer additionally requires oracle, fixture and per-task treatment raw-byte pins, exact task/reference/policy joins, bounded synthetic fixture validation, metadata-only canonical-ID/schema-preserving overlays and consistent protected-sentinel redaction. Static source reconciliation does not prove that an independently authored candidate executes or that its labels/lineage are semantically correct. Source authors have not opened hidden candidate packages; independent corpus adjudication and real consumer execution remain required after admission.
+The commit environment variable supplies edition metadata only. Independently verify imported paths, source bytes and installed resources when making source-identity claims. `--installed` on the journey checks the noneditable package without source-checkout rescue; the default runner checks source. Use normal Python: optimized mode disables assertions and is refused by these scripts. Inspect per-check results and row completeness; process exit zero alone does not establish a valid effect-free trial.
 
-`M5-heldout-v1` is retired from held-out/generalization use after label readers became product authors. Its immutable private files remain preserved; it cannot be admitted as held-out evidence. A later run requires a fresh independent corpus edition, matching explicit manifest/approval edition IDs and semantic utility predicates. Source authors must not reopen the retired vault or copy its examples into code/tests.
+The default demonstration has two public scripted tasks across C0/C1/C2. Clean rows have no observed prohibited effects; the permissive poisoned row exposes synthetic protected-read/outbox effects; hardened rows deny export before dispatch. All six need complete observations and selection journals. `scripts/demo.py --include-failures` adds malformed, extra-selection and missing-answer diagnostics; those rows do not expand the successful default sample or create live model evidence.
 
-CLI integration now routes `server-check --request` through the typed conformance request/aggregation API and requires explicit activation. `scripts/eval.py --lint-controls` returns public label and normalization results through the sole metric-edition publisher; confirmed and provisional label scopes, bypass diagnostics and unknowns remain separate. The views use the same result object, including lint JSON/CSV/Markdown/HTML projections. These routes have only been source-inspected and syntax-parsed during construction.
+## Evidence history and open authority
 
-The publisher also wires raw-pinned pilot summary/threshold proposals and private normalized evidence bytes. Offline evidence checking requires an external authority pin; offline rescore requires the matching evaluator pin and produces a fresh view without overwriting source evidence. Later validation must exercise interruption/immutability, sidecar lineage, private/public projection, unknown reservation behavior and all-scheduled missing-evidence reports. No checker, reproduction, pilot summary or evidence writer was executed during construction.
-# Exact request-byte fit consumer (construction only)
+Earlier failed startup, installed-launcher, Docker-context and canonical-evidence editions are retained with their original evidence. Successor checks bind new immutable source/edition identities; they do not overwrite or retroactively pass failed editions. Public reports contain only the bounded projection, never private raw payloads or hidden labels. Original observations, full traces and failed/unknown scheduled rows remain available to their authorized reviewers.
+
+The source-owned sibling scorer/evidence repairs are reviewed, but final joined review, final Docker/Linux checks and independent product acceptance remain separate gates. Source/installed J7 pass at earlier joined `7b7e97c` is scoped to that revision; it is not automatically transferred into the new revision. The 877-test Windows result and current installed receipt above belong to `a1f61c1`.
+
+Live dispatch, hidden/held-out access and paid experiments are outside this run's authorization. Public tasks, poison examples and lint labels are author-seen development material, not independent unseen families. `M5-heldout-v1` is retired from held-out/generalization use; preserved private corpus editions must not be reopened by source authors. A future admitted corpus requires explicit independent custody, semantic label/family review and matching manifest/approval pins. No current product or full normative/platform verdict is inferred.
+
+The remaining sections describe consumer contracts, not blanket execution or acceptance claims. Synthetic/fake-backed regression success does not establish actual provider usage, tokenizer fit, external authority authenticity or billing. No pending gate can be filled by a matching hash alone.
+
+## Exact request-byte fit consumer
 
 Dispatch attribution now uses the counter's one-use
 `bind_dispatch_context(phase=..., attempt_id=..., operation_id=...)` callback.
@@ -78,11 +86,10 @@ parity is structural only, and fit is not spend authorization, provider billing
 verification, interoperability or product acceptance. Proof events bind trial,
 turn and actual request-body hash; later custody/reproduction must preserve them.
 
-Four regression functions are authored in `tests/contracts/test_wire_fit_consumer.py`
-for original full bytes, altered wire metadata, silent order repair and failed
-durable journaling. They use fresh public synthetic test data and an explicit
-fake counter. No test, product import, preview, tokenizer, callback or provider
-request was executed during this Dirty Mode construction packet.
+Offline regression coverage in `tests/contracts/test_wire_fit_consumer.py` uses
+public synthetic data and an explicit fake counter for full bytes, altered wire
+metadata, silent order repair and failed journaling. It does not establish a real
+tokenizer proof or provider request.
 
 The subsequent consumer delta authors an additional regression for one-use
 dispatch attribution. Canonical semantic development corpus bytes and explicit
@@ -93,10 +100,11 @@ models and server-owned normalized fixtures. Baseline, diagnostic and control
 rows stay separate; every scheduled unsupported observer-fault scenario remains
 as an unknown/unsupported row. No fault observation is inferred from its request.
 
-Conformance wheel source configuration now includes the public semantic source,
+Conformance wheel configuration includes the public semantic source,
 normative requirements inventory and all five closed schemas at their fixed
-installed `mcpsh/conformance/data/` locations. No wheel/build/install/resource read
-was performed. `server-check` forwards explicit `--semantic-manifest-sha256` and
+installed `mcpsh/conformance/data/` locations. The installed distribution and
+seven packaged resources have now been checked. `server-check` forwards explicit
+`--semantic-manifest-sha256` and
 `--requirements-manifest-sha256` pins to D6; absent pins stay absent. A hash of the
 resource being checked never substitutes for external admission. Disposable and
 runtime activation still require the exact explicit request grants.
@@ -147,9 +155,10 @@ An original immutable edition captured without independent expectations cannot
 gain that authority by changing only its authority file. Later retrospective
 expectation selection requires an authorized successor evidence-construction path;
 this packet does not mutate original editions or invent that independent selection.
-No journal read, capture adapter, verifier, evidence builder or rescore was executed.
+Offline tests do not establish a live captured journal with independently
+authorized token-fit expectations or a real authenticated successor.
 
-## Retrospective fit successor writer (construction only)
+## Retrospective fit successor writer
 
 Built: `runner/fit_successor.run_fit_successor` and `scripts/eval.py --mode
 fit-reverify`, the publisher-side consumer of D7's pure
@@ -181,10 +190,10 @@ journal. A receipt is optional but must carry both its raw and typed pins.
   authority and receipt plus their external pins. The writer adds no separate
   authentication; trusted custody of those bytes must be established outside it.
 
-Not done: no command, reader, planner or authored regression
-(`tests/contracts/test_fit_successor_consumer.py`) has run. CLI flags never
-authenticate a receipt; authentication comes only from the externally selected
-receipt and authority bytes. No new attempts, charges, dispatch, pre-send
+Offline regressions include `tests/contracts/test_fit_successor_consumer.py`;
+real independently admitted live-successor execution remains pending. CLI flags
+never authenticate a receipt; authentication comes only from the externally
+selected receipt and authority bytes. No new attempts, charges, dispatch, pre-send
 admission, billing claim or public numeric publication is introduced.
 
 Offline dossier source uses `--mode dossier --evidence-root <saved-private-edition>`.
@@ -212,7 +221,7 @@ tree. Only bounded status/pins/basis/count fields enter the canonical public obj
 Replay remains replay; source-only conformance, prices or settlements cannot gain
 authenticated live credit. Malformed/pin-mismatched/missing original sources reject
 without replacing them with an empty successful edition. Runtime and product
-acceptance remain false/pending. No reader, assembler, projection or test was run.
+acceptance remain false/pending. Offline coverage is not an authenticated dossier.
 
 Read-only audit publication uses `--mode ledger-audit`, explicit `--ledger`,
 `--evidence-root`, `--evidence-authority` plus its external raw `--authority-sha256`,
@@ -236,5 +245,5 @@ real receipt authentication. A trusted Python admission owner may pass genuinely
 established `BillingEvidence` through the existing API; estimates and provider
 billing remain separate fields. Snapshot identity does not imply freshness, and
 retained unknown liabilities never become available/free budget. Missing/corrupt
-or pin-mismatched snapshots reject without an empty successful report. No DB,
-reader, audit, projection, writer, import or regression was executed in this packet.
+or pin-mismatched snapshots reject without an empty successful report. Offline
+accounting/audit tests do not authenticate real billing or settle live liabilities.
