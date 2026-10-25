@@ -171,6 +171,12 @@ class ToolCallEvent(Record):
     output_hash: str
     model_attempt_id: str | None = None
     selection_id: str | None = None
+    # Actual server journal fields. Absent in legacy editions; never project them
+    # away before hashing or reproducing a modern trace.
+    server_instance_id: str | None = Field(default=None, min_length=1, max_length=256)
+    request_id: str | int | None = None
+    cancelled: bool = False
+    duration_seconds: float = Field(default=0.0, ge=0, allow_inf_nan=False)
 
 
 class SelectedCall(Record):

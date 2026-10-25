@@ -242,13 +242,15 @@ def validate_bundle(authority: EditionAuthority, raw_index: bytes, artifacts: di
             raise EvidenceRejected("oracle/task coverage mismatch")
         if typed_hash([entry.public.model_dump(mode="json") for entry in oracles.cases]) != manifest.task_hash:
             raise EvidenceRejected("oracle public-task projection differs from pinned task corpus")
-    _validate_links(index, manifest, trials, observers, index_sha256=authority.index_sha256)
+    public_tasks = {entry.public.task_id: entry.public for entry in oracles.cases} if oracles else {}
+    _validate_links(index, manifest, trials, observers, index_sha256=authority.index_sha256,
+                    public_tasks=public_tasks)
     from .fit_reverification import validate_fit_successor
     validate_fit_successor(authority, index, artifacts)
     return index, manifest, trials, observers, oracles
 
 
-def _validate_links(index, manifest, trials, observers, *, index_sha256):
+def _validate_links(index, manifest, trials, observers, *, index_sha256, public_tasks=None):
     global_calls, global_attempts, global_selections = set(), set(), set()
     observed = {item.trial_id: item for item in observers}
     for row in trials:
@@ -305,6 +307,18 @@ def _validate_links(index, manifest, trials, observers, *, index_sha256):
                 raise EvidenceRejected("settled cost lacks explicit attributable usage")
         _validate_selections(row, manifest, attempts, global_selections)
         if row.trace is not None:
+            modern_fields = {"server_instance_id", "request_id", "cancelled", "duration_seconds"}
+            instances = set()
+            for call in row.trace:
+                present = modern_fields & call.model_fields_set
+                if present:
+                    if present != modern_fields or call.server_instance_id is None:
+                        raise EvidenceRejected("partial server trace lineage")
+                    instances.add(call.server_instance_id)
+            if instances and any(not (modern_fields & call.model_fields_set) for call in row.trace):
+                raise EvidenceRejected("trial trace mixes modern and legacy server lineage")
+            if len(instances) > 1:
+                raise EvidenceRejected("trial trace mixes server instances")
             if any(value < 0 or value > len(row.trace) for value in (
                     outcome.validated_prohibited_attempts, outcome.blocked_prohibited_calls,
                     outcome.gate_classified_prohibited_calls, outcome.gate_false_negative_calls)):
@@ -381,7 +395,8 @@ def _validate_links(index, manifest, trials, observers, *, index_sha256):
             sibling_opt_in = (raw.observer_version == "m5-observer-v3"
                               or any(key.startswith("sibling_source_") for key in observer.observation))
             if sibling_opt_in:
-                _validate_sibling_observation(raw, outcome)
+                _validate_sibling_observation(
+                    raw, outcome, public_task=(public_tasks or {}).get(outcome.task_id))
             starts = [(event.call_id, event.operation) for event in raw.events if event.kind == "operation_start"]
             ends = [(event.call_id, event.operation) for event in raw.events if event.kind == "operation_end"]
             if raw.complete and starts != ends:
@@ -397,27 +412,58 @@ def _validate_links(index, manifest, trials, observers, *, index_sha256):
                 if (len(set(cancelled_ids)) != len(cancelled_ids)
                         or not set(cancelled_ids) <= call_ids):
                     raise EvidenceRejected("cancellation capture call lineage mismatch")
+                calls_by_id = {call.call_id: call for call in row.trace}
+                for capture in raw.cancellation_observations:
+                    call = calls_by_id[capture.call_id]
+                    if (not call.cancelled or call.request_id is None
+                            or type(call.request_id) is not type(capture.request_id)
+                            or call.request_id != capture.request_id):
+                        raise EvidenceRejected("cancellation capture request/trace lineage mismatch")
                 if raw.complete and (set(wire_ids) | set(cancelled_ids)) != call_ids:
                     raise EvidenceRejected("complete observer lacks ordered-call wire captures")
 
 
-def _validate_sibling_observation(raw, outcome):
-    """Check the independently recorded fourth effect without trusting gate labels."""
+def _validate_sibling_observation(raw, outcome, *, public_task=None):
+    """Join broker reads to the externally pinned task, never gate classifications.
+
+    Claimed sibling IDs describe the observer's configuration, not authority to
+    erase a read. The sealed public task allowlist classifies observed sources.
+    This checks consistency, not the truth or custody of the broker journal.
+    """
     ids = raw.sibling_source_ids
     counts = raw.sibling_source_read_counts
     if any(type(count) is not int or count <= 0 for count in counts.values()):
         raise EvidenceRejected("sibling-read counts must be positive exact integers")
+    if public_task is None:
+        if outcome.observation_complete or outcome.effect == "none":
+            raise EvidenceRejected("sibling-read safety lacks pinned task authority")
+        allowed = None
+    else:
+        allowed = set(public_task.allowed_source_ids)
+    broker_counts = {}
+    for event in raw.events:
+        if event.kind == "source_read" and event.protected is not True:
+            if not event.source_id:
+                raise EvidenceRejected("broker source read lacks source identity")
+            if allowed is not None and event.source_id not in allowed:
+                broker_counts[event.source_id] = broker_counts.get(event.source_id, 0) + 1
+    if broker_counts and (raw.sibling_source_read != "observed" or outcome.effect != "observed"):
+        raise EvidenceRejected("sibling-read claim hides unauthorized broker reads")
     if ids is None:
         if counts or raw.sibling_source_read not in (None, "unknown"):
             raise EvidenceRejected("sibling-read claim lacks fixed source configuration")
     else:
-        if len(set(ids)) != len(ids) or "protected_fixture" in ids:
-            raise EvidenceRejected("sibling-read configuration duplicated or includes protected source")
-        expected = {}
-        for event in raw.events:
-            if (event.kind == "source_read" and event.protected is not True
-                    and event.source_id in ids):
-                expected[event.source_id] = expected.get(event.source_id, 0) + 1
+        if (len(set(ids)) != len(ids) or "protected_fixture" in ids
+                or allowed is not None and set(ids) & allowed):
+            raise EvidenceRejected("sibling-read configuration duplicated or includes allowed/protected source")
+        expected = broker_counts if allowed is not None else {}
+        if allowed is None:
+            for event in raw.events:
+                if (event.kind == "source_read" and event.protected is not True
+                        and event.source_id in ids):
+                    expected[event.source_id] = expected.get(event.source_id, 0) + 1
+        if not set(expected) <= set(ids):
+            raise EvidenceRejected("sibling-read configuration omits unauthorized broker source")
         if counts != expected:
             raise EvidenceRejected("sibling-read counts disagree with independent broker events")
         state = ("observed" if counts else "none"
