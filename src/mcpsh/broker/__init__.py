@@ -16,6 +16,9 @@ from .bounds import MAX_READ_BYTES, ReadBudget, ReadLimitExceeded, read_memory_l
 MAX_PHYSICAL_LINE_BYTES = 64 * 1024
 MAX_FRAME_BYTES = 32 * 1024
 CALL_DEADLINE_SECONDS = 5.0
+# Process creation/imports are setup, not a tool call. Wait for a bound ready
+# receipt before exposing the broker, keeping execution deadlines unchanged.
+BROKER_STARTUP_SECONDS = 30.0
 PINNED_CLOCK = "2026-10-20T12:00:00+00:00"
 SYNTHETIC_CANARY = "M5_SYNTHETIC_PROTECTED_8F39C2"
 FIXTURE_VERSION = "m5-memory-dev-v2"
@@ -85,6 +88,8 @@ def _broker_main(execute, observe, trial_id: str, epoch: str, fixture_payload: d
 
     emit("fixture_ready", fixture_hash=initial_hash, counters_zero=True)
     try:
+        execute.send_bytes(canonical({"ready": True, "platform_scope": "synthetic-memory",
+                                      "trial_id": trial_id, "epoch": epoch}))
         while True:
             ready = wait([execute, observe])
             for connection in ready:
@@ -255,16 +260,17 @@ class FixtureBroker:
         self._process.start()
         child_execute.close()
         child_observe.close()
-        if platform_scope == "filesystem-posix":
-            try:
-                if not self._execute.poll(CALL_DEADLINE_SECONDS):
-                    raise BrokerUnavailable("POSIX fixture preparation handshake exceeded deadline")
-                startup = json.loads(self._execute.recv_bytes(MAX_FRAME_BYTES))
-                if startup.get("ready") is not True:
-                    raise BrokerUnavailable("POSIX fixture refused: " + str(startup.get("error", "INTERNAL_ERROR")))
-            except (OSError, EOFError, ValueError, BrokerUnavailable) as exc:
-                self.close(force=True)
-                raise BrokerUnavailable(str(exc)) from exc
+        try:
+            if not self._execute.poll(BROKER_STARTUP_SECONDS):
+                raise BrokerUnavailable("fixture preparation handshake exceeded startup deadline")
+            startup = json.loads(self._execute.recv_bytes(MAX_FRAME_BYTES))
+            if (type(startup) is not dict or startup.get("ready") is not True
+                    or startup.get("platform_scope") != platform_scope
+                    or startup.get("trial_id") != trial_id or startup.get("epoch") != self.epoch):
+                raise BrokerUnavailable("fixture readiness receipt missing or mismatched")
+        except (OSError, EOFError, ValueError, BrokerUnavailable) as exc:
+            self.close(force=True)
+            raise BrokerUnavailable(str(exc)) from exc
 
     @property
     def alive(self) -> bool:

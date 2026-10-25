@@ -159,7 +159,10 @@ async def serve_stdio(mode: str = "hardened", allowed_sources=("app",), trial_id
 
         async def __anext__(self):
             while self.rejections < 64:
-                payload = await input_file.readline(MAX_FRAME_BYTES + 1)
+                # AsyncFile.readline has no size parameter. Dispatch the bounded
+                # binary readline itself so hostile input is never read unbounded.
+                payload = await anyio.to_thread.run_sync(
+                    input_file.wrapped.readline, MAX_FRAME_BYTES + 1)
                 if not payload:
                     raise StopAsyncIteration
                 framing = len(payload) > MAX_FRAME_BYTES or not payload.endswith(b"\n")
@@ -167,7 +170,7 @@ async def serve_stdio(mode: str = "hardened", allowed_sources=("app",), trial_id
                 if not payload.endswith(b"\n"):
                     # At most 1 KiB can be drained to regain a frame boundary.
                     # A larger/unterminated frame closes; it is never accepted.
-                    tail = await input_file.readline(1024)
+                    tail = await anyio.to_thread.run_sync(input_file.wrapped.readline, 1024)
                     payload += tail
                     fatal = not payload.endswith(b"\n") or len(payload) > MAX_FRAME_BYTES + 1024
                 try:

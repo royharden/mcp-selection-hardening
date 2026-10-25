@@ -233,7 +233,9 @@ def run_conformance(request, *, backend_factory=None, expected_semantic_manifest
             except Exception as exc:
                 # Exceptions can contain fixture paths or data; report type only.
                 status, reason = Status.UNKNOWN, "probe infrastructure: " + type(exc).__name__
-                evidence = {"infrastructure_failure": {"stage": "probe", "type": type(exc).__name__}}
+                # No validated evidence survived this probe. Keep the diagnostic
+                # in reason; do not publish a partial or unprojected payload.
+                evidence = {}
             finally:
                 if session is not None:
                     try:

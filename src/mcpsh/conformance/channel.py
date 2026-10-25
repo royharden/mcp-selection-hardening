@@ -8,6 +8,7 @@ import subprocess
 import threading
 
 CONTROL_LIMIT = 256 * 1024
+CONTROL_STARTUP_SECONDS = 120.0
 COMMANDS = frozenset({"identity", "hold_execution", "release_execution", "wait_for_occupancy",
                       "wait_for_cancellation", "observe", "exercise", "close"})
 
@@ -95,7 +96,15 @@ class InheritedControl:
         self.reader_file = os.fdopen(self.from_child_read, "rb", buffering=0)
         self.from_child_read = None
         threading.Thread(target=self._read, daemon=True).start()
-        identity = self.request("identity")
+        # The child imports its SDK and prepares its broker before serving the
+        # identity request. Give bootstrap its own bounded allowance; subsequent
+        # controls and tool execution retain the admitted request deadline.
+        call_timeout = self.timeout
+        try:
+            self.timeout = CONTROL_STARTUP_SECONDS
+            identity = self.request("identity")
+        finally:
+            self.timeout = call_timeout
         if identity.get("child_pid") != process.pid or not identity.get("server_instance_id"):
             raise ValueError("host identity does not bind to owned child/server")
         self.identity = identity
