@@ -55,6 +55,8 @@ def check_demo(rows: list[dict]) -> None:
 
 
 def run_journey(*, installed: bool = False, timeout: float = 120) -> list[dict]:
+    if not __debug__:
+        raise ValueError("optimized Python disables journey assertions; use normal Python")
     environment = os.environ.copy()
     if not installed:
         environment["PYTHONPATH"] = str(ROOT / "src")

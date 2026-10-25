@@ -18,6 +18,8 @@ def main() -> int:
     parser.add_argument("--installed", action="store_true")
     parser.add_argument("--timeout", type=int, default=600)
     args = parser.parse_args()
+    if not __debug__:
+        parser.error("optimized Python disables journey assertions; use normal Python")
     if args.timeout <= 0:
         parser.error("timeout must be positive")
     environment = os.environ.copy()

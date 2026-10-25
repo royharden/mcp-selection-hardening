@@ -88,6 +88,20 @@ def test_demo_decoder_rejects_truncated_or_non_json_output(output):
         load_script("e2e_cli").json_rows(output)
 
 
+@pytest.mark.parametrize("script", ["check_local.py", "e2e_cli.py"])
+def test_optimized_python_cannot_disable_acceptance_assertions(script):
+    """what_bug_this_catches: python -O turns a broken public journey into a green run."""
+    result = subprocess.run(
+        [sys.executable, "-O", str(ROOT / "scripts" / script)],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode != 0
+    assert "optimized Python disables journey assertions" in result.stdout + result.stderr
+
+
 def public_demo_rows():
     rows = []
     for task in ("dev-clean-tail", "dev-poison-prerequisite"):
