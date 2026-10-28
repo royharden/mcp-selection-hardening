@@ -1,0 +1,95 @@
+"""Regression SOURCE ONLY in Dirty Mode; no provider, key or application run."""
+
+from datetime import datetime, timedelta, timezone
+
+import pytest
+
+from mcpsh.adapters.transports import ADAPTER_REVISION, OpenAIChatTransport
+from mcpsh.catalog.artifacts import artifact_pins, build_catalog_artifact
+from mcpsh.catalog.provider_contract import decode_wire_body, wire_settings
+from mcpsh.records import canonical_json, typed_hash
+from mcpsh.runner.wire_fit import TrialWireCounter
+
+
+def prepared(*, journal=None):
+    """Fresh public synthetic wire and explicit fake exact counter for this test."""
+    artifact = build_catalog_artifact("clean", ordering_seed=7)
+    source_pin = "a" * 64
+
+    def no_credential():
+        raise AssertionError("pure preview/counter must never request credentials")
+
+    transport = OpenAIChatTransport(credential=no_credential, network_enabled=False)
+    payload = {"provider": "openai", "model": "test-model", "tools": artifact["catalog"],
+               "task": {"task_id": "public-test", "user_request": "List sources",
+                        "allowed_source_ids": ["app"], "fixture_ref": "public-test"},
+               "history": [], "max_output_tokens": 32}
+    encoded = transport.preview_request(payload, adapter_sha256=source_pin)["encoded_body"]
+    expiry = datetime.now(timezone.utc) + timedelta(minutes=1)
+    key = artifact_pins(artifact)["typed_sha256"]
+    approval = {"version": "m5-token-fit-approval-1", "approval_id": "public-test-only",
+                "authorized": True, "provider": "openai", "model_id": "test-model",
+                "adapter_revision": ADAPTER_REVISION, "adapter_sha256": source_pin,
+                "tokenizer_id": "explicit-test-fake", "tokenizer_sha256": "b" * 64,
+                "counter_scope": "full-provider-request-including-overhead",
+                "input_token_cap": 1000, "output_token_cap": 32,
+                "context_window_cap": 2000,
+                "settings_sha256": typed_hash(wire_settings(decode_wire_body(encoded))),
+                "catalog_typed_sha256": key, "expires_at": expiry.isoformat(),
+                "max_proof_age_seconds": 60}
+    pin = typed_hash(approval)
+    counted, events = [], []
+
+    def tokenizer(body):
+        counted.append(body)
+        return 100  # Explicit fake, never a measured tokenizer claim.
+
+    counter = TrialWireCounter(
+        provider="openai", model="test-model", adapter_revision=ADAPTER_REVISION,
+        adapter_sha256=source_pin,
+        approvals={key: {"approval": approval, "approval_sha256": pin}},
+        expected_pins={key: pin}, tokenizer=tokenizer,
+        journal=events.append if journal is None else journal, expires_at=expiry)
+    counter.bind(catalog=artifact["catalog"], condition="clean", normalized=False,
+                 ordering_seed=7, trial_id="public-test-trial", turn_id=1)
+    return counter, encoded, counted, events, artifact
+
+
+def test_counter_receives_original_full_bytes_and_journals_each_admission():
+    # Catches dict/metadata-only counters and reuse of one proof across sends.
+    counter, body, counted, events, _ = prepared()
+    assert counter(body) == counter(body) == 100
+    assert counted == [body, body]
+    assert len(events) == 2
+    assert all(event["trial_id"] == "public-test-trial" and event["turn_id"] == 1
+               and event["proof"]["status"] == "fits" for event in events)
+
+
+def test_changed_actual_wire_catalog_blocks_before_tokenizer():
+    # Catches proving one canonical catalog while sending a different description.
+    counter, body, counted, events, _ = prepared()
+    changed = decode_wire_body(body)
+    changed["tools"][0]["function"]["description"] += " altered"
+    with pytest.raises(ValueError, match="blocks dispatch"):
+        counter(canonical_json(changed).encode("utf-8"))
+    assert counted == []
+    assert events[0]["proof"]["status"] == "invalid"
+
+
+def test_actual_catalog_order_cannot_be_silently_repaired():
+    # Catches catalog artifact builders sorting a different selector order away.
+    counter, _, counted, _, artifact = prepared()
+    with pytest.raises(ValueError, match="order/metadata"):
+        counter.bind(catalog=list(reversed(artifact["catalog"])), condition="clean",
+                     normalized=False, ordering_seed=7, trial_id="other", turn_id=1)
+    assert counted == []
+
+
+def test_failed_private_proof_journal_never_returns_admission_count():
+    # Catches dispatch proceeding without durable proof custody.
+    def failed_journal(_event):
+        raise OSError("explicit test-only durable journal failure")
+
+    counter, body, _, _, _ = prepared(journal=failed_journal)
+    with pytest.raises(OSError):
+        counter(body)

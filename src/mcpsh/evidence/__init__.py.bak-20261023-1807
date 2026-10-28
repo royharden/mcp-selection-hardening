@@ -1,0 +1,9 @@
+"""Explicit, offline evidence APIs. Importing does not discover or open an edition."""
+
+from .build import build_edition_payloads
+from .models import EditionAuthority, InputPins
+from .reader import EvidenceRejected, VerifiedEdition, inspect_edition, read_edition, validate_bundle
+from .reproduce import reproduce
+
+__all__ = ["EditionAuthority", "InputPins", "EvidenceRejected", "VerifiedEdition",
+           "read_edition", "inspect_edition", "validate_bundle", "reproduce", "build_edition_payloads"]

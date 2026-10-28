@@ -1,0 +1,570 @@
+"""Ordered, capped replay execution. No provider receives scorer-only labels."""
+
+import json
+import time
+from datetime import datetime, timezone
+from typing import Any
+
+from mcpsh import BANNER
+from mcpsh.evaluation import aggregate_outcomes, paired_family_bootstrap, score_trial
+from mcpsh.records import (
+    ExperimentManifest, FinalAssistantResponse, ModelAttempt, OracleCase, PublicTaskCase,
+    ToolResultCapture, public_task_projection, typed_hash,
+)
+from .selection import journal_batch, reject_pending
+
+
+def _admit_live(selector: Any, manifest: ExperimentManifest | None) -> None:
+    if manifest is None or manifest.mode != "live":
+        raise ValueError("live execution requires an explicit immutable live manifest")
+    settings = manifest.settings
+    if settings.get("dirty_mode_closed") is not True or settings.get("live_authorized") is not True:
+        raise ValueError("live runtime/spend authorization and Dirty Mode closure are required")
+    if not manifest.budget_receipt or not manifest.prices or not manifest.lock_hash or not manifest.protocol_hash:
+        raise ValueError("live budget, dated prices and dependency lock are required")
+    families = settings.get("family_by_model", {})
+    if not isinstance(families, dict) or len(manifest.model_ids) != 2:
+        raise ValueError("the selected live experiment requires two exact model arms")
+    if len({families.get(model) for model in manifest.model_ids}) != 2 or any(
+        not families.get(model) for model in manifest.model_ids
+    ):
+        raise ValueError("two genuinely distinct approved model families are required")
+    if settings.get("custody_seal_verified") is not True or not settings.get("custodian_id"):
+        raise ValueError("independent custody/seal verification is required")
+    arm = getattr(selector, "arm", None)
+    if arm is None or arm.model not in manifest.model_ids or families[arm.model] != arm.family:
+        raise ValueError("selector identity does not match the approved manifest")
+    if getattr(selector, "provenance", None) != "live-provider-transport":
+        raise ValueError("a replay/control selector cannot be counted as a live arm")
+
+
+def _unsettled_attempt_reason(transport: Any, attempt_start: int) -> str | None:
+    """Check after every response, before another model turn can be selected."""
+    attempts = getattr(transport, "attempts", None)
+    if not isinstance(attempts, list):
+        return "attempt_journal_unavailable"
+    for attempt in attempts[attempt_start:]:
+        if not isinstance(attempt, dict):
+            return "attempt_journal_invalid"
+        if attempt.get("cost_microunits") is None:
+            return "usage_or_cost_unsettled"
+        if attempt.get("status") in {"sent", "identity_drift", "truncated_or_filtered",
+                                      "completed_usage_unknown"}:
+            return "attempt_not_complete_or_identity_invalid"
+    return None
+
+
+def _guard_live_turn(selector: Any, manifest: ExperimentManifest,
+                     transport: Any, attempt_start: int) -> None:
+    _admit_live(selector, manifest)
+    if transport is None:
+        raise ValueError("live controller unavailable")
+    grant = getattr(transport, "approval", None)
+    if not isinstance(grant, dict) or not isinstance(grant.get("expires_at"), str):
+        raise ValueError("live controller lacks exact approval expiry")
+    expiry = datetime.fromisoformat(grant["expires_at"].replace("Z", "+00:00"))
+    if expiry.tzinfo is None or datetime.now(timezone.utc) >= expiry:
+        raise ValueError("live approval expired before model turn")
+    reason = _unsettled_attempt_reason(transport, attempt_start)
+    if reason:
+        raise ValueError("live dispatch blocked: " + reason)
+    # The controller owns durable ledger/restart state and the per-actual-send gate.
+    guard = getattr(transport, "assert_dispatch_allowed", None)
+    if not callable(guard):
+        raise ValueError("live controller lacks durable dispatch admission guard")
+    guard()
+
+
+def run_trial(*, task: PublicTaskCase, oracle: OracleCase, selector: Any,
+              catalog: list[dict[str, Any]], trial_id: str, condition: str, cell: str,
+              mode: str, selector_name: str = "scripted-replay", max_turns: int = 3,
+              max_calls: int = 6, execution_mode: str = "replay",
+              manifest: ExperimentManifest | None = None,
+              platform_scope: str = "synthetic-memory", filesystem_config=None,
+              fixture_payload=None, repeat: int = 1,
+              observer_fault_request: str | None = None) -> dict[str, Any]:
+    from mcpsh.server import ReferenceServer
+
+    if task.task_id != oracle.task_id:
+        raise ValueError("task/oracle identity mismatch")
+    if type(repeat) is not int or not 1 <= repeat <= 5:
+        raise ValueError("explicit one-based repeat must be in 1..5")
+    if execution_mode not in ("replay", "live"):
+        raise ValueError("unsupported execution mode")
+    if execution_mode == "live":
+        _admit_live(selector, manifest)
+        if platform_scope != manifest.platform_scope:
+            raise ValueError("runtime platform differs from approved manifest")
+    elif getattr(selector, "provenance", None) == "live-provider-transport":
+        raise ValueError("live selector cannot execute in the replay path")
+    if execution_mode == "replay" and oracle.split != "development":
+        raise ValueError("this development runner does not admit hidden/retired oracle packages")
+    if not 1 <= max_turns <= 3 or not 1 <= max_calls <= 6:
+        raise ValueError("runner caps exceed frozen plan")
+    started = time.monotonic()
+    trace: list[dict[str, Any]] = []
+    results: list[dict[str, Any]] = []
+    history: list[dict[str, Any]] = []
+    final_response = FinalAssistantResponse(available=False)
+    scripted_responses = []
+    attempt_turns: dict[str, int] = {}
+    selected_calls = []
+    selection_journal_complete = True
+    failures: list[str] = []
+    observation: dict[str, Any] = {"complete": False, "predicates": {}}
+    server = None
+    transport = getattr(selector, "transport", None)
+    attempt_start = len(getattr(transport, "attempts", []))
+    try:
+        if observer_fault_request is not None:
+            # A declarative fixture request is never an observed fault/effect.
+            failures.append("observer_fault_unsupported")
+            raise ValueError("no admitted runner observer fault hook")
+        bind_context = getattr(selector, "bind_trial_context", None)
+        if execution_mode == "live" and callable(bind_context):
+            bind_context(trial_id=trial_id, condition=condition, cell=cell)
+        server = ReferenceServer(mode=mode, allowed_sources=task.allowed_source_ids,
+                                 trial_id=trial_id, platform_scope=platform_scope,
+                                 filesystem_config=filesystem_config, fixture_payload=fixture_payload)
+        for turn in range(1, max_turns + 1):
+            if execution_mode == "live":
+                _guard_live_turn(selector, manifest, transport, attempt_start)
+            deadline = manifest.settings.get("task_deadline_seconds") if manifest else None
+            if execution_mode == "live" and (type(deadline) not in (int, float) or deadline <= 0):
+                raise ValueError("approved task deadline required")
+            if deadline is not None and time.monotonic() - started >= deadline:
+                failures.append("task_deadline_exceeded")
+                break
+            public = public_task_projection(task)
+            before_select = len(getattr(transport, "attempts", []))
+            try:
+                calls = selector.select(public, catalog, list(history))
+            except Exception:
+                # LiveSelector can reject a seventh/invalid selection after the
+                # controller has already journaled its real provider response.
+                response = getattr(transport, "last_response", None)
+                candidates = getattr(transport, "last_selection_batch", None)
+                new_attempt_ids = {item["attempt_id"] for item in
+                                   list(getattr(transport, "attempts", []))[before_select:]}
+                recovered = response if isinstance(response, dict) and response.get("attempt_id") in new_attempt_ids else candidates
+                if isinstance(recovered, dict) and recovered.get("attempt_id") in new_attempt_ids:
+                    entries, complete, reason = journal_batch(
+                        recovered.get("tool_calls", recovered.get("calls")), trial_id=trial_id,
+                        turn_id=turn, start_sequence=len(selected_calls) + 1,
+                        model_attempt_id=recovered.get("attempt_id"),
+                        provider_call_ids=recovered.get("tool_call_ids"))
+                    selected_calls.extend(reject_pending(entries, "selector_rejected_before_dispatch"))
+                    complete = complete and getattr(transport, "selection_batch_complete", False) is True
+                    selection_journal_complete = selection_journal_complete and complete
+                    if reason:
+                        failures.append(reason)
+                else:
+                    selection_journal_complete = False
+                    failures.append("selected_response_unavailable")
+                raise
+            else:
+                response = getattr(transport, "last_response", None)
+                entries, complete, reason = journal_batch(
+                    calls, trial_id=trial_id, turn_id=turn,
+                    start_sequence=len(selected_calls) + 1,
+                    model_attempt_id=response.get("attempt_id") if isinstance(response, dict) else None,
+                    provider_call_ids=response.get("tool_call_ids") if isinstance(response, dict) else None)
+                batch_start = len(selected_calls)
+                selected_calls.extend(entries)
+                if execution_mode == "live":
+                    complete = complete and getattr(transport, "selection_batch_complete", False) is True
+                selection_journal_complete = selection_journal_complete and complete
+                if reason or not complete:
+                    failures.append(reason or "selected_response_incomplete")
+                    break
+            finally:
+                for attempt in list(getattr(transport, "attempts", []))[before_select:]:
+                    attempt_turns[attempt["attempt_id"]] = turn
+                response = getattr(transport, "last_response", None)
+                if isinstance(response, dict):
+                    text = response.get("assistant_content")
+                    refusal_text = response.get("refusal")
+                    refusal_text = refusal_text if isinstance(refusal_text, str) else None
+                    if (not isinstance(text, str) or not text.strip()) and refusal_text is not None:
+                        text = refusal_text
+                    stop_reason = response.get("stop_reason")
+                    final_response = FinalAssistantResponse(
+                        available=isinstance(text, str), text=text if isinstance(text, str) else None,
+                        refusal_text=refusal_text,
+                        stop_reason=stop_reason if isinstance(stop_reason, str) else None,
+                        model_attempt_id=response.get("attempt_id"),
+                        raw_response_hash=response.get("raw_response_hash"),
+                        complete=not response.get("tool_calls") and stop_reason in
+                        ("stop", "end_turn", "stop_sequence", "refusal"),
+                    )
+                elif execution_mode == "replay" and getattr(selector, "provenance", None) == "scripted-development-replay":
+                    scripted = getattr(selector, "scripted_final_response", None)
+                    if isinstance(scripted, FinalAssistantResponse):
+                        if scripted.model_attempt_id is not None or scripted.raw_response_hash is not None:
+                            raise ValueError("scripted text cannot acquire a provider attempt parent")
+                        final_response = scripted.model_copy(deep=True)
+                    capture = getattr(selector, "last_scripted_response", None)
+                    if isinstance(capture, dict):
+                        scripted_responses.append(capture)
+            dispatch_stop = (_unsettled_attempt_reason(transport, attempt_start)
+                             if execution_mode == "live" else None)
+            if deadline is not None and time.monotonic() - started >= deadline:
+                failures.append("task_deadline_exceeded")
+                break
+            if not isinstance(calls, list):
+                failures.append("selector_invalid_call_batch")
+                break
+            if not calls:
+                if dispatch_stop:
+                    failures.append("live_dispatch_stopped:" + dispatch_stop)
+                break
+            # Refuse an oversized batch before dispatch; do not quietly omit its late calls.
+            if len(trace) + len(calls) > max_calls:
+                failures.append("call_limit_exceeded")
+                break
+            for call_index, selected in enumerate(calls):
+                selection_index = batch_start + call_index
+                if not isinstance(selected, dict) or set(selected) != {"name", "arguments"}:
+                    failures.append("selector_invalid_call")
+                    continue
+                if not isinstance(selected["name"], str) or not isinstance(selected["arguments"], str):
+                    failures.append("selector_invalid_call_types")
+                    continue
+                selected_calls[selection_index] = selected_calls[selection_index].model_copy(
+                    update={"disposition": "sent-to-server"})
+                packet = server.call(selected["name"], selected["arguments"])
+                result = packet["result"]
+                # This is the runner's response capture, outside the handler's assertions.
+                wire = json.dumps(result, ensure_ascii=True, separators=(",", ":"),
+                                  allow_nan=False).encode("utf-8")
+                server.capture_wire(wire)
+                attempts_now = getattr(transport, "attempts", [])
+                attempt_id = attempts_now[-1].get("attempt_id") if attempts_now else None
+                event = {**packet["event"], "trial_id": trial_id, "turn_id": turn,
+                         "sequence": len(trace) + 1, "enforcement_mode": mode,
+                         "model_attempt_id": attempt_id}
+                event["selection_id"] = selected_calls[selection_index].selection_id
+                selected_calls[selection_index] = selected_calls[selection_index].model_copy(
+                    update={"server_call_id": event["call_id"]})
+                trace.append(event)
+                results.append(result)
+                history.append({"role": "tool", "content": json.dumps(result, ensure_ascii=True),
+                                "tool_call_id": event["call_id"],
+                                "call": dict(selected), "result": result})
+            if dispatch_stop:
+                failures.append("live_dispatch_stopped:" + dispatch_stop)
+                break
+            if turn == max_turns:
+                failures.append("turn_limit_reached")
+        observation = server.observe()
+    except Exception as exc:
+        # Do not serialize exception messages: they can contain private labels/payloads.
+        failures.append(f"infrastructure:{type(exc).__name__}")
+        if server is not None:
+            try:
+                observation = server.observe()
+            except Exception:
+                observation = {"complete": False, "predicates": {}}
+    finally:
+        if server is not None:
+            try:
+                server.close()
+            except Exception as exc:
+                failures.append(f"teardown:{type(exc).__name__}")
+                observation = {**observation, "complete": False}
+    attempts = list(getattr(transport, "attempts", []))[attempt_start:]
+    selected_calls = reject_pending(selected_calls, "runner_stopped_before_dispatch")
+    cost = 0 if execution_mode == "replay" else None
+    cost_status = "non-model" if execution_mode == "replay" else "unknown"
+    if execution_mode == "live" and attempts and all(
+        isinstance(item.get("cost_microunits"), int) for item in attempts
+    ):
+        cost = sum(item["cost_microunits"] for item in attempts)
+        cost_status = "settled"
+    arm = getattr(selector, "arm", None)
+    result_captures = [ToolResultCapture(
+        call_id=event["call_id"], sequence=index + 1, tool_name=event["tool_name"],
+        result=result, output_hash=event.get("output_hash"), available=True,
+        model_attempt_id=event.get("model_attempt_id"),
+    ) for index, (event, result) in enumerate(zip(trace, results, strict=True))]
+    outcome = score_trial(trial_id=trial_id, oracle=oracle, trace=trace, results=results,
+                          observation=observation, condition=condition, cell=cell,
+                          selector=selector_name, failures=failures,
+                          latency_seconds=float(time.monotonic() - started),
+                          execution_mode=execution_mode,
+                          provider_id=getattr(arm, "provider", None),
+                          model_id=getattr(arm, "model", None),
+                          model_attempt_ids=tuple(item["attempt_id"] for item in attempts),
+                          cost_microunits=cost, cost_status=cost_status,
+                          cost_basis="non-model" if execution_mode == "replay" else
+                          "dated-price-estimate" if cost_status == "settled" else "unknown",
+                          final_response=final_response, result_captures=result_captures,
+                          selected_calls=selected_calls,
+                          selection_journal_complete=selection_journal_complete)
+    normalized_attempts = [ModelAttempt(
+        attempt_id=item["attempt_id"], request_id=item.get("request_id"),
+        response_id=item.get("response_id"), raw_response_hash=item.get("raw_response_hash"),
+        provider_id=item["provider"], requested_model_id=item["requested_model"],
+        returned_model_id=item.get("returned_model"), started_at=item["started_at"],
+        finished_at=item.get("finished_at"), status=item["status"], usage=item.get("usage", {}),
+        settlement_reference=item.get("settlement_reference"),
+        trial_id=trial_id, turn_id=attempt_turns.get(item["attempt_id"]),
+    ).model_dump(mode="json") for item in attempts]
+    return {"outcome": outcome.model_dump(mode="json"), "trace": trace,
+            "results": results, "observation": observation,
+            "public_task": public_task_projection(task), "catalog_hash": typed_hash(catalog),
+            "fixture_ref": task.fixture_ref,
+            "fixture_payload_hash": typed_hash(fixture_payload) if fixture_payload is not None else None,
+            "final_response": final_response.model_dump(mode="json"),
+            "final_response_hash": typed_hash(final_response.model_dump(mode="json")),
+            "result_captures": [capture.model_dump(mode="json") for capture in result_captures],
+            "selected_calls": [entry.model_dump(mode="json") for entry in selected_calls],
+            "selection_journal_complete": selection_journal_complete,
+            "repeat": repeat,
+            "platform_scope": platform_scope,
+            "model_family_id": getattr(arm, "family", None),
+            "scripted_responses": scripted_responses,
+            "scripted_fixture_sha256": getattr(selector, "scripted_fixture_sha256", None),
+            "observer_fault_request": observer_fault_request,
+            "observer_fault_status": "unsupported" if observer_fault_request is not None else "not-requested",
+            "model_attempts": normalized_attempts, "accounting_attempts": attempts}
+
+
+def run_live_matrix(*, manifest: ExperimentManifest, cases, selector_factory,
+                    filesystem_config=None, fixture_map, treatment_map) -> dict[str, Any]:
+    """Approved closed-loop source path; every scheduled failure remains in the edition.
+
+    The caller verifies an explicit approval receipt and raw oracle-package seal before
+    calling. Selectors/controllers are freshly allocated per trial, with a shared durable
+    ledger and unique operation IDs. This function never publishes files.
+    """
+    import random
+
+    from mcpsh.lint import normalize_catalog
+    from .sealed import CONDITIONS, treatment_catalog
+
+    if manifest.mode != "live" or manifest.matrix != ("C0", "C1", "C2"):
+        raise ValueError("live core requires the approved three-cell manifest")
+    if manifest.settings.get("dirty_mode_closed") is not True or manifest.settings.get("live_authorized") is not True:
+        raise ValueError("live runtime remains unauthorized")
+    cases = list(cases)
+    if not cases or manifest.task_hash != typed_hash([public_task_projection(task) for task, _ in cases]):
+        raise ValueError("public task corpus differs from manifest")
+    phase = manifest.settings.get("corpus_phase")
+    if phase == "heldout":
+        if len(cases) != 24 or any(oracle.split != "heldout" for _, oracle in cases):
+            raise ValueError("primary matrix requires 24 independently sealed held-out cases")
+        if len({oracle.family_id for _, oracle in cases}) != 24:
+            raise ValueError("primary matrix requires 24 independently attributed task families")
+    elif phase != "development-pilot" or any(oracle.split != "development" for _, oracle in cases):
+        raise ValueError("unapproved corpus phase")
+    repeats = manifest.settings.get("repeats", 3)
+    if type(repeats) is not int or repeats not in (3, 5):
+        raise ValueError("repeats must be approved before held-out access")
+    if manifest.platform_scope == "filesystem-posix" and not callable(filesystem_config):
+        raise ValueError("POSIX matrix requires a fresh disposable fixture factory per trial")
+    if manifest.platform_scope == "synthetic-memory" and filesystem_config is not None:
+        raise ValueError("memory mode cannot receive host filesystem configuration")
+    if set(treatment_map) != {task.task_id for task, _ in cases}:
+        raise ValueError("every sealed task requires its exact metadata treatments")
+    catalogs = {task.task_id: {condition: treatment_catalog(treatment_map[task.task_id], condition)
+                               for condition in CONDITIONS} for task, _ in cases}
+    if manifest.catalog_hash != typed_hash(catalogs):
+        raise ValueError("catalog/schema set differs from immutable manifest")
+    schedule = [(task, oracle, model, condition, cell, repeat)
+                for task, oracle in cases for model in manifest.model_ids
+                for condition in CONDITIONS for cell in manifest.matrix for repeat in range(1, repeats + 1)]
+    random.Random(manifest.seed).shuffle(schedule)
+    rows = []
+    stop_reason = None
+    for index, (task, oracle, model, condition, cell, repeat) in enumerate(schedule):
+        trial_id = f"{manifest.edition_id}-{index:05d}-{repeat}"
+        catalog = catalogs[task.task_id][condition]
+        diffs = []
+        if cell == "C2":
+            catalog, diffs = normalize_catalog(catalog)
+        try:
+            if stop_reason:
+                raise RuntimeError("dispatch stopped: " + stop_reason)
+            selector = selector_factory(model, trial_id)
+            _admit_live(selector, manifest)
+            fixture_payload = fixture_map[task.fixture_ref]
+            trial_config = filesystem_config(trial_id, fixture_payload) if callable(filesystem_config) else None
+            row = run_trial(task=task, oracle=oracle, selector=selector, catalog=catalog,
+                            trial_id=trial_id, condition=condition, cell=cell,
+                            mode="permissive" if cell == "C0" else "hardened",
+                            selector_name=model, max_turns=manifest.max_turns,
+                            max_calls=manifest.max_calls, execution_mode="live", manifest=manifest,
+                            platform_scope=manifest.platform_scope,
+                            filesystem_config=trial_config, fixture_payload=fixture_payload, repeat=repeat)
+            row["normalization_diff_hash"] = typed_hash(diffs)
+            row["metadata_diffs"] = diffs
+            # Unknown money/identity/observation is not a reason to keep dispatching.
+            if row["outcome"]["cost_status"] in ("unknown", "reserved"):
+                stop_reason = "unsettled_cost_or_admission"
+            elif not row["outcome"]["observation_complete"]:
+                stop_reason = "observation_or_isolation_incomplete"
+            elif any(any(kind in failure for kind in ("LiveDispatchDenied", "LiveTransportError"))
+                     for failure in row["outcome"]["failures"]):
+                stop_reason = "live_identity_or_admission_failure"
+        except Exception as exc:
+            failure = "not_dispatched:" + (stop_reason or type(exc).__name__)
+            outcome = score_trial(trial_id=trial_id, oracle=oracle, trace=[], results=[],
+                                  observation={"complete": False, "predicates": {}},
+                                  condition=condition, cell=cell, selector=model,
+                                  failures=[failure], latency_seconds=0.0,
+                                  execution_mode="live", model_id=model,
+                                  cost_microunits=None, cost_status="unknown", cost_basis="unknown",
+                                  final_response=FinalAssistantResponse(available=False),
+                                  result_captures=[], selected_calls=None,
+                                  selection_journal_complete=False)
+            row = {"outcome": outcome.model_dump(mode="json"), "trace": [], "results": [],
+                   "observation": {"complete": False, "predicates": {}},
+                   "public_task": public_task_projection(task), "catalog_hash": typed_hash(catalog),
+                   "model_attempts": [], "fixture_ref": task.fixture_ref,
+                   "final_response": FinalAssistantResponse(available=False).model_dump(mode="json"),
+                   "result_captures": [], "selected_calls": None,
+                   "selection_journal_complete": False, "repeat": repeat}
+            stop_reason = stop_reason or type(exc).__name__
+        rows.append(row)
+    outcomes = [row["outcome"] for row in rows]
+    paired = []
+    for model in manifest.model_ids:
+        for condition in CONDITIONS:
+            selected = [item for item in outcomes if item["model_id"] == model
+                        and item["condition"] == condition]
+            for before, after in (("C0", "C1"), ("C1", "C2"), ("C0", "C2")):
+                paired.append({"model_id": model, "condition": condition,
+                               **paired_family_bootstrap(selected, before=before, after=after,
+                                                         seed=manifest.seed)})
+    return {"schema_version": 1, "banner": "live experiment; independent acceptance pending",
+            "execution_state": "partial" if stop_reason else "live-complete",
+            "acceptance_verdict": "pending", "platform_scope": manifest.platform_scope,
+            "development_only": phase != "heldout", "seed": manifest.seed,
+            "manifest": manifest.model_dump(mode="json"), "rows": rows,
+            "summary": aggregate_outcomes(outcomes), "paired_comparisons": paired,
+            "dispatch_stop_reason": stop_reason,
+            "limitations": ["Execution state does not establish independent product acceptance.",
+                            "All scheduled failures and unknowns remain in denominators.",
+                            "Live and replay editions are never pooled."]}
+
+
+def run_matrix(*, seed: int = 1729, cases=None, fixture_map=None, treatment_map=None,
+               episodes=None, replay_specs=None, primary_plan=None, diagnostic_plan=None) -> dict[str, Any]:
+    """A development diagnostic matrix, never a live-model or held-out experiment."""
+    import random
+
+    from mcpsh.adapters import KeywordSelector, ReplaySelector
+    from mcpsh.catalog.artifacts import build_catalog_artifact
+    from mcpsh.lint import normalize_catalog
+
+    from .cases import demonstration_cases
+    from .sealed import treatment_catalog
+
+    rows = []
+    schedule = []
+    cases = list(demonstration_cases() if cases is None else cases)
+    baseline_ids = set()
+    by_task = {task.task_id: (task, oracle, calls) for task, oracle, calls in cases}
+    if len(by_task) != len(cases):
+        raise ValueError("duplicate replay task IDs")
+    if (episodes is None) != (replay_specs is None):
+        raise ValueError("explicit episodes and their pinned selector projections must be paired")
+    episode_map = {row["episode_id"]: row for row in episodes or ()}
+    if episodes is not None and (len(episode_map) != len(episodes) or set(episode_map) != set(replay_specs)):
+        raise ValueError("duplicate or unmatched authored replay episode IDs")
+    primary_entries, diagnostic_entries = {}, []
+    if episodes is not None:
+        if (not isinstance(primary_plan, dict) or primary_plan.get("version") != "m5-primary-replay-plan-1"
+                or not isinstance(diagnostic_plan, dict) or diagnostic_plan.get("version") != "m5-diagnostic-replay-plan-1"
+                or primary_plan.get("manifest_sha256") != diagnostic_plan.get("manifest_sha256")):
+            raise ValueError("matched explicit primary/diagnostic replay plans required")
+        primary_entries = {entry["task_id"]: entry for entry in primary_plan["entries"]}
+        diagnostic_entries = diagnostic_plan["entries"]
+        if len(primary_entries) != len(primary_plan["entries"]) or set(primary_entries) != set(by_task):
+            raise ValueError("primary replay plan does not join task inventory exactly")
+        planned_ids = [entry["episode_id"] for entry in (*primary_plan["entries"], *diagnostic_entries)]
+        if len(planned_ids) != len(set(planned_ids)) or set(planned_ids) != set(episode_map):
+            raise ValueError("every authored episode requires exactly one explicit replay role")
+    elif primary_plan is not None or diagnostic_plan is not None:
+        raise ValueError("replay plans require their explicit pinned episodes")
+    for task, oracle, calls in cases:
+        baseline = None
+        if episodes is not None:
+            baseline_id = task.task_id + "--clean"
+            baseline = episode_map.get(baseline_id)
+            planned = primary_entries[task.task_id]
+            if (baseline is None or baseline["task_id"] != task.task_id
+                    or baseline["condition"] != "clean" or baseline["calls"] != calls
+                    or baseline.get("observer_fault_request") is not None
+                    or baseline.get("role") != "primary" or planned["episode_id"] != baseline_id
+                    or planned["conditions"] != ["clean", "ambiguous", "poisoned"]
+                    or planned["cells"] != ["C0", "C1", "C2"]
+                    or planned.get("paired_design") is not True or planned.get("live_eligible") is not False):
+                raise ValueError("exact clean authored baseline episode required per task")
+            baseline_ids.add(baseline_id)
+        for condition in ("clean", "ambiguous", "poisoned"):
+            for cell, mode in (("C0", "permissive"), ("C1", "hardened"), ("C2", "hardened")):
+                schedule.append((task, oracle, calls, condition, cell, mode, "scripted-replay", baseline, "baseline"))
+        # Controls have their own labelled arm and are never live samples.
+        for control in ("keyword", "abstain", "deny-all"):
+            schedule.append((task, oracle, calls, "clean", "control", "deny-all"
+                             if control == "deny-all" else "hardened", control, baseline, "control"))
+    for planned in diagnostic_entries:
+        identifier = planned["episode_id"]
+        episode = episode_map[identifier]
+        if (episode.get("role") != "diagnostic" or planned["task_id"] != episode["task_id"]
+                or planned["conditions"] != [episode["condition"]]
+                or planned.get("paired_design") is not False or planned.get("live_eligible") is not False
+                or not isinstance(planned["cells"], list) or not planned["cells"]
+                or len(planned["cells"]) != len(set(planned["cells"]))
+                or set(planned["cells"]) - {"C0", "C1", "C2"}):
+            raise ValueError("diagnostic replay plan cannot claim a primary or live design")
+        task, oracle, _ = by_task[episode["task_id"]]
+        for cell in planned["cells"]:
+            mode = "permissive" if cell == "C0" else "hardened"
+            schedule.append((task, oracle, episode["calls"], episode["condition"], cell, mode,
+                             "scripted-development-replay", episode, "diagnostic"))
+    random.Random(seed).shuffle(schedule)
+    for index, (task, oracle, calls, condition, cell, mode, arm, episode, role) in enumerate(schedule):
+        catalog = (treatment_catalog(treatment_map[task.task_id], condition) if treatment_map is not None
+                   else build_catalog_artifact(condition, ordering_seed=seed)["catalog"])
+        if cell == "C2":
+            catalog, _ = normalize_catalog(catalog)
+        selected = (KeywordSelector() if arm == "keyword" else ReplaySelector([]) if arm == "abstain"
+                    else ReplaySelector(**replay_specs[episode["episode_id"]]) if episode is not None
+                    else ReplaySelector(calls))
+        row = run_trial(task=task, oracle=oracle, selector=selected, catalog=catalog,
+                              trial_id=f"replay-{index:04d}-{task.task_id}", condition=condition,
+                              cell=cell, mode=mode, selector_name=arm,
+                              fixture_payload=fixture_map[task.fixture_ref] if fixture_map is not None else None,
+                              observer_fault_request=episode.get("observer_fault_request") if episode else None)
+        row["replay_role"] = role
+        row["replay_episode_id"] = episode["episode_id"] if episode is not None and arm not in ("keyword", "abstain") else None
+        rows.append(row)
+    outcomes = [row["outcome"] for row in rows]
+    comparisons = []
+    for condition in ("clean", "ambiguous", "poisoned"):
+        selected = [row for row in outcomes if row["selector"] == "scripted-replay"
+                    and row["condition"] == condition]
+        for before, after in (("C0", "C1"), ("C1", "C2"), ("C0", "C2")):
+            comparisons.append({"selector": "scripted-replay", "condition": condition,
+                                **paired_family_bootstrap(selected, before=before, after=after,
+                                                          seed=seed)})
+    return {"schema_version": 1, "banner": BANNER, "execution_state": "replay-only",
+            "acceptance_verdict": "pending", "platform_scope": "synthetic-memory",
+            "seed": seed, "live_model_runs": 0, "heldout_families": 0,
+            "development_only": True, "rows": rows,
+            "replay_design": {"baseline_tasks": len(cases),
+                              "baseline_rows": sum(row["replay_role"] == "baseline" for row in rows),
+                              "control_rows": sum(row["replay_role"] == "control" for row in rows),
+                              "diagnostic_episodes": len(diagnostic_entries),
+                              "diagnostic_rows": sum(row["replay_role"] == "diagnostic" for row in rows)},
+            "replay_plan_versions": {"primary": primary_plan["version"] if primary_plan else None,
+                                     "diagnostic": diagnostic_plan["version"] if diagnostic_plan else None},
+            "summary": aggregate_outcomes(outcomes), "paired_comparisons": comparisons,
+            "limitations": ["Source constructed under Dirty Mode; runtime unverified.",
+                            "Calls are scripted, not model-generated.",
+                            "Author-seen development templates do not support held-out generalization.",
+                            "Development oracle labels are agent-authored and independently unreviewed.",
+                            "No POSIX or Windows filesystem conformance acceptance."]}

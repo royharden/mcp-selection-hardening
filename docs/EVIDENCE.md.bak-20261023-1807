@@ -1,0 +1,91 @@
+# Offline evidence editions
+
+D7 W7 source construction, 2026-10-23. No reader, rescore, provider, DB or regression
+test has been executed under Dirty Mode. The canonical evidence-gate closed-schema,
+external-authority and lineage principles guide this project-specific format; this is
+not a normalized-core compatibility claim or an AgentOps acceptance checker.
+
+`mcpsh.evidence` supplies three explicit APIs:
+
+- `build_edition_payloads(result, *, candidate_commit, revision,
+  reserved_by_operation=None, oracle_package_bytes=None) -> dict[str, bytes]` adapts
+  the existing runner/report object in memory. These are **private raw sidecars**,
+  including argument/result/observer data. It never writes or discovers custody.
+  Oracle bytes are optional and must be explicitly supplied by an authorized custodian.
+  This API grants no permission to access a private oracle. Unsupported source row
+  fields reject rather than being silently dropped. Missing reserve amounts remain
+  unknown. Only D1's `scripts/eval.py` may publish a numeric edition, after its existing
+  immutable-edition and bounded/redacted projection steps. Never place raw sidecars
+  under the public report directory.
+- `read_edition(root, *, authority: EditionAuthority) -> VerifiedEdition` opens only
+  `EDITION.json` and its explicitly pinned artifacts. `authority` must be independently
+  supplied: index SHA256, manifest SHA256, candidate commit, revision, edition ID,
+  mode, platform and all nine input pins. Computing a new pin from an untrusted index
+  and accepting it is not authority. The bytes are frozen and revalidated on each
+  `validate()` or reproduction call. No import reads an edition.
+- `inspect_edition(edition) -> dict` reports structural integrity, per-trial unknowns,
+  and evidence completeness without invoking the scorer. Both empirical and product
+  verdicts remain pending even when evidence completeness is true.
+- `reproduce(edition, *, expected_evaluator_hash) -> dict` checks actual evaluator and
+  package source hashes against the externally pinned manifest, then calls the existing
+  `score_trial` and `aggregate_outcomes`. It returns the existing private report object
+  shape without writing. D1 must apply its fixture-aware public projection before
+  `render_bundle`. No hidden labels or raw payloads are safe merely because rendering
+  escapes HTML. The exact source edition remains intact; changed inputs/scorer require
+  a successor revision, not replacement of old numbers.
+
+The index's closed v1 schema binds `MANIFEST.json`, ordered `trials.jsonl`, optional
+`observers.jsonl` and optional `oracles.json` with relative forward-slash paths, exact
+raw SHA256 and byte lengths. It records the explicit scheduled trial IDs in order;
+duplicates, dropped rows, reordered rows and extra artifact roles reject. The public
+task projection and raw oracle seal are checked when the optional oracle exists.
+Empirical and product verdicts are always `pending`.
+
+Trial rows use the existing strict `TrialOutcome`, `ToolCallEvent`, `ModelAttempt`,
+`FinalAssistantResponse` and `ToolResultCapture` contracts, plus explicit attempt cost
+records. Calls keep raw argument bytes and typed hashes distinct. Ordered call/result
+cardinality, raw/typed hashes, trial/turn/attempt parents, global ID uniqueness, replay
+provenance and live usage/settlement totals are checked.
+The pinned server uses ASCII-escaped canonical JSON for typed argument and result
+hashes; records use Unicode typed JSON for whole-trace hashes. The reader honors these
+existing conventions and preserves JSON type distinctions in both.
+
+Observer rows preserve the exact original observation dictionary for its outcome hash,
+validate it with a closed source schema, and separately bind trial/platform/observer
+code. Complete observations require reset, sequence, wire coverage and consistent
+counter/outbox/wire predicates. Broker event sequence and call-parent links are checked.
+Handler denial prose is never substituted for an observer. Correct hashes and coherent
+journals still cannot establish that an alleged observation actually occurred.
+
+Bounds: 128 KiB index, 32 MiB per artifact, 64 MiB total, 5,000 trial/observer rows,
+1 MiB per JSONL row/string, 48 nesting levels, 100,000 JSON nodes, six calls/attempts
+per trial and 1,000 broker events per observer. Duplicate JSON keys, NaN/Infinity and
+overflowed finite-number exponents reject. Paths reject escapes, absolute/drive/UNC/
+ADS forms, device names, ambiguous components, symlinks and Windows reparse points.
+POSIX uses an anchored no-follow descriptor walk. The Windows fallback checks file
+and parent identities and requires externally immutable custody; hostile rename-race
+conformance remains unverified. No cross-platform race-safety claim is made.
+
+Missing oracle or raw calls/results creates an explicit unknown row and suppresses the
+entire numeric summary rather than reducing denominators. Missing/incomplete observer,
+usage or reservation evidence stays unknown/partial. Structural integrity, reproducible
+scores, observed effects and independent empirical/product acceptance are separate
+claims. Memory cannot satisfy filesystem evidence, and replay cannot count as live.
+
+Regression source in `tests/evidence/test_edition_integrity.py` includes an honest
+positive control, raw-byte tampering, externally bound revision, duplicate/nonfinite
+JSON, ordered sequence and model-parent mutations, settled-without-usage rejection,
+path/symlink/cap checks, missing-oracle/observer unknown handling and scorer drift.
+These are authored cases, not measured results. Later activation must exercise them,
+verify filesystem semantics, and integrate D1's sole publisher using an actual authorized
+development edition before making any runtime claim.
+
+Construction checks: six explicit Python AST parses and the format-description JSON
+parse passed. A focused source pass checked the current evaluator/record/observer
+interfaces, caught and corrected the server's distinct ASCII-canonical argument hash
+convention, and added a Unicode regression source. Subsequent corrections to byte caps,
+settlement linkage and semantic-unknown reporting were reparsed. New-file whitespace
+was inspected directly; `git diff --check` applies only to tracked diffs and is not
+evidence that untracked source ran. Fifteen regression functions are authored (some
+parameterized); no tests were collected or executed. Cost totals are checked against
+recorded estimates/usage, not independently verified provider bills.

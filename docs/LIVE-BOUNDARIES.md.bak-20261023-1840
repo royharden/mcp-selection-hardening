@@ -1,0 +1,39 @@
+# Live dispatch boundaries
+
+Source constructed under Dirty Mode. Regression tests are authored, not executed;
+SQLite durability, providers, real tokenizers and the joined runner remain unverified.
+
+The runner calls `BudgetedLiveTransport.assert_dispatch_allowed() -> None` before
+each model turn. It raises `LiveTransportError` for stopped admission. Controller
+approval must contain the unchanged top-level receipt `expires_at` with timezone.
+The controller repeats expiry, authorization, provider/model, endpoint, price,
+full-wire token and request-cap checks after journaling and before **each send**,
+including a transient retry. Tokenizer version correctness still requires activation
+verification; the declared version is not a measurement.
+
+`CostLedger` records prepared attempts separately from send intents. Only the exact
+current reservation and its unsent prepared attempt are excluded from prior-liability
+checks. Unknown costs, abandoned other reservations, cancellation, known overruns and
+durable stop reasons prevent new dispatch. A send intent consumes the request cap
+durably before transport entry; a crash in that gap remains conservative. The scope
+is the approved per-trial `budget_reservation_id`, shared across model turns.
+
+There is at most one explicit transient retry, counted as another request. It requires
+attributable returned usage and a known dated-price estimate for attempt one. Timeout,
+missing usage and ordinary HTTP errors do not imply zero billing and cannot authorize
+retry. Price estimates are not provider billing receipts. Identity drift, truncation,
+semantic errors and journal failures do not permit semantic retries. Unknown response
+usage preserves the received response but latches a durable stop before a later turn.
+
+Holds/stops have no automatic clear API. Later authorized reconciliation must preserve
+attempt history and prove resolution; starting another controller is not reconciliation.
+The schema additions preserve existing operation/attempt rows. Old `sent` NULL-cost
+rows remain blocking. Counter rows cover sends admitted by this source version only;
+a preexisting ledger must not be treated as complete historical request-count evidence.
+
+Construction receipt (D7, 2026-10-23): focused source/logic inspection and five explicit
+stdlib AST parses passed, then the concrete transient-overrun retry predicate found
+in inspection was tightened and reparsed. Scoped `git diff --check` passed (Git reported
+only its existing LF/CRLF conversion warnings). Regression source is in
+`tests/adapters/test_dispatch_boundaries.py` and `tests/accounting/test_dispatch_holds.py`.
+No tests, application imports, SQLite opens or provider requests were executed.

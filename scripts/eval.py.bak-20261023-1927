@@ -1,0 +1,423 @@
+"""Sole numeric-edition publication entrypoint. Replay is never promoted to live."""
+
+import argparse
+import hashlib
+import json
+import os
+import re
+import sys
+import tempfile
+from datetime import datetime, timezone
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+
+from mcpsh import BANNER
+from mcpsh.records import ExperimentManifest, strict_json_loads, typed_hash
+from mcpsh.report import render_bundle
+from mcpsh.runner import run_live_matrix, run_matrix
+from mcpsh.runner.cases import demonstration_cases, load_development_cases
+
+
+def source_hash(directory: Path) -> str:
+    records = []
+    for path in sorted(directory.rglob("*.py")):
+        records.append((path.relative_to(directory).as_posix(), hashlib.sha256(path.read_bytes()).hexdigest()))
+    return typed_hash(records)
+
+
+def public_dev_json(path: Path):
+    resolved = path.resolve()
+    public_root = (ROOT / "fixtures/dev").resolve()
+    if public_root not in resolved.parents:
+        raise ValueError("lint controls/review must remain in public fixtures/dev")
+    with resolved.open("rb") as handle:
+        raw = handle.read(2 * 1024 * 1024 + 1)
+    if len(raw) > 2 * 1024 * 1024:
+        raise ValueError("public lint JSON byte cap exceeded")
+    return strict_json_loads(raw), hashlib.sha256(raw).hexdigest()
+
+
+def pinned_input(path: Path, expected: str, maximum: int = 8 * 1024 * 1024):
+    if not isinstance(expected, str) or not re.fullmatch(r"[0-9a-f]{64}", expected):
+        raise ValueError("an externally supplied exact raw SHA256 input pin is required")
+    with path.open("rb") as handle:
+        raw = handle.read(maximum + 1)
+    if len(raw) > maximum or hashlib.sha256(raw).hexdigest() != expected:
+        raise ValueError("input bytes exceed bounds or differ from the supplied pin")
+    return raw, strict_json_loads(raw)
+
+
+def oracle_bytes(cases):
+    return (json.dumps({"schema_version": 1, "cases": [
+        {"public": task.model_dump(mode="json"), "oracle": oracle.model_dump(mode="json")}
+        for task, oracle, _ in cases
+    ]}, ensure_ascii=True, sort_keys=True, separators=(",", ":"), allow_nan=False) + "\n").encode()
+
+
+def pilot_draft(raw: bytes):
+    """Accept the exact draft-only pilot.py envelope or a standalone typed manifest."""
+    from mcpsh.calibration import DraftPilotManifest, planned_caps, threshold_proposal
+
+    value = strict_json_loads(raw)
+    if isinstance(value, dict) and "manifest" in value:
+        if set(value) != {"manifest", "planned_caps", "threshold_proposal"}:
+            raise ValueError("pilot planner envelope fields differ from the source contract")
+        draft = DraftPilotManifest.model_validate_json(json.dumps(value["manifest"]))
+        if typed_hash(value["planned_caps"]) != typed_hash(planned_caps(draft)) or typed_hash(
+            value["threshold_proposal"]
+        ) != typed_hash(threshold_proposal().model_dump(mode="json")):
+            raise ValueError("cached pilot draft claims differ from the typed planner")
+        return draft
+    return DraftPilotManifest.model_validate_json(raw)
+
+
+def public_projection(value, fixture_map=None, fixture_payload=None):
+    """Conservative bounded public trace projection; raw results never leave this process."""
+    if isinstance(value, list):
+        return [public_projection(item, fixture_map, fixture_payload) for item in value]
+    if isinstance(value, dict):
+        if fixture_map is not None and isinstance(value.get("fixture_ref"), str):
+            fixture_payload = fixture_map.get(value["fixture_ref"])
+        # Retain evidence hashes and classifications, omit raw provider/log/wire payloads.
+        return {key: public_projection(item, fixture_map, fixture_payload) for key, item in value.items()
+                if key not in {"results", "raw_arguments", "typed_arguments", "events",
+                               "public_task", "outbox_hashes", "family_id", "attack_family", "split",
+                               "metadata_diffs", "final_response", "result_captures", "raw_call_json"}}
+    if isinstance(value, str):
+        # Never publish arbitrary server reasons or untrusted strings containing the canary marker.
+        from mcpsh.server import redact_public
+
+        return redact_public(value, fixture_payload=fixture_payload)[:4096]
+    return value
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=BANNER)
+    parser.add_argument("--mode", choices=("replay", "live", "pilot-summary", "development-summary", "rescore"), default="replay")
+    parser.add_argument("--out", type=Path, default=ROOT / "results")
+    parser.add_argument("--edition")
+    parser.add_argument("--seed", type=int, default=1729)
+    parser.add_argument("--corpus", choices=("development", "demo"), default="development")
+    parser.add_argument("--private-evidence", type=Path,
+                        default=ROOT.parent / (ROOT.name + "-private-evidence"),
+                        help="raw synthetic evidence destination; must remain outside product root")
+    parser.add_argument("--oracle-package", type=Path,
+                        help="explicit sealed scorer-only package for a later approved live run")
+    parser.add_argument("--manifest", type=Path)
+    parser.add_argument("--approval", type=Path)
+    parser.add_argument("--protocol-record", type=Path)
+    parser.add_argument("--filesystem-config", type=Path)
+    parser.add_argument("--fixtures-package", type=Path)
+    parser.add_argument("--treatments-package", type=Path)
+    parser.add_argument("--lint-controls", action="store_true",
+                        help="include bounded public development lint/normalization diagnostics")
+    parser.add_argument("--lint-review", type=Path,
+                        help="optional public fixtures/dev review mapping; requires --lint-controls")
+    parser.add_argument("--pilot-plan", type=Path)
+    parser.add_argument("--pilot-plan-sha256")
+    parser.add_argument("--pilot-observations", type=Path)
+    parser.add_argument("--pilot-observations-sha256")
+    parser.add_argument("--evidence-root", type=Path)
+    parser.add_argument("--evidence-authority", type=Path)
+    parser.add_argument("--authority-sha256")
+    parser.add_argument("--evaluator-sha256")
+    parser.add_argument("--candidate-commit", help="explicit full accepted Git commit for private normalized evidence")
+    parser.add_argument("--revision", type=int, default=1)
+    parser.add_argument("--acceptance-request", type=Path,
+                        help="raw-pinned typed design/threshold/custody/conformance/control records")
+    parser.add_argument("--acceptance-request-sha256")
+    parser.add_argument("--development-plan", type=Path)
+    parser.add_argument("--development-plan-sha256")
+    parser.add_argument("--calibration-outcomes", type=Path)
+    parser.add_argument("--calibration-outcomes-sha256")
+    parser.add_argument("--calibration-failures", type=Path)
+    parser.add_argument("--calibration-failures-sha256")
+    args = parser.parse_args()
+    if args.lint_review and not args.lint_controls:
+        parser.error("--lint-review requires --lint-controls")
+    if args.candidate_commit and not re.fullmatch(r"[0-9a-f]{40}", args.candidate_commit):
+        parser.error("candidate commit must be an explicit full lowercase Git object ID")
+    if args.revision < 1:
+        parser.error("evidence revision must be positive")
+    if bool(args.acceptance_request) != bool(args.acceptance_request_sha256):
+        parser.error("acceptance recommendation inputs require their explicit raw SHA256 pin")
+    if args.acceptance_request and args.mode in ("pilot-summary", "development-summary"):
+        parser.error("calibration drafts cannot be treated as experiment acceptance evidence")
+    if args.mode != "development-summary" and any((args.development_plan, args.development_plan_sha256,
+        args.calibration_outcomes, args.calibration_outcomes_sha256,
+        args.calibration_failures, args.calibration_failures_sha256)):
+        parser.error("full-development evidence arguments require --mode development-summary")
+    if args.mode == "development-summary" and not all((args.development_plan,
+        args.development_plan_sha256, args.calibration_outcomes, args.calibration_outcomes_sha256)):
+        parser.error("development-summary requires raw-pinned typed full36 plan and outcome records")
+    if bool(args.calibration_failures) != bool(args.calibration_failures_sha256):
+        parser.error("explicit failure records require their raw SHA256 pin")
+    if args.candidate_commit and args.mode not in ("replay", "live"):
+        parser.error("candidate metadata belongs only to new replay/live evidence editions")
+    if args.mode != "rescore" and any((args.evidence_root, args.evidence_authority,
+                                       args.authority_sha256, args.evaluator_sha256)):
+        parser.error("offline evidence arguments require --mode rescore")
+    if args.mode != "pilot-summary" and any((args.pilot_plan, args.pilot_plan_sha256,
+                                             args.pilot_observations, args.pilot_observations_sha256)):
+        parser.error("supplied pilot evidence arguments require --mode pilot-summary")
+    if args.mode == "pilot-summary" and not all((args.pilot_plan, args.pilot_plan_sha256,
+                                                args.pilot_observations, args.pilot_observations_sha256)):
+        parser.error("pilot-summary requires raw-pinned draft plan and supplied observation files")
+    if args.mode == "rescore" and not all((args.evidence_root, args.evidence_authority,
+                                          args.authority_sha256, args.evaluator_sha256)):
+        parser.error("rescore requires explicit edition root, externally pinned authority and evaluator hash")
+    if args.mode == "live":
+        if not all((args.manifest, args.approval, args.oracle_package, args.protocol_record,
+                    args.fixtures_package, args.treatments_package)):
+            parser.error("live requires manifest, approval, sealed oracle/fixtures/treatments and protocol record; no defaults authorize dispatch")
+        preview = ExperimentManifest.model_validate_json(args.manifest.read_bytes())
+        if args.edition and args.edition != preview.edition_id:
+            parser.error("CLI edition differs from the approved manifest")
+        args.edition = preview.edition_id
+    elif args.oracle_package or args.manifest or args.approval or args.fixtures_package or args.treatments_package:
+        parser.error("independent held-out custody and execution are not admitted in this development runner")
+    if not args.edition:
+        args.edition = args.mode + "-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,99}", args.edition):
+        parser.error("edition must be a bounded safe identifier")
+    private_root = args.private_evidence.resolve()
+    if private_root == ROOT or ROOT in private_root.parents:
+        parser.error("raw evidence must be outside the product repository")
+    args.out.mkdir(parents=True, exist_ok=True)
+    destination = args.out / args.edition
+    lock = args.out / ("." + args.edition + ".reservation")
+    if destination.exists():
+        parser.error("immutable edition already exists; choose a successor ID")
+    # Exclusive, durable reservation prevents concurrent writers of this edition ID.
+    reservation = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    with os.fdopen(reservation, "w", encoding="utf-8") as handle:
+        handle.write(args.edition + "\n")
+    private_destination = private_root / args.edition
+    if private_destination.exists():
+        parser.error("private immutable edition already exists")
+    source = ROOT / "src" / "mcpsh"
+    fixture_map = None
+    private_payloads = {}
+    oracle_package_bytes = None
+    if args.mode == "live":
+        from mcpsh.runner.live import prepare_live_run
+
+        pins = {"code_hash": source_hash(source), "policy_hash": source_hash(source / "policy"),
+                "scorer_hash": source_hash(source / "evaluation"),
+                "observer_hash": source_hash(source / "observer")}
+        admitted, cases, factory, fixture_map, treatment_map = prepare_live_run(
+            manifest_path=args.manifest, approval_path=args.approval,
+            oracle_path=args.oracle_package, protocol_record=args.protocol_record,
+            product_root=ROOT, private_directory=private_destination, source_hashes=pins,
+            fixtures_path=args.fixtures_package, treatments_path=args.treatments_package)
+        if args.candidate_commit and admitted.settings.get("candidate_commit") != args.candidate_commit:
+            parser.error("live candidate commit differs from the approved manifest")
+        filesystem_config = None
+        if args.filesystem_config:
+            config = strict_json_loads(args.filesystem_config.read_bytes())
+            if not isinstance(config, dict) or set(config) != {"fixture_parent"}:
+                parser.error("filesystem configuration must name only an approved fixture_parent")
+            parent = Path(config["fixture_parent"])
+            if not parent.is_absolute():
+                parser.error("POSIX fixture parent must be an explicit absolute approved path")
+
+            def filesystem_config(trial_id, fixture_payload):
+                from mcpsh.broker.posix import prepare_posix_fixture
+
+                return prepare_posix_fixture(str(parent / trial_id), fixture_payload=fixture_payload)
+        result = run_live_matrix(manifest=admitted, cases=cases, selector_factory=factory,
+                                 filesystem_config=filesystem_config, fixture_map=fixture_map,
+                                 treatment_map=treatment_map)
+        manifest = admitted.model_dump(mode="json")
+        # The admitted reader already verified these exact raw oracle-package bytes.
+        oracle_package_bytes, _ = pinned_input(args.oracle_package, admitted.split_hash)
+    elif args.mode == "pilot-summary":
+        from mcpsh.calibration import (
+            PilotObservation, planned_caps, summarize_pilot, threshold_proposal,
+        )
+
+        plan_raw, _ = pinned_input(args.pilot_plan, args.pilot_plan_sha256)
+        observations_raw, observations_json = pinned_input(args.pilot_observations,
+                                                           args.pilot_observations_sha256)
+        draft = pilot_draft(plan_raw)
+        if not isinstance(observations_json, list) or len(observations_json) > 540:
+            parser.error("pilot observations must be a bounded JSON array")
+        observations = tuple(PilotObservation.model_validate_json(json.dumps(item))
+                             for item in observations_json)
+        summary = summarize_pilot(draft, observations)
+        manifest = draft.model_dump(mode="json")
+        result = {"schema_version": 1, "banner": "supplied development pilot evidence; approval needed",
+                  "execution_state": "pilot-summary-draft", "acceptance_verdict": "pending",
+                  "platform_scope": "not-evaluated", "rows": [], "summary": [],
+                  "pilot_summary": summary.model_dump(mode="json"),
+                  "threshold_proposal": threshold_proposal(summary).model_dump(mode="json"),
+                  "planned_caps": planned_caps(draft),
+                  "input_pins": {"plan_sha256": args.pilot_plan_sha256,
+                                 "observations_sha256": args.pilot_observations_sha256},
+                  "limitations": ["Supplied hashes identify bytes, not truthful execution.",
+                                  "The utility floor and dispatch approval remain pending.",
+                                  "Planned bounds are not measured usage or verified token fit."]}
+        private_payloads["pilot-plan.json"] = plan_raw
+        private_payloads["pilot-observations.json"] = observations_raw
+    elif args.mode == "development-summary":
+        from mcpsh.calibration import (
+            CalibrationOutcome, DevelopmentProtocolPlan, ProtocolFailure,
+            propose_full36_thresholds, summarize_development,
+        )
+
+        plan_raw, _ = pinned_input(args.development_plan, args.development_plan_sha256)
+        outcomes_raw, outcome_json = pinned_input(args.calibration_outcomes,
+                                                  args.calibration_outcomes_sha256, 32 * 1024 * 1024)
+        development = DevelopmentProtocolPlan.model_validate_json(plan_raw)
+        if not isinstance(outcome_json, list) or len(outcome_json) > 5000:
+            parser.error("bounded full-development outcome array required")
+        records = tuple(CalibrationOutcome.model_validate_json(json.dumps(row)) for row in outcome_json)
+        failures = ()
+        if args.calibration_failures:
+            failure_raw, failure_json = pinned_input(args.calibration_failures,
+                                                      args.calibration_failures_sha256)
+            if not isinstance(failure_json, list) or len(failure_json) > 5000:
+                parser.error("bounded explicit calibration failure array required")
+            failures = tuple(ProtocolFailure.model_validate_json(json.dumps(row)) for row in failure_json)
+            private_payloads["calibration-failures.json"] = failure_raw
+        summary = summarize_development(development, records, failures=failures)
+        manifest = development.model_dump(mode="json")
+        result = {"schema_version": 1, "banner": "supplied full36 development evidence; independent floor review pending",
+                  "execution_state": "development-summary-draft", "acceptance_verdict": "pending",
+                  "platform_scope": "not-evaluated", "rows": [], "summary": [],
+                  "development_summary": summary.model_dump(mode="json"),
+                  "development_threshold_proposal": propose_full36_thresholds(summary).model_dump(mode="json"),
+                  "input_pins": {"plan_sha256": args.development_plan_sha256,
+                                 "outcomes_sha256": args.calibration_outcomes_sha256,
+                                 "failures_sha256": args.calibration_failures_sha256},
+                  "limitations": ["Caller-supplied hashes do not authenticate execution.",
+                                  "All planned slots, missing semantics/counters and controls remain explicit.",
+                                  "No absolute floor, independence claim or dispatch approval is generated."]}
+        private_payloads["development-plan.json"] = plan_raw
+        private_payloads["calibration-outcomes.json"] = outcomes_raw
+    elif args.mode == "rescore":
+        from mcpsh.evidence import EditionAuthority, read_edition, reproduce
+
+        authority_raw, _ = pinned_input(args.evidence_authority, args.authority_sha256, 1024 * 1024)
+        authority = EditionAuthority.model_validate_json(authority_raw)
+        if args.edition == authority.edition_id:
+            parser.error("rescore must publish under a fresh successor view ID")
+        edition = read_edition(args.evidence_root, authority=authority)
+        result = reproduce(edition, expected_evaluator_hash=args.evaluator_sha256)
+        manifest = result["manifest"]
+        result["publication_edition_id"] = args.edition
+        private_payloads["source-authority.json"] = authority_raw
+    else:
+        replay_cases = load_development_cases(ROOT) if args.corpus == "development" else demonstration_cases()
+        oracle_package_bytes = oracle_bytes(replay_cases)
+        result = run_matrix(seed=args.seed, cases=replay_cases)
+        catalogs = sorted({row["catalog_hash"] for row in result["rows"]})
+        manifest = ExperimentManifest(
+            edition_id=args.edition, mode="replay", platform_scope="synthetic-memory",
+            code_hash=source_hash(source), lock_hash=None, protocol_hash=None,
+            task_hash=typed_hash([task.model_dump(mode="json") for task, _, _ in replay_cases]),
+            catalog_hash=typed_hash(catalogs), policy_hash=source_hash(source / "policy"),
+            scorer_hash=source_hash(source / "evaluation"),
+            observer_hash=source_hash(source / "observer"),
+            split_hash=hashlib.sha256(oracle_package_bytes).hexdigest(),
+            seed=args.seed, settings={"live_requests": 0, "catalog_hashes": catalogs,
+                                      "sdk_interoperability": "pending",
+                                      "ordering_protocol": "sha256-tool-rank-1",
+                                      "ordering_source_sha256": hashlib.sha256(
+                                          (source / "catalog/artifacts.py").read_bytes()).hexdigest()},
+        ).model_dump(mode="json")
+    result["manifest"] = manifest
+    if args.acceptance_request:
+        from mcpsh.evaluation.acceptance import (
+            ApprovedThresholds, ConformanceEvidence, ControlEvidence, CustodyProvenance,
+            MatrixDesign, evaluate_acceptance,
+        )
+        from mcpsh.records import TrialOutcome
+
+        request_raw, request = pinned_input(args.acceptance_request, args.acceptance_request_sha256)
+        fields = {"design", "thresholds", "custody", "conformance", "controls"}
+        if not isinstance(request, dict) or set(request) - fields or "design" not in request:
+            parser.error("acceptance request fields differ from the typed recommendation schema")
+
+        def optional_record(name, cls):
+            value = request.get(name)
+            return cls.model_validate_json(json.dumps(value)) if value is not None else None
+
+        controls = request.get("controls", [])
+        if not isinstance(controls, list) or len(controls) > 1000:
+            parser.error("bounded explicit control evidence array required")
+        recommendation = evaluate_acceptance(
+            manifest=ExperimentManifest.model_validate_json(json.dumps(manifest)),
+            design=MatrixDesign.model_validate_json(json.dumps(request["design"])),
+            outcomes=tuple(TrialOutcome.model_validate_json(json.dumps(row["outcome"]))
+                           for row in result["rows"]),
+            thresholds=optional_record("thresholds", ApprovedThresholds),
+            custody=optional_record("custody", CustodyProvenance),
+            conformance=optional_record("conformance", ConformanceEvidence),
+            controls=tuple(ControlEvidence.model_validate_json(json.dumps(row)) for row in controls),
+        )
+        result["acceptance_recommendation"] = recommendation.model_dump(mode="json")
+        private_payloads["acceptance-request.json"] = request_raw
+    if args.lint_controls:
+        from mcpsh.catalog import build_catalog
+        from mcpsh.lint_evaluation import evaluate_labels, evaluate_normalization
+
+        labels, labels_hash = public_dev_json(ROOT / "fixtures/dev/lint-labels.json")
+        bypasses, bypasses_hash = public_dev_json(ROOT / "fixtures/dev/lint-bypasses.json")
+        review_path = args.lint_review or ROOT / "fixtures/dev/lint-review.json"
+        if args.lint_review and not review_path.exists():
+            raise FileNotFoundError("explicit public lint review mapping is absent")
+        review, review_hash = public_dev_json(review_path) if review_path.exists() else (None, None)
+        result["lint_controls"] = {
+            "labels": evaluate_labels(labels, bypasses=bypasses, review=review),
+            "normalization": {condition: evaluate_normalization(build_catalog(condition))
+                              for condition in ("clean", "ambiguous", "poisoned")},
+            "inputs": {"labels_sha256": labels_hash, "bypasses_sha256": bypasses_hash,
+                       "review_sha256": review_hash},
+        }
+    result["raw_evidence_hash"] = typed_hash(result["rows"])
+    result["projection"] = "bounded/redacted; raw synthetic payloads not published"
+    # Preserve malformed/raw arguments and synthetic payloads outside the public product tree.
+    private_root.mkdir(parents=True, exist_ok=True)
+    private_destination.mkdir(exist_ok=args.mode == "live")
+    (private_destination / "raw-trials.jsonl").write_text(
+        "".join(json.dumps(row, ensure_ascii=True, allow_nan=False) + "\n"
+                for row in result["rows"]), encoding="utf-8", newline="\n")
+    (private_destination / "MANIFEST.json").write_text(
+        json.dumps(manifest, ensure_ascii=True, indent=2) + "\n", encoding="utf-8")
+    for name, raw in private_payloads.items():
+        with (private_destination / name).open("xb") as handle:
+            handle.write(raw)
+    if args.candidate_commit and args.mode in ("replay", "live"):
+        from mcpsh.evidence import build_edition_payloads
+
+        normalized = private_destination / "normalized"
+        normalized.mkdir(exist_ok=False)
+        payloads = build_edition_payloads(result, candidate_commit=args.candidate_commit,
+                                          revision=args.revision,
+                                          oracle_package_bytes=oracle_package_bytes)
+        for name, raw in payloads.items():
+            if not re.fullmatch(r"[A-Za-z0-9_-]+\.(?:json|jsonl)", name):
+                raise ValueError("normalized evidence artifact name is outside the private flat schema")
+            with (normalized / name).open("xb") as handle:
+                handle.write(raw)
+    safe = public_projection(result, fixture_map=fixture_map)
+    files = render_bundle(safe)
+    files["MANIFEST.json"] = json.dumps(manifest, ensure_ascii=True, indent=2) + "\n"
+    staging = Path(tempfile.mkdtemp(prefix=".stage-" + args.edition + "-", dir=args.out))
+    for name, content in files.items():
+        (staging / name).write_text(content, encoding="utf-8", newline="\n")
+    checksums = {name: hashlib.sha256((staging / name).read_bytes()).hexdigest() for name in files}
+    (staging / "SHA256SUMS.json").write_text(json.dumps(checksums, indent=2) + "\n", encoding="utf-8")
+    if destination.exists():
+        raise FileExistsError("edition appeared during publication; staging preserved")
+    staging.rename(destination)
+    print(result["banner"])
+    print(f"Published {result['execution_state']} edition: {destination}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

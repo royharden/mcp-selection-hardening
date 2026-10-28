@@ -1,0 +1,93 @@
+# Development pilot and calibration drafts
+
+Constructed under Dirty Mode: source and regression authoring with static review
+only. No pilot, tokenizer, provider, scorer, test, app or backend was executed.
+Private/retired data is neither read nor copied. This package does not establish
+prices, model identity, family independence, token fit, utility or readiness.
+
+The pilot inventory is the public 36-case development set: six declared classes
+with six cases each. `plan_pilot` deterministically selects one task ID per class
+(or validates an explicit selection), preserving the full inventory hash. It does
+not claim these six classes or repeated public templates are unseen families.
+Two `DraftArm` slots may have unresolved provider/family/model identities; `None`
+means pending, and supplied equal model/family identities reject the draft.
+
+The typed `DraftPilotManifest` is a **draft-no-dispatch** contract, deliberately
+distinct from `ExperimentManifest`. It is not usable as live admission. Initial
+N=3, all three metadata conditions and C0/C1/C2 cells give 324 planned task-runs
+for six cases/two arms. Three turns and one allowed retry per request reserve up
+to 1,944 planned attempts. Planned token caps are placeholders requiring actual
+full-wire tokenization later. No dated price, spend receipt, absolute floor or
+authorization is filled in. Planned counts are not measured results.
+
+`summarize_pilot(manifest, observations)` accepts typed, explicitly supplied
+`PilotObservation` records from future immutable development evidence. Each row
+joins an arm/task/condition/cell/repeat, carries a journal digest, and separates
+request attempts, failed transport attempts, returned outputs, semantic-invalid
+outputs and tri-state semantic utility. Incorrect task answers are not automatically
+malformed model outputs. Retries count in request denominators. Duplicate,
+out-of-schedule and inconsistent counter/identity records reject. Live/replay
+rows cannot be pooled; replay diagnostics never satisfy live pilot evidence.
+Hashes bind bytes supplied by a caller; they do not authenticate that a run happened.
+
+Per arm, semantic invalidity uses invalid returned outputs / all returned outputs;
+transport failure uses failed attempts / all attempts. Utility variance is the
+descriptive plug-in Bernoulli variance `p(1-p)` over known semantic utility
+judgments, available with at least two observations. Its use is a pilot repeat
+diagnostic; it is not independent-sample inference over clustered cases. Missing
+rows, unknown utility and zero denominators are explicit. Wilson intervals reuse
+the existing statistics module and describe known utility observations only.
+
+Strict thresholds, compared as exact fractions:
+
+- Either arm above 10% semantic-invalid outputs proposes N=5 for **both** arms.
+- Either arm with utility variance above 0.20 likewise proposes N=5 for both.
+- Either arm above 5% failed transport attempts requires repair/re-pilot first.
+  Repeat inflation cannot substitute for repair; any N=5 proposal remains pending.
+- Exactly 10%, 0.20 or 5% does not cross the corresponding strict threshold.
+- Partial evidence may reveal a repair need/repeat proposal but cannot establish
+  completed pilot collection. No automatic reduction from N=5 occurs.
+
+Unknown utility, empty evidence and missing scheduled trials never become successful
+empty samples. `supplied-complete` means only schedule/utility completeness of
+caller-supplied data; it is neither independent evidence acceptance nor dispatch
+authorization. Full live identity/version/cost/provider and experiment gates remain
+with the existing runner/admission owner. Pilot summaries never fill those gates.
+
+`threshold_proposal` always keeps `absolute_utility_floor=null`, an approval-needed
+status, pending uncertainty rule, and no independent approval. Establish the floor
+only after all 36 public development cases, task difficulty and no-tool utility,
+baseline/deny-all contrast and independent approval. Poor utility never lowers the
+floor automatically. The selected paired retention margin remains five percentage
+points, with its interval rule pending the required approval.
+
+Future CLI surface (do not execute while Dirty Mode is open):
+
+```text
+python scripts/pilot.py plan [--arms draft-arms.json --arms-sha256 RAW_SHA256]
+python scripts/pilot.py summarize --plan draft.json --plan-sha256 RAW_SHA256 \
+  --observations observed-dev.json --observations-sha256 RAW_SHA256
+```
+
+`plan` reads only fixed public development inventory paths; there is no hidden
+oracle path flag. An omitted arm file leaves explicit unresolved slots.
+`summarize` requires raw pins for external draft/evidence bytes and emits only
+an approval-needed proposal and state/action. Its numeric summary is available
+through the library for the existing `scripts/eval.py` publication owner. Optional
+`--out` creates a new `.json` draft only under `evaluation/experiments/`, never
+overwriting a file. This command does not publish metric editions or README results.
+
+D1 integration API: import `plan_pilot`, `planned_caps`, `summarize_pilot`, and
+`threshold_proposal` from `mcpsh.calibration`. Inputs/outputs use the strict records
+exported there. A JSON draft round-trips through
+`DraftPilotManifest.model_validate_json`; public evidence rows use
+`PilotObservation.model_validate_json`. `evaluation/thresholds/PROPOSAL.template.json`
+has the exact `ThresholdProposal` field shape with no observations fabricated.
+Future CLI routing remains D1-owned; this package changes no shared CLI or runner.
+
+Construction receipt: focused source/logic/API inspection, six stdlib AST parses
+(four calibration modules, pilot script and regression source), and static JSON
+template-to-AST-field-set comparison passed. Fourteen regression functions were
+authored, including strict-boundary, duplicate/missing evidence, replay/live
+separation and floor-approval cases. None was run. No real draft run results or
+provider/price identities were produced. Planned arithmetic is source design only.

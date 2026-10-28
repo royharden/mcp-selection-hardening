@@ -1,0 +1,291 @@
+"""Pure adapters to D5 catalog pins and D6 per-probe evidence verification.
+
+Two explicit modes. `ProducerAuthority` (schema 1) is the legacy v1 bridge and is
+integrity-only: it never earns probe credit. `NormativeProducerAuthority` (schema 2)
+requires D6 evidence v3 and reports the full, externally pinned normative inventory.
+Neither mode downgrades into the other, and neither grants full-platform credit.
+"""
+
+from typing import Literal
+
+from pydantic import Field
+
+from mcpsh.records import typed_hash
+from mcpsh.records.models import Record
+
+from .reader import EvidenceRejected, VerifiedEdition, strict_json
+
+NORMATIVE_TRACKS = ("synthetic-memory", "filesystem-posix", "stdio")
+TRACK_SCOPES = {"synthetic-memory": "actual-memory", "filesystem-posix": "actual-posix", "stdio": "actual-stdio"}
+LEGACY_MODE = "legacy-v1-integrity-only"
+NORMATIVE_MODE = "normative-v3"
+PENDING_REASONS = ("requirements-authority-invalid", "unselected", "missing-evidence", "invalid-evidence",
+                   "component-or-nonplatform-scope", "incomplete-or-unknown-observation")
+
+
+class CatalogPins(Record):
+    artifact_version: str
+    typed_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    executable_schema_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    presented_metadata_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    server_instance_id: str
+    qualified_tool_ids: tuple[tuple[str, str], ...] = Field(min_length=9, max_length=9)
+    ordering_seed: int = Field(ge=0)
+    raw_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class CatalogExpectation(Record):
+    trial_id: str
+    pins: CatalogPins
+
+
+class ConformanceExpectation(Record):
+    probe_id: str
+    track: str
+    request_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    source_pins: dict[str, str]
+    server_instance_id: str
+    fixture_payload_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class ProducerAuthority(Record):
+    """Legacy v1 selection. Unchanged fields keep historical authority hashes stable."""
+    schema_version: int = Field(ge=1, le=1)
+    source_index_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    catalogs: tuple[CatalogExpectation, ...] = Field(max_length=5000)
+    conformance: tuple[ConformanceExpectation, ...] = Field(max_length=256)
+
+
+class NormativeProducerAuthority(Record):
+    """Normative-v3 selection: probe pins plus external semantic and inventory approvals."""
+    schema_version: Literal[2]
+    source_index_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    catalogs: tuple[CatalogExpectation, ...] = Field(max_length=5000)
+    conformance: tuple[ConformanceExpectation, ...] = Field(max_length=512)
+    semantic_manifest_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    requirements_manifest_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+def probe_key(track: str, probe_id: str) -> str:
+    """Normative documents are keyed per track: one probe can serve several tracks."""
+    return track + "/" + probe_id
+
+
+def _verify_catalogs(catalogs, rows, catalog_documents):
+    from mcpsh.catalog.artifacts import artifact_pins
+
+    results = []
+    for trial_id, expected in catalogs.items():
+        raw = catalog_documents.get(trial_id)
+        if raw is None:
+            results.append({"trial_id": trial_id, "state": "unknown", "violations": ["catalog.missing"]})
+            continue
+        try:
+            if len(raw) > 1048576:
+                raise EvidenceRejected("catalog byte cap")
+            value = strict_json(raw)
+            pins = artifact_pins(value, raw=raw)
+            if pins != expected.pins.model_dump(mode="json") or rows[trial_id].catalog_hash != typed_hash(value["catalog"]):
+                raise EvidenceRejected("catalog differs from externally selected trial pins")
+            results.append({"trial_id": trial_id, "state": "verified", "pins": pins, "violations": []})
+        except (ValueError, TypeError, KeyError):
+            results.append({"trial_id": trial_id, "state": "invalid", "violations": ["catalog.pin-or-schema-mismatch"]})
+    return results
+
+
+def _v1_selection(expected):
+    return {"expected_probe_id": expected.probe_id, "expected_track": expected.track,
+            "expected_request_sha256": expected.request_sha256,
+            "expected_source_pins": expected.source_pins,
+            "expected_server_instance_id": expected.server_instance_id,
+            "expected_fixture_payload_sha256": expected.fixture_payload_sha256}
+
+
+def _platform_bound(result, document, platform_scope):
+    if document.get("session", {}).get("platform_scope") != platform_scope:
+        return {**result, "valid": False, "creditable": False,
+                "violations": sorted(set([*result["violations"], "conformance.edition-platform-mismatch"]))}
+    return result
+
+
+def _missing(expected, violation):
+    return {"probe_id": expected.probe_id, "track": expected.track, "state": "unknown",
+            "creditable": False, "scope": "unknown", "predicates": {}, "violations": [violation]}
+
+
+def _verify_legacy_probe(expected, raw, platform_scope):
+    from mcpsh.conformance.evidence import verify_evidence
+
+    document = strict_json(raw)
+    result = verify_evidence(document, **_v1_selection(expected))
+    result = _platform_bound(result, document, platform_scope)
+    # v1 has no semantic or normative authority: integrity at most, never credit.
+    return {"probe_id": expected.probe_id, "track": expected.track,
+            "state": "verified" if result["valid"] else "invalid", **result,
+            "creditable": False, "integrity_creditable": result["creditable"]}
+
+
+def _verify_normative_probe(expected, raw, platform_scope, *, semantic_manifest, semantic_pin,
+                            requirements_raw, requirements_pin):
+    from mcpsh.conformance.evidence_v3 import verify_evidence_v3
+
+    document = strict_json(raw)
+    if type(document) is not dict or type(document.get("schema_version")) is not int or document["schema_version"] != 3:
+        # Never fall back to the v1/v2 verifier: an older document is an explicit failure here.
+        return {"probe_id": expected.probe_id, "track": expected.track, "state": "invalid",
+                "creditable": False, "scope": "unknown", "predicates": {},
+                "violations": ["conformance.v3-required"]}
+    result = verify_evidence_v3(document, requirements_raw=requirements_raw,
+        expected_requirements_manifest_sha256=requirements_pin,
+        semantic_manifest=semantic_manifest, expected_manifest_sha256=semantic_pin,
+        **_v1_selection(expected))
+    result = _platform_bound(result, document, platform_scope)
+    return {"probe_id": expected.probe_id, "track": expected.track,
+            "state": "verified" if result["valid"] else "invalid", **result}
+
+
+def _requirement_reasons(requirement, track, probes, authority_valid):
+    reasons = [] if authority_valid else ["requirements-authority-invalid"]
+    observed = set()
+    for probe_id in requirement.probe_ids:
+        result = probes.get(probe_key(track, probe_id))
+        if result is None:
+            reasons.append("unselected")
+            continue
+        observed.update(name for name, value in result.get("predicates", {}).items() if value == "observed")
+        if result["state"] == "unknown":
+            reasons.append("missing-evidence")
+        elif result["state"] != "verified":
+            reasons.append("invalid-evidence")
+        elif result.get("scope") != TRACK_SCOPES[track]:
+            reasons.append("component-or-nonplatform-scope")
+        elif result["creditable"] is not True:
+            reasons.append("incomplete-or-unknown-observation")
+    return sorted(set(reasons)), sorted(observed)
+
+
+def normative_summary(requirements_raw, *, expected_requirements_manifest_sha256, probe_results):
+    """Full fixed inventory per track; selected/implemented probes never shrink it."""
+    from mcpsh.conformance.requirements import decode_requirements, verify_requirements_manifest
+
+    base = {"status": "requirements-unavailable", "basis": "fixed-normative-inventory",
+            "inventory_version": None, "inventory_sha256": None, "authority_valid": False,
+            "required_counts": None, "tracks": {}, "unmapped_selected_probes": None,
+            "full_platform_credit": False, "suite_acceptance": "pending", "product_verdict": "pending"}
+    if requirements_raw is None:
+        return {**base, "violations": ["normative.resources-missing"]}
+    approval = verify_requirements_manifest(requirements_raw,
+        expected_requirements_manifest_sha256=expected_requirements_manifest_sha256)
+    try:
+        inventory = decode_requirements(requirements_raw)
+    except (ValueError, TypeError, KeyError, UnicodeError, RecursionError):
+        return {**base, "violations": sorted(set(approval["violations"] + ["normative.requirements-ill-shaped"]))}
+    if not approval["valid"]:
+        # Unapproved bytes could carry a smaller inventory: report no denominator rather than theirs.
+        return {**base, "status": "authority-invalid", "inventory_version": inventory.version,
+                "inventory_sha256": inventory.sha256, "violations": list(approval["violations"])}
+    probes = {probe_key(item["track"], item["probe_id"]): item for item in probe_results}
+    mapped = {probe_key(track, probe) for row in inventory.requirements for track in row.tracks for probe in row.probe_ids}
+    tracks = {}
+    for track in NORMATIVE_TRACKS:
+        rows = []
+        for requirement in inventory.requirements:
+            if track not in requirement.tracks:
+                continue
+            reasons, observed = _requirement_reasons(requirement, track, probes, approval["valid"])
+            rows.append({"requirement_id": requirement.requirement_id, "probe_ids": list(requirement.probe_ids),
+                         "status": "pending" if reasons else "per-probe-creditable",
+                         "pending_reasons": reasons, "observed_predicates": observed})
+        creditable = sum(row["status"] == "per-probe-creditable" for row in rows)
+        tracks[track] = {"required_scope": TRACK_SCOPES[track], "required_requirements": len(rows),
+            "per_probe_creditable_requirements": creditable, "pending_requirements": len(rows) - creditable,
+            "pending_reason_counts": {reason: sum(reason in row["pending_reasons"] for row in rows) for reason in PENDING_REASONS},
+            "required_probe_ids": sorted({probe for row in rows for probe in row["probe_ids"]}),
+            "selected_probe_count": sum(item["track"] == track for item in probe_results),
+            "requirements": rows, "verdict": "pending"}
+    return {**base, "status": "evaluated",
+            "inventory_version": inventory.version, "inventory_sha256": inventory.sha256,
+            "authority_valid": True, "required_counts": dict(approval["required_counts"]),
+            "tracks": tracks, "unmapped_selected_probes": sum(key not in mapped for key in probes),
+            "violations": list(approval["violations"])}
+
+
+def verify_producer_bindings(edition: VerifiedEdition,
+                             authority: ProducerAuthority | NormativeProducerAuthority, *,
+                             expected_authority_sha256: str,
+                             catalog_documents: dict[str, bytes],
+                             conformance_documents: dict[str, bytes],
+                             semantic_manifest: dict | None = None,
+                             requirements_raw: bytes | None = None) -> dict:
+    """Only explicit document bytes; never discover/open producer files or a process.
+
+    Legacy authority keys conformance documents by probe ID; normative authority keys
+    them by `probe_key(track, probe_id)`. Normative mode needs the explicitly supplied
+    public semantic manifest and inventory bytes; their absence keeps every probe unknown.
+    """
+    normative = isinstance(authority, NormativeProducerAuthority)
+    if not normative and not isinstance(authority, ProducerAuthority):
+        raise EvidenceRejected("unsupported producer authority")
+    if not normative and (semantic_manifest is not None or requirements_raw is not None):
+        raise EvidenceRejected("legacy v1 authority cannot carry normative resources")
+    index, _, trials, _, _ = edition.validate()
+    if typed_hash(authority.model_dump(mode="json")) != expected_authority_sha256 or authority.source_index_sha256 != edition.authority.index_sha256:
+        raise EvidenceRejected("producer selection/pins differ from external authority")
+    catalogs = {item.trial_id: item for item in authority.catalogs}
+    key = (lambda item: probe_key(item.track, item.probe_id)) if normative else (lambda item: item.probe_id)
+    probes = {key(item): item for item in authority.conformance}
+    if len(catalogs) != len(authority.catalogs) or len(probes) != len(authority.conformance):
+        raise EvidenceRejected("duplicate required catalog/probe selection")
+    if normative and any(item.track not in TRACK_SCOPES for item in authority.conformance):
+        raise EvidenceRejected("normative probe selection names an unknown track")
+    rows = {row.outcome.trial_id: row for row in trials}
+    if not set(catalogs) <= set(rows) or not set(catalog_documents) <= set(catalogs) or not set(conformance_documents) <= set(probes):
+        raise EvidenceRejected("unbound catalog/probe payload")
+    if sum(len(raw) for raw in list(catalog_documents.values()) + list(conformance_documents.values())) > 64 * 1024 * 1024:
+        raise EvidenceRejected("producer artifact aggregate byte cap")
+    if requirements_raw is not None and (type(requirements_raw) is not bytes or len(requirements_raw) > 128 * 1024):
+        raise EvidenceRejected("normative inventory byte cap")
+
+    catalog_results = _verify_catalogs(catalogs, rows, catalog_documents)
+    resources = semantic_manifest is not None and requirements_raw is not None
+    probe_results = []
+    for probe, expected in probes.items():
+        raw = conformance_documents.get(probe)
+        if normative and not resources:
+            probe_results.append(_missing(expected, "conformance.normative-resource-missing"))
+            continue
+        if raw is None:
+            probe_results.append(_missing(expected, "conformance.missing"))
+            continue
+        try:
+            if len(raw) > 1048576:
+                raise EvidenceRejected("conformance byte cap")
+            if normative:
+                probe_results.append(_verify_normative_probe(expected, raw, index.platform_scope,
+                    semantic_manifest=semantic_manifest, semantic_pin=authority.semantic_manifest_sha256,
+                    requirements_raw=requirements_raw, requirements_pin=authority.requirements_manifest_sha256))
+            else:
+                probe_results.append(_verify_legacy_probe(expected, raw, index.platform_scope))
+        except (ValueError, TypeError, KeyError, AttributeError):
+            probe_results.append({"probe_id": expected.probe_id, "track": expected.track, "state": "invalid",
+                                  "creditable": False, "scope": "unknown", "predicates": {},
+                                  "violations": ["conformance.schema-invalid"]})
+    if normative:
+        # Both public resources or neither: a lone inventory must not report an evaluated summary.
+        summary = normative_summary(requirements_raw if resources else None,
+            expected_requirements_manifest_sha256=authority.requirements_manifest_sha256,
+            probe_results=probe_results)
+    else:
+        summary = {"status": "not-evaluated", "basis": "legacy-v1-authority", "full_platform_credit": False,
+                   "suite_acceptance": "pending", "product_verdict": "pending"}
+    return {"visibility": "private", "schema_version": 2 if normative else 1,
+        "mode": NORMATIVE_MODE if normative else LEGACY_MODE,
+        "source_index_sha256": edition.authority.index_sha256,
+        "authority_sha256": expected_authority_sha256,
+        "catalogs": catalog_results, "conformance": probe_results,
+        "selected_catalog_count": len(catalogs), "selected_probe_count": len(probes),
+        "bindings_complete": all(item["state"] == "verified" for item in catalog_results + probe_results),
+        "all_selected_probes_creditable": bool(probe_results) and all(item["creditable"] for item in probe_results),
+        "normative": summary,
+        "full_platform_credit": False, "empirical_verdict": "pending", "product_verdict": "pending",
+        "limitation": "Per-probe structural credit does not prove full supported-probe coverage or truthful observations."}
