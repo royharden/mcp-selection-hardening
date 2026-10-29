@@ -11,3 +11,16 @@ results/
 private-evidence/
 dist/
 *.egg-info/
+
+# Credentials and generated artifacts
+.env.*
+.creds/
+ArchiveManager-creds.txt
+*.pem
+*.key
+node_modules/
+build/
+*.zip
+*.7z
+*.tar
+*.gz
