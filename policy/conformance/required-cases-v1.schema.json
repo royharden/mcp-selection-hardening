@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:mcpsh:required-conformance:v1",
+  "type": "object", "additionalProperties": false,
+  "required": ["schema_version", "manifest_version", "case_source_version", "grammar_version", "parser_version", "case_source_sha256", "grammar_source_sha256", "parser_source_sha256", "required_probe_ids", "cases", "capability_scope", "manifest_sha256"],
+  "properties": {
+    "schema_version": {"type": "integer", "const": 1},
+    "manifest_version": {"const": "m5-required-conformance-v1"},
+    "case_source_version": {"const": "m5-public-semantics-v1"},
+    "grammar_version": {"const": "m5-literal-pattern-v1"}, "parser_version": {"const": "m5-log-fields-v1"},
+    "case_source_sha256": {"$ref": "evidence-v1.schema.json#/$defs/sha256"},
+    "grammar_source_sha256": {"$ref": "evidence-v1.schema.json#/$defs/sha256"},
+    "parser_source_sha256": {"$ref": "evidence-v1.schema.json#/$defs/sha256"},
+    "manifest_sha256": {"$ref": "evidence-v1.schema.json#/$defs/sha256"},
+    "required_probe_ids": {
+      "type": "object", "additionalProperties": false, "required": ["synthetic-memory", "filesystem-posix", "stdio"],
+      "properties": {"synthetic-memory": {"$ref": "#/$defs/ids"}, "filesystem-posix": {"$ref": "#/$defs/ids"}, "stdio": {"$ref": "#/$defs/ids"}}
+    },
+    "capability_scope": {
+      "type": "object", "additionalProperties": false, "required": ["synthetic-memory", "filesystem-posix", "stdio"],
+      "properties": {
+        "synthetic-memory": {"const": "synthetic-memory-only"},
+        "filesystem-posix": {"const": "approved-linux-native-handles"},
+        "stdio": {"const": "owned-local-child-same-reference"}
+      }
+    },
+    "cases": {
+      "type": "array", "minItems": 16, "maxItems": 16,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["case_id", "kind", "raw_arguments_sha256", "call_sha256", "fixture_lines_sha256", "expectation_sha256"],
+        "properties": {
+          "case_id": {"type": "string", "minLength": 1, "maxLength": 128}, "kind": {"enum": ["matching", "parsing"]},
+          "raw_arguments_sha256": {"$ref": "evidence-v1.schema.json#/$defs/sha256"},
+          "call_sha256": {"$ref": "evidence-v1.schema.json#/$defs/sha256"},
+          "fixture_lines_sha256": {"$ref": "evidence-v1.schema.json#/$defs/sha256"},
+          "expectation_sha256": {"$ref": "evidence-v1.schema.json#/$defs/sha256"}
+        }
+      }
+    }
+  },
+  "$defs": {"ids": {"type": "array", "minItems": 1, "maxItems": 100, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 128}}}
+}

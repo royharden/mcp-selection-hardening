@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:mcpsh:conformance-evidence:v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "probe_id", "track", "scope", "request_sha256", "source_pins", "session", "frames", "observation", "checks", "record_sha256"],
+  "properties": {
+    "schema_version": {"const": 1, "type": "integer"},
+    "probe_id": {"$ref": "#/$defs/text"},
+    "track": {"enum": ["synthetic-memory", "filesystem-posix", "stdio"]},
+    "scope": {"enum": ["actual-memory", "actual-posix", "actual-stdio", "component-diagnostic", "mock-diagnostic"]},
+    "request_sha256": {"$ref": "#/$defs/sha256"},
+    "record_sha256": {"$ref": "#/$defs/sha256"},
+    "source_pins": {
+      "type": "object", "additionalProperties": false,
+      "required": ["server", "broker", "observer", "stdio", "conformance"],
+      "properties": {
+        "server": {"$ref": "#/$defs/sha256"}, "broker": {"$ref": "#/$defs/sha256"},
+        "observer": {"$ref": "#/$defs/sha256"}, "stdio": {"$ref": "#/$defs/sha256"},
+        "conformance": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "session": {
+      "type": "object", "additionalProperties": false,
+      "required": ["server_instance_id", "trial_id", "child_pid", "fixture_id", "fixture_payload_sha256", "platform_scope"],
+      "properties": {
+        "server_instance_id": {"$ref": "#/$defs/text"}, "trial_id": {"$ref": "#/$defs/text"}, "child_pid": {"type": ["integer", "null"], "minimum": 1},
+        "fixture_id": {"$ref": "#/$defs/text"}, "fixture_payload_sha256": {"$ref": "#/$defs/sha256"},
+        "platform_scope": {"enum": ["synthetic-memory", "filesystem-posix"]}
+      }
+    },
+    "frames": {
+      "type": "array", "minItems": 1, "maxItems": 128,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["direction", "sequence", "request_key", "sha256", "bytes", "response_expected"],
+        "properties": {
+          "direction": {"enum": ["request", "response"]}, "sequence": {"type": "integer", "minimum": 1},
+          "request_key": {"$ref": "#/$defs/text"}, "sha256": {"$ref": "#/$defs/sha256"},
+          "bytes": {"type": "integer", "minimum": 1, "maximum": 33792}, "response_expected": {"type": "boolean"}
+        }
+      }
+    },
+    "observation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["observer_version", "trial_id", "epoch", "complete", "reset_verified", "sequence_complete", "wire_complete", "predicates", "broker_event_count", "last_sequence", "events_sha256"],
+      "properties": {
+        "observer_version": {"$ref": "#/$defs/text"}, "trial_id": {"$ref": "#/$defs/text"}, "epoch": {"$ref": "#/$defs/text"},
+        "complete": {"type": "boolean"}, "reset_verified": {"type": "boolean"},
+        "sequence_complete": {"type": "boolean"}, "wire_complete": {"type": "boolean"},
+        "broker_event_count": {"type": "integer", "minimum": 1, "maximum": 1024},
+        "last_sequence": {"type": "integer", "minimum": 0, "maximum": 1024}, "events_sha256": {"$ref": "#/$defs/sha256"},
+        "predicates": {
+          "type": "object", "additionalProperties": false,
+          "required": ["protected_read", "outbox_write", "wire_disclosure"],
+          "properties": {
+            "protected_read": {"$ref": "#/$defs/effect"}, "outbox_write": {"$ref": "#/$defs/effect"},
+            "wire_disclosure": {"$ref": "#/$defs/effect"}
+          }
+        }
+      }
+    },
+    "checks": {"type": "object", "maxProperties": 32, "propertyNames": {"type": "string", "minLength": 1, "maxLength": 96}, "additionalProperties": {"type": "boolean"}}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "text": {"type": "string", "minLength": 1, "maxLength": 256},
+    "effect": {"enum": ["none", "observed", "unknown"]}
+  }
+}

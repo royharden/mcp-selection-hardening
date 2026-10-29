@@ -1,0 +1,137 @@
+"""Source regressions for authored semantics; not executed in Dirty Mode."""
+
+import json
+import hashlib
+from pathlib import Path
+
+import pytest
+
+from mcpsh.adapters import ReplaySelector
+from mcpsh.evidence import project_public_result
+from mcpsh.records import OracleCase, PublicTaskCase, SemanticUtilitySpec, AssistantTextPredicate
+from mcpsh.runner import run_trial
+from mcpsh.runner.cases import load_development_corpus
+
+
+def records():
+    task = PublicTaskCase(task_id="public-script", user_request="No tool requested.",
+                          allowed_source_ids=(), fixture_ref="public-test")
+    oracle = OracleCase(task_id=task.task_id, alternatives=((),),
+                         family_id="public-test-family", utility_version="semantic-v2",
+                         utility_spec=SemanticUtilitySpec(
+                             mode="no-tool", require_no_calls=True, require_final_response=True,
+                             assistant_predicates=(AssistantTextPredicate(
+                                 predicate_id="authored-terminal", operator="equals",
+                                 expected="Explicit authored terminal text."),)))
+    return task, oracle
+
+
+def episode(text):
+    return {"schema_version": 1, "episode_id": "public-script--clean",
+            "provenance": "authored-development-script",
+            "turns": [{"calls": [], "final_text": text,
+                       "stop_reason": "stop" if text is not None else None}]}
+
+
+@pytest.mark.parametrize("text,available", [("Explicit authored terminal text.", True), (None, False)])
+def test_scripted_terminal_never_acquires_model_provenance(monkeypatch, text, available):
+    # Catches losing authored text or synthesizing a missing refusal/model attempt.
+    import mcpsh.server
+
+    class Server:
+        def __init__(self, **kwargs):
+            pass
+
+        def observe(self):
+            return {"complete": True, "predicates": {"protected_read": "none",
+                    "wire_disclosure": "none", "outbox_write": "none"}}
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(mcpsh.server, "ReferenceServer", Server)
+    task, oracle = records()
+    row = run_trial(task=task, oracle=oracle, selector=ReplaySelector(episode=episode(text)),
+                    catalog=[], trial_id="public-scripted-trial", condition="clean",
+                    cell="C1", mode="hardened")
+    assert row["final_response"]["available"] is available
+    assert row["final_response"]["text"] == text
+    assert row["final_response"]["model_attempt_id"] is None
+    assert row["model_attempts"] == row["accounting_attempts"] == []
+    assert row["outcome"]["cost_basis"] == "non-model"
+    assert row["scripted_responses"][0]["provenance"] == "scripted-development-replay"
+    if text is None:
+        assert row["outcome"]["utility_success"] is None
+    projected = project_public_result({"rows": [row], "summary": [],
+                                       "execution_state": "replay-only"}).public
+    assert "Explicit authored terminal text." not in json.dumps(projected)
+    assert len(projected["rows"]) == 1
+
+
+@pytest.mark.parametrize("diagnostic_cells", [["C0", "C1", "C2"], ["C1"]])
+def test_diagnostic_episodes_do_not_enter_core_pairing(monkeypatch, diagnostic_cells):
+    # Catches extra attack/fault episodes enlarging the matched core denominator.
+    import mcpsh.runner.engine as engine
+
+    task, oracle = records()
+    baseline = {"episode_id": task.task_id + "--clean", "task_id": task.task_id,
+                "condition": "clean", "calls": [], "observer_fault_request": None,
+                "role": "primary"}
+    diagnostic = {**baseline, "episode_id": "public-script--fault",
+                  "observer_fault_request": "omit-server-end-event", "role": "diagnostic"}
+    primary_plan = {"version": "m5-primary-replay-plan-1", "manifest_sha256": "a" * 64,
+                    "entries": [{"task_id": task.task_id, "episode_id": baseline["episode_id"],
+                                 "conditions": ["clean", "ambiguous", "poisoned"],
+                                 "cells": ["C0", "C1", "C2"], "paired_design": True, "live_eligible": False}]}
+    diagnostic_plan = {"version": "m5-diagnostic-replay-plan-1", "manifest_sha256": "a" * 64,
+                       "entries": [{"task_id": task.task_id, "episode_id": diagnostic["episode_id"],
+                                    "conditions": ["clean"], "cells": diagnostic_cells,
+                                    "paired_design": False, "live_eligible": False}]}
+    captured = []
+
+    def fake_trial(**kwargs):
+        captured.append(kwargs)
+        return {"outcome": {"selector": kwargs["selector_name"],
+                            "condition": kwargs["condition"], "cell": kwargs["cell"]}}
+
+    def pairing(rows, **kwargs):
+        assert len(rows) == 3
+        assert all(row["selector"] == "scripted-replay" for row in rows)
+        return {"status": "source-test-only"}
+
+    monkeypatch.setattr(engine, "run_trial", fake_trial)
+    monkeypatch.setattr(engine, "aggregate_outcomes", lambda rows: [])
+    monkeypatch.setattr(engine, "paired_family_bootstrap", pairing)
+    result = engine.run_matrix(cases=[(task, oracle, [])], episodes=[baseline, diagnostic],
+                               replay_specs={row["episode_id"]: {"episode": episode(None)}
+                                             for row in (baseline, diagnostic)},
+                               primary_plan=primary_plan, diagnostic_plan=diagnostic_plan)
+    assert len(result["rows"]) == 12 + len(diagnostic_cells)
+    assert result["replay_design"] == {"baseline_tasks": 1, "baseline_rows": 9,
+                                      "control_rows": 3, "diagnostic_episodes": 1,
+                                      "diagnostic_rows": len(diagnostic_cells)}
+    assert sum(item["observer_fault_request"] is not None for item in captured) == len(diagnostic_cells)
+
+
+def test_changed_public_package_is_rejected_before_fixture_normalization(tmp_path, monkeypatch):
+    # Catches combining semantic labels from one edition with changed fixture/task bytes.
+    import mcpsh.broker.fixtures
+    from mcpsh.catalog.dev_corpus import FILES, MANIFEST, TASKS
+
+    root = Path(__file__).resolve().parents[2]
+    for name in FILES:
+        destination = tmp_path / name
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes((root / name).read_bytes())
+    # This pin identifies only author-seen public source bytes in this regression;
+    # it is not an external authorization/custody receipt.
+    source_pin = hashlib.sha256((tmp_path / MANIFEST).read_bytes()).hexdigest()
+    task_path = tmp_path / TASKS
+    task_path.write_bytes(task_path.read_bytes() + b"\n")
+
+    def must_not_normalize(_payload):
+        raise AssertionError("raw package join must reject before fixture use")
+
+    monkeypatch.setattr(mcpsh.broker.fixtures, "normalize_fixture_payload", must_not_normalize)
+    with pytest.raises(ValueError, match="raw source joins"):
+        load_development_corpus(tmp_path, expected_manifest_sha256=source_pin)

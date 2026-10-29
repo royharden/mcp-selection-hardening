@@ -1,0 +1,20 @@
+# Byte stability for raw SHA256 pins (C2, 2026-10-23).
+#
+# Raw pins (dev corpus manifest, control sidecar, lint review, conformance
+# inventories, live adapter/ordering/lock pins and the source-tree code/policy/
+# scorer/observer hashes) are computed over exact file bytes. Git must neither add
+# nor strip CR on any platform, whatever core.autocrlf says.
+
+# Python: LF everywhere. Every literally pinned .py file is already LF, so pins
+# keep their values. Source-tree hashes match across checkouts once any working
+# copy that is still CRLF has been checked out again after renormalization.
+*.py text eol=lf
+
+# Pinned data: store and check out the exact working-tree bytes, no EOL conversion.
+fixtures/dev/** -text
+gold/dev/** -text
+fixtures/conformance/** -text
+policy/conformance/** -text
+src/mcpsh/conformance/data/** -text
+evaluation/** -text
+uv.lock -text

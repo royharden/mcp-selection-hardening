@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling>=1.26,<2"]
+requires = ["hatchling==1.32.4"]
 build-backend = "hatchling.build"
 
 [project]
@@ -8,16 +8,25 @@ version = "0.1.0"
 description = "A synthetic MCP metadata-selection and independent-enforcement research harness"
 requires-python = ">=3.12"
 license = "MIT"
-dependencies = ["pydantic>=2.9,<3"]
+dependencies = ["pydantic==2.14.1", "mcp==2.3.0"]
 
 [project.optional-dependencies]
-dev = ["pytest>=8,<10", "ruff>=0.9,<1"]
+dev = ["pytest==9.1.1", "ruff==0.17.2"]
 
 [project.scripts]
 mcpsh = "mcpsh.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/mcpsh"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"fixtures/conformance/semantics-v1.json" = "mcpsh/conformance/data/semantics-v1.json"
+"policy/conformance/requirements-v1.json" = "mcpsh/conformance/data/requirements-v1.json"
+"policy/conformance/evidence-v1.schema.json" = "mcpsh/conformance/data/schemas/evidence-v1.schema.json"
+"policy/conformance/evidence-v2.schema.json" = "mcpsh/conformance/data/schemas/evidence-v2.schema.json"
+"policy/conformance/evidence-v3.schema.json" = "mcpsh/conformance/data/schemas/evidence-v3.schema.json"
+"policy/conformance/requirements-v1.schema.json" = "mcpsh/conformance/data/schemas/requirements-v1.schema.json"
+"policy/conformance/required-cases-v1.schema.json" = "mcpsh/conformance/data/schemas/required-cases-v1.schema.json"
 
 [tool.ruff]
 target-version = "py312"

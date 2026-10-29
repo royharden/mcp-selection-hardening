@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "status": "approval-needed",
+  "absolute_utility_floor": null,
+  "paired_retention_margin": 0.05,
+  "full_development_cases_required": 36,
+  "independent_approval": null,
+  "utility_floor_rationale": "Pending full-36 public development evidence and independent approval. No floor is inferred or lowered from poor pilot utility.",
+  "proposed_repeats_for_both_arms": 3,
+  "pilot_summary_sha256": null,
+  "uncertainty_rule": "pending-independent-approval",
+  "dispatch_authorized": false
+}

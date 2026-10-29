@@ -1,0 +1,134 @@
+"""Pure offline reproduction port. No publication, provider, broker or DB entrypoint."""
+
+import hashlib
+from pathlib import Path
+
+from mcpsh.records import typed_hash
+
+from .reader import EvidenceRejected, VerifiedEdition
+
+
+def evaluator_source_hash() -> str:
+    directory = Path(__file__).absolute().parents[1] / "evaluation"
+    records = []
+    for path in sorted(directory.rglob("*.py")):
+        # Source hash convention is shared with scripts/eval.py, not a provider version.
+        if path.is_symlink() or not path.is_file():
+            raise EvidenceRejected("unsafe evaluator source path")
+        records.append((path.relative_to(directory).as_posix(), hashlib.sha256(path.read_bytes()).hexdigest()))
+    if not records:
+        raise EvidenceRejected("evaluator source closure is absent")
+    return typed_hash(records)
+
+
+def package_source_hash() -> str:
+    directory = Path(__file__).absolute().parents[1]
+    records = []
+    for path in sorted(directory.rglob("*.py")):
+        if path.is_symlink() or not path.is_file():
+            raise EvidenceRejected("unsafe evaluator dependency source path")
+        records.append((path.relative_to(directory).as_posix(), hashlib.sha256(path.read_bytes()).hexdigest()))
+    return typed_hash(records)
+
+
+def reproduce(edition: VerifiedEdition, *, expected_evaluator_hash: str) -> dict:
+    """Return the existing report object shape, privately; never publish its numbers.
+
+    Structural integrity is not experimental truth. Missing oracle/raw calls/results
+    produce an explicit unknown row, with no partial-denominator numeric summary.
+    Missing observer/usage remains unknown, including when old outcomes claimed success.
+    """
+    index, manifest, trials, observers, package = edition.validate()
+    if expected_evaluator_hash != manifest.scorer_hash or evaluator_source_hash() != expected_evaluator_hash or package_source_hash() != manifest.code_hash:
+        raise EvidenceRejected("offline evaluator differs from the explicitly pinned source edition")
+    from mcpsh.evaluation import aggregate_outcomes, score_trial
+
+    from .token_fit import verify_token_fit_lineage
+    fit = verify_token_fit_lineage(edition)
+    fit_unknown = {item["trial_id"] for item in fit["attempts"] if item["state"] != "verified-fit-only"}
+    oracle_map = {entry.oracle.task_id: entry.oracle for entry in package.cases} if package else {}
+    observation_map = {entry.trial_id: entry.observation for entry in observers}
+    rows, missing, all_outcomes = [], [], []
+    for trial in trials:
+        old = trial.outcome
+        absent = []
+        if index.mode == "live" and (old.trial_id in fit_unknown or not fit["complete"]):
+            absent.append("token_fit_lineage_incomplete")
+        if old.task_id not in oracle_map:
+            absent.append("oracle_unavailable")
+        if trial.trace is None:
+            absent.append("raw_trace_unavailable")
+        if trial.results is None:
+            absent.append("ordered_results_unavailable")
+        if absent:
+            missing.append({"trial_id": old.trial_id, "state": "unknown", "reasons": absent})
+            continue
+        observation = observation_map.get(old.trial_id, {"complete": False, "predicates": {}})
+        if trial.selected_calls is None or trial.selection_journal_complete is not True:
+            absent.append("selection_journal_unavailable_or_incomplete")
+        if old.trial_id not in observation_map:
+            absent.append("independent_observer_unavailable")
+        elif observation.get("complete") is not True:
+            absent.append("independent_observer_incomplete")
+        if old.execution_mode == "live" and (old.cost_status != "settled" or not trial.accounting
+                or any(item.cost_microunits is None or item.reserved_microunits is None for item in trial.accounting)):
+            absent.append("usage_or_reservation_incomplete")
+        trace = [item.model_dump(mode="json", exclude_unset=True) for item in trial.trace]
+        from mcpsh.server.validation import parse_arguments
+        for event in trace:
+            if event["validation"] == "valid":
+                try:
+                    _, argument_hash = parse_arguments(event["tool_name"], event["raw_arguments"])
+                except (ValueError, TypeError):
+                    raise EvidenceRejected("valid-call claim violates pinned executable schema") from None
+                if argument_hash != event["typed_hash"]:
+                    raise EvidenceRejected("raw/typed arguments differ under pinned executable schema")
+        costs_known = old.execution_mode == "replay" or not any(reason == "usage_or_reservation_incomplete" for reason in absent)
+        outcome = score_trial(
+            trial_id=old.trial_id, oracle=oracle_map[old.task_id], trace=trace,
+            results=list(trial.results), observation=observation, condition=old.condition,
+            cell=old.cell, selector=old.selector, failures=list(old.failures),
+            latency_seconds=old.latency_seconds, execution_mode=old.execution_mode,
+            provider_id=old.provider_id, model_id=old.model_id,
+            model_attempt_ids=old.model_attempt_ids,
+            cost_microunits=old.cost_microunits if costs_known else None,
+            cost_status=old.cost_status if costs_known else "unknown",
+            cost_basis=old.cost_basis if costs_known else "unknown",
+            final_response=trial.final_response, result_captures=trial.result_captures,
+            selected_calls=trial.selected_calls, selection_journal_complete=trial.selection_journal_complete,
+        ).model_dump(mode="json")
+        if outcome.get("utility_status") == "unknown":
+            absent.append("semantic_utility_unknown")
+        all_outcomes.append(outcome)
+        rows.append({"outcome": outcome, "trace": trace, "observation": observation,
+                     "replay_role": trial.replay_role, "replay_episode_id": trial.replay_episode_id,
+                     "platform_scope": trial.platform_scope, "model_family_id": trial.model_family_id,
+                     "scripted_responses": list(trial.scripted_responses),
+                     "scripted_fixture_sha256": trial.scripted_fixture_sha256,
+                     "observer_fault_status": trial.observer_fault_status,
+                     "reproduction_state": "partial" if absent else "recomputed",
+                     "missing_evidence": absent,
+                     "matches_recorded_outcome": outcome == old.model_dump(mode="json")})
+        if absent:
+            missing.append({"trial_id": old.trial_id, "state": "unknown", "reasons": absent})
+    all_scheduled_scored = len(rows) == len(index.scheduled_trial_ids)
+    return {
+        "schema_version": 1, "banner": "offline reproduction; empirical/product acceptance pending",
+        "execution_state": "reproduction-partial" if missing else "recomputed-offline",
+        "structural_integrity": "verified", "empirical_verdict": "pending",
+        "acceptance_verdict": "pending", "platform_scope": index.platform_scope,
+        "manifest": manifest.model_dump(mode="json"), "rows": rows,
+        "summary": aggregate_outcomes(all_outcomes) if all_scheduled_scored and (index.mode != "live" or fit["complete"]) else [],
+        "token_fit_lineage": fit,
+        "paired_comparisons": [], "unknown_trials": missing,
+        "scheduled_trials": len(index.scheduled_trial_ids), "scored_trials": len(rows),
+        "source_edition_sha256": edition.authority.index_sha256,
+        "reproduction_evaluator_hash": expected_evaluator_hash,
+        "limitations": [
+            "Structural consistency cannot prove that observations or provider narratives are true.",
+            "Missing raw evidence is unknown; incomplete subsets receive no numeric summary.",
+            "Replay/live and memory/filesystem editions are never pooled.",
+            "This private result requires D1's bounded/redacted projection before report rendering.",
+            "Only scripts/eval.py may publish numeric editions; this API writes nothing.",
+        ],
+    }

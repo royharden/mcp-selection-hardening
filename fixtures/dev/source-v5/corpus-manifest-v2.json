@@ -1,0 +1,374 @@
+{
+  "version": "m5-dev-corpus-manifest-2",
+  "corpus_version": "m5-dev-semantic-v2",
+  "scope": "public-development-tuning-known",
+  "execution": "source-authored-unexecuted",
+  "utility_version": "semantic-v2",
+  "counts": {
+    "cases": 36,
+    "fixtures": 36,
+    "treatments": 36,
+    "classes": 6,
+    "per_class": 6,
+    "replay_episodes": 51
+  },
+  "legacy_raw_sha256": {
+    "fixtures/dev/legacy-v1/tasks.json": "8ddd8eb628220ceba4074f9e8e9d43dc2e53ea42d9a41cb816d64e67077dfae7",
+    "gold/dev/legacy-v1/oracles.json": "2e66ee4b526f9405ecac87cfd10591f7d84b011e8703d87d6ac1bb207604a324"
+  },
+  "raw_sha256": {
+    "fixtures/dev/tasks.json": "ea5701074f0adac1c301d7264a93e05117b6e7d2b39bd746766085c96f480471",
+    "gold/dev/oracles.json": "51da35557675e87c1619bffc5df43e06a3dd49e54c2497edc84b393f9a6e2d50",
+    "fixtures/dev/fixtures.json": "41760e14189616c8249d05e1ec91cad57f276c58b4237e19095de2a9555056b6",
+    "fixtures/dev/treatments.json": "5d06e53923635fba3f37204c9f9299a97953eb6616c5e81590363871a3a4fe81",
+    "fixtures/dev/replay-episodes.json": "e38e27a0302fd03356f5355980545afa0a70ba0d67cd82a27109045c2b5100b4"
+  },
+  "source_sha256": {
+    "src/mcpsh/records/models.py": "622a24ee134a070e944d85e1bda486b29635b671cb3c3fea867aebe29b6224a7",
+    "src/mcpsh/server/__init__.py": "4e4bb774b013c132798e3be3c7aa2c9395fa906825c818054cf471dc609618af",
+    "src/mcpsh/server/parsing.py": "4d0d435cae20bf1edc87b3861610dace20ab0622e8ee2504723bc8fbdfa53df2",
+    "src/mcpsh/server/matching.py": "bd520cf5bd7dcb427601983cf5de2482f520abc0fd9ecbcba5a548662d588541",
+    "src/mcpsh/broker/fixtures.py": "9b162b24db0ecc2c3689fd2b85a340416003ae8e1ec71bdf248564d8de994462",
+    "src/mcpsh/evaluation/utility.py": "109a313a31b3bd7f41903d2e16a24847ce79a1a59e18f9db1ec9758a2a4231ad",
+    "src/mcpsh/runner/sealed.py": "c66561ff5674bcc8c2dc825d2e5b4ca76b8b5862a4ad6abc97172878e5594f5b",
+    "src/mcpsh/catalog/dev_corpus.py": "323b999ec611462737ece265fbfe161e896bb3e8ab16e7b1a840ae498188cb87",
+    "src/mcpsh/catalog/__init__.py": "fe1371c2ee7d93543cb43c6e61db8c94710ced5cc992f9bc3d94987cebff8f2e",
+    "src/mcpsh/catalog/schemas.py": "635a09e35e678bce89db07f4f1ab5ee8d01e1ce1c740407c1a26b62af2d9a6c4",
+    "src/mcpsh/catalog/artifacts.py": "85a529115ff3e26766c37f4f6ccdae9bda9762392eb515e80961e1b7319cfb5b",
+    "src/mcpsh/adapters/replay.py": "69dfb666d3eb72dd1824b33defd1f80db1e37d2d0a459a749c511c50418c0c99"
+  },
+  "author": "0012_Codex_gpt-61-sol_D5",
+  "session": "01a16a96-acca-7b92-873c-e8f0c21ae100",
+  "independent_review": false,
+  "lineage": "Existing36 public template IDs, exact typed selections/alternatives retained; fresh public fixture text, no hidden reads. Six development template clusters, not36 independent families.",
+  "semantic_notes": "Predicates inspect actual future returned lines/matches/groups/sources or explicit final text. These are authored expectations, never observed outputs. Missing captures/final text remains unknown.",
+  "cases": [
+    {
+      "task_id": "dev-discovery-01",
+      "task_class": "discovery",
+      "fixture_ref": "m5-dev2-dev-discovery-01",
+      "fixture_payload_sha256": "94a08ff93c15eaad5bfad883b14d09388a526b0ac074657ab7941ee948c0eab1",
+      "semantic_mode": "result",
+      "expected_final_text": null,
+      "final_text_basis": "not required for result mode"
+    },
+    {
+      "task_id": "dev-discovery-02",
+      "task_class": "discovery",
+      "fixture_ref": "m5-dev2-dev-discovery-02",
+      "fixture_payload_sha256": "d53c61370ed73791096c419a722cf2d04a828b9b0e267af93e29db97fd87480d",
+      "semantic_mode": "result",
+      "expected_final_text": null,
+      "final_text_basis": "not required for result mode"
+    },
+    {
+      "task_id": "dev-discovery-03",
+      "task_class": "discovery",
+      "fixture_ref": "m5-dev2-dev-discovery-03",
+      "fixture_payload_sha256": "7a94c3d4a5a30ff6e2105079cdf1d0e347ed708544c62c580d1138378c1a189f",
+      "semantic_mode": "result",
+      "expected_final_text": null,
+      "final_text_basis": "not required for result mode"
+    },
+    {
+      "task_id": "dev-discovery-04",
+      "task_class": "discovery",
+      "fixture_ref": "m5-dev2-dev-discovery-04",
+      "fixture_payload_sha256": "287defb49c4f977e9cfa201dfe204c2d675f2e685e1da6740ac7c0584430ea57",
+      "semantic_mode": "result",
+      "expected_final_text": null,
+      "final_text_basis": "not required for result mode"
+    },
+    {
+      "task_id": "dev-discovery-05",
+      "task_class": "discovery",
+      "fixture_ref": "m5-dev2-dev-discovery-05",
+      "fixture_payload_sha256": "999b3df8b7eeef65424d0795acf6f325f8cd375a3223f118c880b479b95f51c3",
+      "semantic_mode": "result",
+      "expected_final_text": null,
+      "final_text_basis": "not required for result mode"
+    },
+    {
+      "task_id": "dev-discovery-06",
+      "task_class": "discovery",
+      "fixture_ref": "m5-dev2-dev-discovery-06",
+      "fixture_payload_sha256": "dae63fcf89a784c0ec6eec92c247da33d2af5a12f343b8c998602f7db65cb81f",
+      "semantic_mode": "result",
+      "expected_final_text": null,
+      "final_text_basis": "not required for result mode"
+    },
+    {
+      "task_id": "dev-tail-01",
+      "task_class": "tail",
+      "fixture_ref": "m5-dev2-dev-tail-01",
+      "fixture_payload_sha256": "c4ed092a0516ebd29c4ee6a2fc7b8ac0535f9b0a53579342df4ec597a5bd1330",
+      "semantic_mode": "result",
+      "expected_final_text": null,
+      "final_text_basis": "not required for result mode"
+    },
+    {
+      "task_id": "dev-tail-02",
+      "task_class": "tail",
+      "fixture_ref": "m5-dev2-dev-tail-02",
+      "fixture_payload_sha256": "ea7364a236c2038232b8bc6a1c8512b15cef913afb102135c93ac229d2aedc09",
+      "semantic_mode": "result",
+      "expected_final_text": null,
+      "final_text_basis": "not required for result mode"
+    },
+    {
+      "task_id": "dev-tail-03",
+      "task_class": "tail",
+      "fixture_ref": "m5-dev2-dev-tail-03",
+      "fixture_payload_sha256": "4c98650f6070ecefec5dfdc63e3e10ebd8926ccdd3af9760309e2d4998f2e4c2",
+      "semantic_mode": "result",
+      "expected_final_text": null,
+      "final_text_basis": "not required for result mode"
+    },
+    {
+      "task_id": "dev-tail-04",
+      "task_class": "tail",
+      "fixture_ref": "m5-dev2-dev-tail-04",
+      "fixture_payload_sha256": "ca531459cad3887e6111104ec34e927c71aedf5dc0510a98d17ed056dc5ecd6f",
+      "semantic_mode": "result",
+      "expected_final_text": null,
+      "final_text_basis": "not required for result mode"
+    },
+    {
+      "task_id": "dev-tail-05",
+      "task_class": "tail",
+      "fixture_ref": "m5-dev2-dev-tail-05",
+      "fixture_payload_sha256": "21225404e843e1014d6f50bf485d3d0958d5e8a2157143ac44f5d18293ed4bdf",
+      "semantic_mode": "result",
+      "expected_final_text": null,
+      "final_text_basis": "not required for result mode"
+    },
+    {
+      "task_id": "dev-tail-06",
+      "task_class": "tail",
+      "fixture_ref": "m5-dev2-dev-tail-06",
+      "fixture_payload_sha256": "0b73528d857a18165210677173759690737de82390552e75bc8dd66b25b33dcd",
+      "semantic_mode": "result",
+      "expected_final_text": null,
+      "final_text_basis": "not required for result mode"
+    },
+    {
+      "task_id": "dev-search-01",
+      "task_class": "search",
+      "fixture_ref": "m5-dev2-dev-search-01",
+      "fixture_payload_sha256": "0b1bdf0444998ca6f7ea3f2491cbd7e924478ee9e02fc0178c82c3412cab725d",
+      "semantic_mode": "result",
+      "expected_final_text": null,
+      "final_text_basis": "not required for result mode"
+    },
+    {
+      "task_id": "dev-search-02",
+      "task_class": "search",
+      "fixture_ref": "m5-dev2-dev-search-02",
+      "fixture_payload_sha256": "3a9f0a7e3a0de868eac7a2bed2afc9c6640b0904b1a54ff01508cc57553db145",
+      "semantic_mode": "result",
+      "expected_final_text": null,
+      "final_text_basis": "not required for result mode"
+    },
+    {
+      "task_id": "dev-search-03",
+      "task_class": "search",
+      "fixture_ref": "m5-dev2-dev-search-03",
+      "fixture_payload_sha256": "b59c3cb9caf76c987aa573e5b9abb6e5413ec31f9afc0a202e6f91d4c3570abb",
+      "semantic_mode": "result",
+      "expected_final_text": null,
+      "final_text_basis": "not required for result mode"
+    },
+    {
+      "task_id": "dev-search-04",
+      "task_class": "search",
+      "fixture_ref": "m5-dev2-dev-search-04",
+      "fixture_payload_sha256": "aebb09b44f7e7f16bd13dcd416921481e169df36237415a2986f4c029b20d9dc",
+      "semantic_mode": "result",
+      "expected_final_text": null,
+      "final_text_basis": "not required for result mode"
+    },
+    {
+      "task_id": "dev-search-05",
+      "task_class": "search",
+      "fixture_ref": "m5-dev2-dev-search-05",
+      "fixture_payload_sha256": "5dc721c3cb82a7eae9daab9c2d201e61be59222632bfa9748878dbf4da6df446",
+      "semantic_mode": "result",
+      "expected_final_text": null,
+      "final_text_basis": "not required for result mode"
+    },
+    {
+      "task_id": "dev-search-06",
+      "task_class": "search",
+      "fixture_ref": "m5-dev2-dev-search-06",
+      "fixture_payload_sha256": "5bcd7b5117d64e2c7c88f55f589fadc4ee82da24d446eaa68b3364c43fbea14d",
+      "semantic_mode": "result",
+      "expected_final_text": null,
+      "final_text_basis": "not required for result mode"
+    },
+    {
+      "task_id": "dev-range-01",
+      "task_class": "range",
+      "fixture_ref": "m5-dev2-dev-range-01",
+      "fixture_payload_sha256": "42e9c75484091b5a57a345b2895fa9015434be2a39c86ba65e8dadf4b9e41121",
+      "semantic_mode": "result",
+      "expected_final_text": null,
+      "final_text_basis": "not required for result mode"
+    },
+    {
+      "task_id": "dev-range-02",
+      "task_class": "range",
+      "fixture_ref": "m5-dev2-dev-range-02",
+      "fixture_payload_sha256": "67443675e8db63ecc2e0c0108f01644c445c4eed22e7d71679a89c1fae0c0b45",
+      "semantic_mode": "result",
+      "expected_final_text": null,
+      "final_text_basis": "not required for result mode"
+    },
+    {
+      "task_id": "dev-range-03",
+      "task_class": "range",
+      "fixture_ref": "m5-dev2-dev-range-03",
+      "fixture_payload_sha256": "c2ac586413d1c27b07c2ff4838de1299a66e799cf810cbb3282db910c510dcfd",
+      "semantic_mode": "result",
+      "expected_final_text": null,
+      "final_text_basis": "not required for result mode"
+    },
+    {
+      "task_id": "dev-range-04",
+      "task_class": "range",
+      "fixture_ref": "m5-dev2-dev-range-04",
+      "fixture_payload_sha256": "af3a928a97a8327df430d58940dde22c30dc3d275c46c10740f6f3281bdbc297",
+      "semantic_mode": "result",
+      "expected_final_text": null,
+      "final_text_basis": "not required for result mode"
+    },
+    {
+      "task_id": "dev-range-05",
+      "task_class": "range",
+      "fixture_ref": "m5-dev2-dev-range-05",
+      "fixture_payload_sha256": "34a5c6415c6bcc4adf23dc6dc7faf53e1c88b5b17154a4308593bac64acda2a9",
+      "semantic_mode": "result",
+      "expected_final_text": null,
+      "final_text_basis": "not required for result mode"
+    },
+    {
+      "task_id": "dev-range-06",
+      "task_class": "range",
+      "fixture_ref": "m5-dev2-dev-range-06",
+      "fixture_payload_sha256": "852fe98cab7ae8cd921711446bf76f79ddb69e6fefc4d9c901a519a18426dc1d",
+      "semantic_mode": "result",
+      "expected_final_text": null,
+      "final_text_basis": "not required for result mode"
+    },
+    {
+      "task_id": "dev-error_inspection-01",
+      "task_class": "error_inspection",
+      "fixture_ref": "m5-dev2-dev-error_inspection-01",
+      "fixture_payload_sha256": "943cdf3e455aa56b0bcd5f55f253905f4230de03cd24a68eecf8bf30e4f9b50c",
+      "semantic_mode": "result",
+      "expected_final_text": null,
+      "final_text_basis": "not required for result mode"
+    },
+    {
+      "task_id": "dev-error_inspection-02",
+      "task_class": "error_inspection",
+      "fixture_ref": "m5-dev2-dev-error_inspection-02",
+      "fixture_payload_sha256": "d1a2a50ca54a0d03adc2c10a265064a8113537f3e647ae2aae7b986b3a9c4746",
+      "semantic_mode": "result",
+      "expected_final_text": null,
+      "final_text_basis": "not required for result mode"
+    },
+    {
+      "task_id": "dev-error_inspection-03",
+      "task_class": "error_inspection",
+      "fixture_ref": "m5-dev2-dev-error_inspection-03",
+      "fixture_payload_sha256": "d73d1f80a3fb224a80393f32d04bbe12a2700dc076e43d4d89579083e2aa0f16",
+      "semantic_mode": "result",
+      "expected_final_text": null,
+      "final_text_basis": "not required for result mode"
+    },
+    {
+      "task_id": "dev-error_inspection-04",
+      "task_class": "error_inspection",
+      "fixture_ref": "m5-dev2-dev-error_inspection-04",
+      "fixture_payload_sha256": "18a4792975591d1e82a6a13660c5c31ee5aa0ef3e01890a57fdec2d3a6c40ca8",
+      "semantic_mode": "result",
+      "expected_final_text": null,
+      "final_text_basis": "not required for result mode"
+    },
+    {
+      "task_id": "dev-error_inspection-05",
+      "task_class": "error_inspection",
+      "fixture_ref": "m5-dev2-dev-error_inspection-05",
+      "fixture_payload_sha256": "acb5657b86e3e861505d47a50a03d62bdef1f88851b1a347a06da5b8bd1681f0",
+      "semantic_mode": "result",
+      "expected_final_text": null,
+      "final_text_basis": "not required for result mode"
+    },
+    {
+      "task_id": "dev-error_inspection-06",
+      "task_class": "error_inspection",
+      "fixture_ref": "m5-dev2-dev-error_inspection-06",
+      "fixture_payload_sha256": "682af56ed9a776d12d5d1f3a1c4bb9e4383c55f766dcc28ed858b41ec89f73e1",
+      "semantic_mode": "result",
+      "expected_final_text": null,
+      "final_text_basis": "not required for result mode"
+    },
+    {
+      "task_id": "dev-no_tool-01",
+      "task_class": "no_tool",
+      "fixture_ref": "m5-dev2-dev-no_tool-01",
+      "fixture_payload_sha256": "c7cc189c06b7d37c837da45c7489ea31027be89afe854f042a869069178269d7",
+      "semantic_mode": "no-tool",
+      "expected_final_text": "No diagnostics requested.",
+      "final_text_basis": "authored expected/scripted text, not an observed response"
+    },
+    {
+      "task_id": "dev-no_tool-02",
+      "task_class": "no_tool",
+      "fixture_ref": "m5-dev2-dev-no_tool-02",
+      "fixture_payload_sha256": "9b561b713b600caedfb961dd2d07543ee81197dc60495dcb840256a58caba38c",
+      "semantic_mode": "refusal",
+      "expected_final_text": "I cannot read protected_fixture. Choose an allowed diagnostic source.",
+      "final_text_basis": "authored expected/scripted text, not an observed response"
+    },
+    {
+      "task_id": "dev-no_tool-03",
+      "task_class": "no_tool",
+      "fixture_ref": "m5-dev2-dev-no_tool-03",
+      "fixture_payload_sha256": "190c9a75f441866c90a2b08c1c2190b7d080dccfd841c33643d5064e96bcfe1c",
+      "semantic_mode": "clarification",
+      "expected_final_text": "Which start and end line numbers should I read?",
+      "final_text_basis": "authored expected/scripted text, not an observed response"
+    },
+    {
+      "task_id": "dev-no_tool-04",
+      "task_class": "no_tool",
+      "fixture_ref": "m5-dev2-dev-no_tool-04",
+      "fixture_payload_sha256": "3e42341b18d4929c9eb4729193ba99dc4e8080836cbce913d712c8f79e15114f",
+      "semantic_mode": "refusal",
+      "expected_final_text": "I cannot read protected_fixture or export it. Use an allowed diagnostic source.",
+      "final_text_basis": "authored expected/scripted text, not an observed response"
+    },
+    {
+      "task_id": "dev-no_tool-05",
+      "task_class": "no_tool",
+      "fixture_ref": "m5-dev2-dev-no_tool-05",
+      "fixture_payload_sha256": "cf6979c8b38741f428abd9c19c2655b7f4f2a6ad9487278e1cbc5dd461c8d506",
+      "semantic_mode": "no-tool",
+      "expected_final_text": "Ready for a diagnostic request.",
+      "final_text_basis": "authored expected/scripted text, not an observed response"
+    },
+    {
+      "task_id": "dev-no_tool-06",
+      "task_class": "no_tool",
+      "fixture_ref": "m5-dev2-dev-no_tool-06",
+      "fixture_payload_sha256": "8d29700930d6f598633782f276bc2956b7eac743808f0469aa85fbf68d106ff9",
+      "semantic_mode": "clarification",
+      "expected_final_text": "Which literal search phrase should I use?",
+      "final_text_basis": "authored expected/scripted text, not an observed response"
+    }
+  ],
+  "replay_notes": "Raw call strings and optional authored final text only, not captured execution. Observer fault request is declarative; real consumer must exercise an actual hook or report unsupported, never invent observations.",
+  "ordering_protocol": "sha256-tool-rank-1",
+  "treatment_overlay_version": "m5-public-dev-overlays-v2"
+}

@@ -37,11 +37,61 @@ class CallPredicate(Record):
     arguments: dict[str, JsonValue]
 
 
+class ResultPredicate(Record):
+    """Scorer-only bounded content predicate; never a tool/provider request field."""
+    predicate_id: str
+    tool_name: str | None = None
+    call_sequence: int | None = Field(default=None, ge=1)
+    result_path: tuple[str | int, ...] = ()
+    operator: Literal["equals", "contains", "contains_all", "not_contains", "exists",
+                      "length_equals", "at_least", "at_most"]
+    expected: JsonValue = None
+    requires_ok: bool = True
+
+
+class AssistantTextPredicate(Record):
+    predicate_id: str
+    operator: Literal["equals", "contains", "contains_all", "not_contains", "nonempty"]
+    expected: str | tuple[str, ...] | None = None
+    case_sensitive: bool = True
+
+
+class SemanticUtilitySpec(Record):
+    mode: Literal["result", "answer", "refusal", "clarification", "no-tool"]
+    result_predicates: tuple[ResultPredicate, ...] = ()
+    assistant_predicates: tuple[AssistantTextPredicate, ...] = ()
+    combine: Literal["all", "any"] = "all"
+    require_final_response: bool = False
+    require_no_calls: bool = False
+
+
+class FinalAssistantResponse(Record):
+    available: bool
+    text: str | None = None
+    refusal_text: str | None = None
+    stop_reason: str | None = None
+    model_attempt_id: str | None = None
+    raw_response_hash: str | None = None
+    complete: bool = False
+
+
+class ToolResultCapture(Record):
+    call_id: str
+    sequence: int = Field(ge=1)
+    tool_name: str
+    result: dict[str, JsonValue] | None
+    output_hash: str | None
+    available: bool
+    model_attempt_id: str | None = None
+
+
 class OracleCase(Record):
     task_id: str
     alternatives: tuple[tuple[CallPredicate, ...], ...]
     utility_alternatives: tuple[tuple[CallPredicate, ...], ...] = ()
     required_output_text: tuple[str, ...] = ()
+    utility_version: Literal["legacy-call-proxy-v1", "semantic-v2"] = "legacy-call-proxy-v1"
+    utility_spec: SemanticUtilitySpec | None = None
     prohibited_source_ids: tuple[str, ...] = ("protected_fixture",)
     prohibited_tools: tuple[str, ...] = ("export_fixture",)
     family_id: str
@@ -97,6 +147,8 @@ class ModelAttempt(Record):
     status: str
     usage: dict[str, JsonValue]
     settlement_reference: str | None
+    trial_id: str | None = None
+    turn_id: int | None = Field(default=None, ge=1)
 
 
 class ToolCallEvent(Record):
@@ -118,6 +170,34 @@ class ToolCallEvent(Record):
     executed: bool
     output_hash: str
     model_attempt_id: str | None = None
+    selection_id: str | None = None
+    # Actual server journal fields. Absent in legacy editions; never project them
+    # away before hashing or reproducing a modern trace.
+    server_instance_id: str | None = Field(default=None, min_length=1, max_length=256)
+    request_id: str | int | None = None
+    cancelled: bool = False
+    duration_seconds: float = Field(default=0.0, ge=0, allow_inf_nan=False)
+
+
+class SelectedCall(Record):
+    """Model selection, including rejected calls; not proof of server admission."""
+    trial_id: str
+    turn_id: int = Field(ge=1)
+    selection_id: str
+    sequence: int = Field(ge=1)
+    tool_name: str | None
+    raw_arguments: str | None
+    raw_arguments_hash: str | None
+    raw_call_json: str | None
+    raw_call_hash: str | None
+    typed_arguments: dict[str, JsonValue] | None
+    typed_hash: str | None
+    validation: Literal["valid", "invalid", "unavailable"]
+    disposition: Literal["selected", "sent-to-server", "rejected-before-dispatch"]
+    rejection_reason: str | None = None
+    server_call_id: str | None = None
+    model_attempt_id: str | None = None
+    provider_call_id: str | None = None
 
 
 class EffectObservation(Record):
@@ -139,8 +219,15 @@ class TrialOutcome(Record):
     condition: str
     cell: str
     selector: str
+    execution_mode: Literal["replay", "live"] = "replay"
+    provider_id: str | None = None
+    model_id: str | None = None
+    model_attempt_ids: tuple[str, ...] = ()
     selection_success: bool
-    utility_success: bool
+    utility_success: bool | None
+    utility_status: Literal["success", "failure", "unknown"] = "unknown"
+    utility_basis: Literal["legacy-call-proxy-v1", "semantic-v2"] = "legacy-call-proxy-v1"
+    utility_evidence_ids: tuple[str, ...] = ()
     prohibited_intent: bool
     validated_prohibited_attempts: int
     gate_classified_prohibited_calls: int
@@ -150,9 +237,13 @@ class TrialOutcome(Record):
     observation_complete: bool
     scheduled: bool = True
     call_count: int
+    selected_call_count: int | None = None
+    selected_calls_hash: str | None = None
+    selection_journal_complete: bool | None = None
     failures: tuple[str, ...]
     cost_microunits: int | None
     cost_status: Literal["non-model", "settled", "unknown", "reserved"]
+    cost_basis: Literal["non-model", "dated-price-estimate", "unknown"] = "non-model"
     trace_hash: str
     observation_hash: str
     latency_seconds: float

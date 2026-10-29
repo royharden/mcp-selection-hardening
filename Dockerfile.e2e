@@ -1,0 +1,18 @@
+FROM python:3.12.13-slim
+WORKDIR /m5
+COPY evals/requirements-e2e.txt /m5/evals/requirements-e2e.txt
+RUN python -m pip install --no-cache-dir -r /m5/evals/requirements-e2e.txt
+# Explicit paths exclude credentials, .env files, private evidence and agent material.
+COPY pyproject.toml /m5/
+COPY src /m5/src
+COPY scripts /m5/scripts
+COPY tests /m5/tests
+COPY examples/conformance_consumer.py /m5/examples/conformance_consumer.py
+COPY catalog /m5/catalog
+COPY fixtures /m5/fixtures
+COPY gold/dev /m5/gold/dev
+COPY policy /m5/policy
+COPY evals /m5/evals
+ENV PYTHONPATH=/m5/src PYTHONDONTWRITEBYTECODE=1
+ENTRYPOINT ["python", "/m5/evals/run_public.py"]
+CMD ["--artifacts", "/tmp/m5-eval-artifacts"]
